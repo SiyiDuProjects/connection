@@ -1,51 +1,87 @@
-const input = document.getElementById("apiBaseUrl");
+const apiInput = document.getElementById("apiBaseUrl");
 const webInput = document.getElementById("webBaseUrl");
-const tokenInput = document.getElementById("apiToken");
-const status = document.getElementById("status");
+const stateEl = document.getElementById("connectionState");
+const detailsEl = document.getElementById("accountDetails");
+const statusEl = document.getElementById("status");
+
 const DEFAULT_API_BASE_URL = "https://contacts.gaid.studio";
-const DEFAULT_WEB_BASE_URL = "http://localhost:3000";
+const DEFAULT_WEB_BASE_URL = "https://contacts.gaid.studio";
 
-chrome.storage.sync.get(["apiBaseUrl", "webBaseUrl", "extensionApiToken"]).then((stored) => {
-  input.value = stored.apiBaseUrl || DEFAULT_API_BASE_URL;
+boot();
+
+async function boot() {
+  const stored = await chrome.storage.sync.get(["apiBaseUrl", "webBaseUrl", "extensionApiToken"]);
+  apiInput.value = stored.apiBaseUrl || DEFAULT_API_BASE_URL;
   webInput.value = stored.webBaseUrl || DEFAULT_WEB_BASE_URL;
-  tokenInput.value = stored.extensionApiToken || "";
-});
-
-document.getElementById("save").addEventListener("click", async () => {
-  const apiBaseUrl = cleanUrl(input.value) || DEFAULT_API_BASE_URL;
-  const webBaseUrl = cleanUrl(webInput.value) || DEFAULT_WEB_BASE_URL;
-  const extensionApiToken = tokenInput.value.trim();
-
-  try {
-    const origin = new URL(apiBaseUrl).origin;
-    const granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
-    if (!granted) {
-      status.textContent = "Permission was not granted for this server URL.";
-      return;
-    }
-
-    await chrome.storage.sync.set({ apiBaseUrl, webBaseUrl, extensionApiToken });
-    status.textContent = "Saved.";
-  } catch (_error) {
-    status.textContent = "Enter valid URLs.";
-  }
-
-  setTimeout(() => {
-    status.textContent = "";
-  }, 1800);
-});
+  await renderStatus();
+}
 
 document.getElementById("connect").addEventListener("click", async () => {
-  const webBaseUrl = cleanUrl(webInput.value) || DEFAULT_WEB_BASE_URL;
-  await chrome.tabs.create({ url: `${webBaseUrl}/dashboard/extension` });
+  const urls = await saveUrls();
+  if (!urls) return;
+
+  const extensionId = chrome.runtime.id;
+  const connectUrl = new URL(`${urls.webBaseUrl}/connect-extension`);
+  connectUrl.searchParams.set("extensionId", extensionId);
+  connectUrl.searchParams.set("return", chrome.runtime.getURL("options.html"));
+  await chrome.tabs.create({ url: connectUrl.toString() });
 });
+
+document.getElementById("pricing").addEventListener("click", async () => {
+  const urls = await saveUrls();
+  if (!urls) return;
+  await chrome.tabs.create({ url: `${urls.webBaseUrl}/pricing` });
+});
+
+document.getElementById("refresh").addEventListener("click", renderStatus);
 
 document.getElementById("clearToken").addEventListener("click", async () => {
-  tokenInput.value = "";
-  await chrome.storage.sync.remove(["extensionApiToken"]);
-  status.textContent = "Signed out.";
+  await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
+  statusEl.textContent = "Disconnected locally. Revoke the website connection from Dashboard > Extension if needed.";
+  await renderStatus();
 });
 
+async function saveUrls() {
+  const apiBaseUrl = cleanUrl(apiInput.value) || DEFAULT_API_BASE_URL;
+  const webBaseUrl = cleanUrl(webInput.value) || DEFAULT_WEB_BASE_URL;
+
+  try {
+    const apiOrigin = new URL(apiBaseUrl).origin;
+    const webOrigin = new URL(webBaseUrl).origin;
+    const granted = await chrome.permissions.request({
+      origins: [`${apiOrigin}/*`, `${webOrigin}/*`]
+    });
+    if (!granted) {
+      statusEl.textContent = "Permission was not granted for the website or API URL.";
+      return null;
+    }
+
+    await chrome.storage.sync.set({ apiBaseUrl, webBaseUrl });
+    return { apiBaseUrl, webBaseUrl };
+  } catch (_error) {
+    statusEl.textContent = "Enter valid website and API URLs.";
+    return null;
+  }
+}
+
+async function renderStatus() {
+  stateEl.textContent = "Checking...";
+  detailsEl.textContent = "Reading the current extension connection.";
+
+  const response = await chrome.runtime.sendMessage({ type: "GET_ACCOUNT_STATUS" });
+  if (!response?.ok) {
+    stateEl.textContent = "Not connected";
+    detailsEl.textContent = response?.error || "Sign in on the website to connect this extension.";
+    return;
+  }
+
+  const plan = response.account?.subscription?.planName || "Free";
+  const credits = response.account?.credits?.balance ?? 0;
+  const email = response.account?.user?.email || "Connected account";
+  stateEl.textContent = "Connected";
+  detailsEl.textContent = `${email} · ${plan} · ${credits} credits remaining`;
+}
+
 function cleanUrl(value) {
-  return value.trim().replace(/\/+$/, "");
+  return String(value || "").trim().replace(/\/+$/, "");
 }

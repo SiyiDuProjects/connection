@@ -8,6 +8,7 @@
   let state = {
     loading: false,
     error: "",
+    action: null,
     contacts: [],
     job: null,
     revealed: new Map(),
@@ -254,11 +255,22 @@
     panel.querySelectorAll("[data-draft]").forEach((button) => {
       button.addEventListener("click", () => draftEmail(button.dataset.draft));
     });
+
+    panel.querySelectorAll("[data-action-url]").forEach((button) => {
+      button.addEventListener("click", () => {
+        window.open(button.dataset.actionUrl, "_blank", "noopener,noreferrer");
+      });
+    });
   }
 
   function renderBody() {
     if (state.loading) return `<div class="fc-status">Finding relevant company contacts...</div>`;
-    if (state.error) return `<div class="fc-status fc-error">${escapeHtml(state.error)}</div>`;
+    if (state.error) {
+      return `
+        <div class="fc-status fc-error">${escapeHtml(state.error)}</div>
+        ${state.action?.url ? `<button class="fc-secondary" type="button" data-action-url="${escapeAttr(state.action.url)}">${escapeHtml(state.action.label || "Open website")}</button>` : ""}
+      `;
+    }
     if (!state.contacts.length) return `<div class="fc-status">No contacts found yet.</div>`;
 
     return `
@@ -297,6 +309,7 @@
     panel.classList.add("fc-open");
     state.loading = true;
     state.error = "";
+    state.action = null;
     renderPanel();
 
     try {
@@ -304,10 +317,10 @@
         type: "CONTACTS_SEARCH",
         payload: state.job
       });
-      if (!response?.ok) throw new Error(response?.error || "Could not find contacts.");
+      if (!response?.ok) throw apiError(response, "Could not find contacts.");
       state.contacts = response.contacts || [];
     } catch (error) {
-      state.error = error.message || "Could not find contacts.";
+      applyError(error, "Could not find contacts.");
     } finally {
       state.loading = false;
       renderPanel();
@@ -321,6 +334,7 @@
 
     state.revealing.add(contactId);
     state.error = "";
+    state.action = null;
     renderPanel();
 
     try {
@@ -328,11 +342,11 @@
         type: "CONTACTS_REVEAL",
         payload: { contact, job: state.job }
       });
-      if (!response?.ok) throw new Error(response?.error || "Could not reveal email.");
+      if (!response?.ok) throw apiError(response, "Could not reveal email.");
       state.revealed.set(contactId, response.email);
       renderPanel();
     } catch (error) {
-      state.error = error.message || "Could not reveal email.";
+      applyError(error, "Could not reveal email.");
       renderPanel();
     } finally {
       state.revealing.delete(contactId);
@@ -347,6 +361,7 @@
     const email = state.revealed.get(contactId) || contact.email;
     if (!email) {
       state.error = "Reveal this contact's email before drafting.";
+      state.action = null;
       renderPanel();
       return;
     }
@@ -356,12 +371,23 @@
         type: "EMAIL_DRAFT",
         payload: { contact: { ...contact, email }, job: state.job }
       });
-      if (!response?.ok) throw new Error(response?.error || "Could not draft email.");
+      if (!response?.ok) throw apiError(response, "Could not draft email.");
       window.open(response.gmailUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
-      state.error = error.message || "Could not draft email.";
+      applyError(error, "Could not draft email.");
       renderPanel();
     }
+  }
+
+  function apiError(response, fallback) {
+    const error = new Error(response?.error || fallback);
+    error.action = response?.action || null;
+    return error;
+  }
+
+  function applyError(error, fallback) {
+    state.error = error.message || fallback;
+    state.action = error.action || null;
   }
 
   function findContact(contactId) {

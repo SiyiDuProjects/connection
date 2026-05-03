@@ -43,6 +43,42 @@ export async function getUserFromApiToken(token) {
   return rows[0];
 }
 
+export async function getAccountSummary(userId) {
+  ensureConfigured();
+
+  const rows = await sql`
+    select
+      users.id,
+      users.email,
+      teams.plan_name,
+      teams.subscription_status,
+      extension_api_tokens.id as extension_token_id,
+      extension_api_tokens.last_used_at
+    from users
+    left join team_members on team_members.user_id = users.id
+    left join teams on teams.id = team_members.team_id
+    left join extension_api_tokens on extension_api_tokens.user_id = users.id
+      and extension_api_tokens.revoked_at is null
+    where users.id = ${userId}
+      and users.deleted_at is null
+    order by extension_api_tokens.created_at desc
+    limit 1
+  `;
+
+  const account = rows[0] || {};
+  return {
+    user: { id: account.id, email: account.email },
+    subscription: {
+      planName: account.plan_name || "Free",
+      status: account.subscription_status || "inactive"
+    },
+    extension: {
+      connected: Boolean(account.extension_token_id),
+      lastUsedAt: account.last_used_at || null
+    }
+  };
+}
+
 export async function getUserSettings(userId) {
   ensureConfigured();
 

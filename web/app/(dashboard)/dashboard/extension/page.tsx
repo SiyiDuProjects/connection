@@ -1,56 +1,66 @@
 'use client';
 
-import { useState } from 'react';
 import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export default function ExtensionPage() {
-  const { data, mutate } = useSWR<{ hasToken: boolean }>('/api/extension-token', fetcher);
-  const [token, setToken] = useState('');
-  const [status, setStatus] = useState('');
+type ExtensionData = {
+  hasToken: boolean;
+  token?: {
+    name: string;
+    lastUsedAt: string | null;
+    createdAt: string;
+  } | null;
+};
 
-  async function createToken() {
-    const response = await fetch('/api/extension-token', { method: 'POST' });
-    const payload = await response.json();
-    setToken(payload.token || '');
-    setStatus(payload.token ? 'Token created. Paste it into the extension options page now.' : payload.error || 'Could not create token.');
-    await mutate();
-  }
+export default function ExtensionPage() {
+  const { data, mutate } = useSWR<ExtensionData>('/api/extension-token', fetcher);
 
   async function revokeToken() {
     await fetch('/api/extension-token', { method: 'DELETE' });
-    setToken('');
-    setStatus('Token revoked.');
     await mutate();
   }
 
   return (
     <section className="flex-1 p-4 lg:p-8">
-      <h1 className="text-lg lg:text-2xl font-medium mb-6">Extension</h1>
+      <h1 className="mb-6 text-lg font-medium lg:text-2xl">Extension</h1>
       <Card>
         <CardHeader>
-          <CardTitle>Chrome extension token</CardTitle>
+          <CardTitle>Connection status</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Generate a token for the Chrome extension. It is shown once and can be revoked here.
-          </p>
-          <p className="text-sm">Status: {data?.hasToken ? 'Connected' : 'No active token'}</p>
-          <div className="flex gap-2">
-            <Button type="button" onClick={createToken}>Generate token</Button>
-            <Button type="button" variant="outline" onClick={revokeToken}>Revoke token</Button>
+        <CardContent className="space-y-5">
+          <div className="grid gap-4 text-sm sm:grid-cols-3">
+            <StatusItem label="Status" value={data?.hasToken ? 'Connected' : 'Not connected'} />
+            <StatusItem label="Created" value={formatDate(data?.token?.createdAt)} />
+            <StatusItem label="Last used" value={formatDate(data?.token?.lastUsedAt)} />
           </div>
-          {token ? (
-            <pre className="rounded-md bg-gray-950 text-gray-50 p-4 whitespace-pre-wrap break-all text-sm">
-              {token}
-            </pre>
-          ) : null}
-          <p className="text-sm text-muted-foreground">{status}</p>
+          <p className="text-sm text-muted-foreground">
+            Connect from the Chrome extension options page. The website creates
+            a fresh token, revokes any older active token, and sends it directly
+            to the extension. Tokens are not displayed here.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={revokeToken}>
+              Disconnect extension
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </section>
   );
+}
+
+function StatusItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-gray-200 p-4">
+      <p className="text-xs uppercase tracking-[0.14em] text-gray-500">{label}</p>
+      <p className="mt-2 font-medium text-gray-950">{value}</p>
+    </div>
+  );
+}
+
+function formatDate(value?: string | null) {
+  return value ? new Date(value).toLocaleString() : '-';
 }

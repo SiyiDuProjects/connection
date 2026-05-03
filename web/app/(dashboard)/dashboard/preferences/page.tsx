@@ -28,10 +28,10 @@ export default function PreferencesPage() {
 
   return (
     <section className="flex-1 p-4 lg:p-8">
-      <h1 className="text-lg lg:text-2xl font-medium mb-6">Preferences</h1>
+      <h1 className="text-lg lg:text-2xl font-medium mb-6">Profile</h1>
       <Card>
         <CardHeader>
-          <CardTitle>Outreach defaults</CardTitle>
+          <CardTitle>Candidate and outreach defaults</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4 max-w-xl" onSubmit={submit}>
@@ -52,7 +52,7 @@ export default function PreferencesPage() {
               <Input id="seniority" name="seniority" defaultValue={settings?.defaultSearchPreferences?.seniority || ''} placeholder="Recruiter, Manager, Director" />
             </div>
             <div>
-              <Label htmlFor="senderProfile">Sender profile</Label>
+              <Label htmlFor="senderProfile">Personal background</Label>
               <Input id="senderProfile" name="senderProfile" defaultValue={settings?.senderProfile || ''} placeholder="I am a Berkeley student..." />
             </div>
             <Button type="submit">Save preferences</Button>

@@ -3,22 +3,36 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Find Contacts Options</title>
+    <title>Connection Extension</title>
     <link rel="stylesheet" href="options.css">
   </head>
   <body>
     <main>
-      <h1>Find Contacts Options</h1>
-      <label for="apiBaseUrl">Server API base URL</label>
-      <input id="apiBaseUrl" type="url" placeholder="https://contacts.gaid.studio">
-      <label for="webBaseUrl">Account website URL</label>
-      <input id="webBaseUrl" type="url" placeholder="http://localhost:3000">
-      <label for="apiToken">Extension API token</label>
-      <textarea id="apiToken" spellcheck="false" placeholder="Paste the token generated from Dashboard > Extension"></textarea>
+      <h1>Connection</h1>
+      <section class="status-card">
+        <div>
+          <p class="eyebrow">Account</p>
+          <h2 id="connectionState">Checking...</h2>
+        </div>
+        <p id="accountDetails">Connect your website account to use credits in LinkedIn jobs.</p>
+      </section>
+
+      <div class="grid">
+        <div>
+          <label for="webBaseUrl">Website URL</label>
+          <input id="webBaseUrl" type="url" placeholder="https://contacts.gaid.studio">
+        </div>
+        <div>
+          <label for="apiBaseUrl">API URL</label>
+          <input id="apiBaseUrl" type="url" placeholder="https://contacts.gaid.studio">
+        </div>
+      </div>
+
       <div class="actions">
-        <button id="save" type="button">Save</button>
-        <button id="connect" type="button" class="secondary">Open account</button>
-        <button id="clearToken" type="button" class="secondary">Sign out</button>
+        <button id="connect" type="button">Sign in on website</button>
+        <button id="pricing" type="button" class="secondary">Upgrade</button>
+        <button id="refresh" type="button" class="secondary">Refresh status</button>
+        <button id="clearToken" type="button" class="secondary">Disconnect</button>
       </div>
       <p id="status" role="status"></p>
     </main>

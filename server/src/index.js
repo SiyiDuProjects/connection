@@ -7,6 +7,7 @@ import { rankContacts } from "./lib/ranking.js";
 import { createDraft, createGmailUrl } from "./lib/email.js";
 import {
   getBearerToken,
+  getAccountSummary,
   getCreditBalance,
   getUserFromApiToken,
   getUserSettings,
@@ -51,6 +52,18 @@ app.get("/health", (_req, res) => {
       accountDbConfigured: isAccountDbConfigured()
     }
   });
+});
+
+app.get("/api/account", async (req, res, next) => {
+  try {
+    const [account, balance] = await Promise.all([
+      getAccountSummary(req.user.id),
+      getCreditBalance(req.user.id)
+    ]);
+    res.json({ ok: true, ...account, credits: { balance } });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("CONTACT_SEARCH_CREDITS", 1)), async (req, res, next) => {

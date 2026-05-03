@@ -10,6 +10,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 type AccountData = {
   credits: { balance: number };
   subscription: { planName: string; status: string };
+  extension: { connected: boolean; lastUsedAt: string | null };
   usage: {
     id: number;
     action: string;
@@ -45,15 +46,26 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Billing</CardTitle>
+            <CardTitle>Extension</CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={customerPortalAction}>
-              <Button type="submit" variant="outline">Manage subscription</Button>
-            </form>
+            <p className="text-2xl font-semibold">{data?.extension.connected ? 'Connected' : 'Not connected'}</p>
+            <p className="text-sm text-muted-foreground">
+              Last used: {data?.extension.lastUsedAt ? new Date(data.extension.lastUsedAt).toLocaleString() : '-'}
+            </p>
           </CardContent>
         </Card>
       </div>
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Billing</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form action={customerPortalAction}>
+            <Button type="submit" variant="outline">Manage subscription</Button>
+          </form>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>Recent usage</CardTitle>

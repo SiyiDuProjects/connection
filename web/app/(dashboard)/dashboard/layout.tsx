@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
-import { Activity, CreditCard, KeyRound, Menu, Settings, Shield } from 'lucide-react';
+import { Activity, CreditCard, KeyRound, Menu, Settings, Shield, ShieldCheck } from 'lucide-react';
 
 export default function DashboardLayout({
   children
@@ -13,13 +14,17 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { data: user } = useSWR<{ isAdmin?: boolean } | null>('/api/user', fetcher);
 
   const navItems = [
     { href: '/dashboard', icon: CreditCard, label: 'Overview' },
     { href: '/dashboard/preferences', icon: Settings, label: 'Preferences' },
     { href: '/dashboard/extension', icon: KeyRound, label: 'Extension' },
     { href: '/dashboard/activity', icon: Activity, label: 'Activity' },
-    { href: '/dashboard/security', icon: Shield, label: 'Security' }
+    { href: '/dashboard/security', icon: Shield, label: 'Security' },
+    ...(user?.isAdmin
+      ? [{ href: '/dashboard/admin', icon: ShieldCheck, label: 'Admin' }]
+      : [])
   ];
 
   return (
@@ -72,3 +77,5 @@ export default function DashboardLayout({
     </div>
   );
 }
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());

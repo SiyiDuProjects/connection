@@ -180,3 +180,24 @@ export async function hasActiveExtensionToken(userId: number) {
 
   return result.length > 0;
 }
+
+export async function getActiveExtensionTokenInfo(userId: number) {
+  const result = await db
+    .select({
+      id: extensionApiTokens.id,
+      name: extensionApiTokens.name,
+      lastUsedAt: extensionApiTokens.lastUsedAt,
+      createdAt: extensionApiTokens.createdAt
+    })
+    .from(extensionApiTokens)
+    .where(
+      and(
+        eq(extensionApiTokens.userId, userId),
+        isNull(extensionApiTokens.revokedAt)
+      )
+    )
+    .orderBy(desc(extensionApiTokens.createdAt))
+    .limit(1);
+
+  return result[0] || null;
+}

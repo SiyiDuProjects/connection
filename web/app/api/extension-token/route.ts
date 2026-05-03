@@ -1,8 +1,5 @@
-import { randomBytes, createHash } from 'crypto';
-import { and, eq, isNull } from 'drizzle-orm';
-import { db } from '@/lib/db/drizzle';
-import { extensionApiTokens } from '@/lib/db/schema';
-import { getUser, hasActiveExtensionToken } from '@/lib/db/queries';
+import { getActiveExtensionTokenInfo, getUser } from '@/lib/db/queries';
+import { createExtensionToken, revokeExtensionTokens } from '@/lib/extension-tokens';
 
 export async function GET() {
   const user = await getUser();
@@ -10,7 +7,8 @@ export async function GET() {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  return Response.json({ hasToken: await hasActiveExtensionToken(user.id) });
+  const token = await getActiveExtensionTokenInfo(user.id);
+  return Response.json({ hasToken: Boolean(token), token });
 }
 
 export async function POST() {
@@ -19,22 +17,7 @@ export async function POST() {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  await db
-    .update(extensionApiTokens)
-    .set({ revokedAt: new Date() })
-    .where(
-      and(
-        eq(extensionApiTokens.userId, user.id),
-        isNull(extensionApiTokens.revokedAt)
-      )
-    );
-
-  const token = `fc_${randomBytes(32).toString('base64url')}`;
-  await db.insert(extensionApiTokens).values({
-    userId: user.id,
-    tokenHash: hashToken(token)
-  });
-
+  const token = await createExtensionToken(user.id);
   return Response.json({ token });
 }
 
@@ -44,19 +27,7 @@ export async function DELETE() {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  await db
-    .update(extensionApiTokens)
-    .set({ revokedAt: new Date() })
-    .where(
-      and(
-        eq(extensionApiTokens.userId, user.id),
-        isNull(extensionApiTokens.revokedAt)
-      )
-    );
+  await revokeExtensionTokens(user.id);
 
   return Response.json({ ok: true });
-}
-
-function hashToken(token: string) {
-  return createHash('sha256').update(token).digest('hex');
 }

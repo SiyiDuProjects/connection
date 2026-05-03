@@ -1,17 +1,52 @@
 body {
-  color: #1f2328;
+  color: #111827;
   font-family: Arial, Helvetica, sans-serif;
   margin: 0;
 }
 
 main {
-  max-width: 560px;
+  max-width: 640px;
   padding: 28px;
 }
 
 h1 {
+  font-size: 24px;
+  margin: 0 0 18px;
+}
+
+h2 {
   font-size: 22px;
-  margin: 0 0 22px;
+  margin: 4px 0 0;
+}
+
+.status-card {
+  border: 1px solid #d1d5db;
+  margin-bottom: 18px;
+  padding: 18px;
+}
+
+.eyebrow {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+#accountDetails,
+#status {
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 12px 0 0;
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 14px;
 }
 
 label {
@@ -21,23 +56,15 @@ label {
   margin-bottom: 8px;
 }
 
-input,
-textarea {
-  border: 1px solid #d0d7de;
+input {
+  border: 1px solid #d1d5db;
   border-radius: 6px;
+  box-sizing: border-box;
   display: block;
-  font-size: 15px;
+  font-size: 14px;
   height: 40px;
-  margin-bottom: 12px;
   padding: 0 10px;
   width: 100%;
-}
-
-textarea {
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  height: 92px;
-  padding: 10px;
-  resize: vertical;
 }
 
 .actions {
@@ -47,7 +74,7 @@ textarea {
 }
 
 button {
-  background: #0a66c2;
+  background: #111827;
   border: 0;
   border-radius: 6px;
   color: #fff;
@@ -59,14 +86,18 @@ button {
 }
 
 button.secondary {
-  background: #f6f8fa;
-  border: 1px solid #d0d7de;
-  color: #24292f;
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  color: #111827;
 }
 
-#status {
-  color: #57606a;
-  font-size: 13px;
-  min-height: 18px;
+button:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
+@media (max-width: 560px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

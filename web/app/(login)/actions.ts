@@ -96,6 +96,9 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
     const priceId = formData.get('priceId') as string;
     return createCheckoutSession({ team: foundTeam, priceId });
   }
+  if (isInternalRedirect(redirectTo)) {
+    redirect(redirectTo);
+  }
 
   redirect('/dashboard');
 });
@@ -217,9 +220,16 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     const priceId = formData.get('priceId') as string;
     return createCheckoutSession({ team: createdTeam, priceId });
   }
+  if (isInternalRedirect(redirectTo)) {
+    redirect(redirectTo);
+  }
 
   redirect('/dashboard');
 });
+
+function isInternalRedirect(value: string | null): value is string {
+  return Boolean(value && value.startsWith('/') && !value.startsWith('//'));
+}
 
 export async function signOut() {
   const user = (await getUser()) as User;

@@ -1,0 +1,100 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+type ConnectState = 'sending' | 'connected' | 'failed';
+
+export function ConnectExtensionClient({
+  extensionId,
+  token,
+  webBaseUrl,
+  apiBaseUrl,
+  blockedReason
+}: {
+  extensionId: string;
+  token: string;
+  webBaseUrl: string;
+  apiBaseUrl: string;
+  blockedReason?: string;
+}) {
+  const [state, setState] = useState<ConnectState>('sending');
+  const [message, setMessage] = useState('Sending a new account token to the extension.');
+
+  const payload = useMemo(
+    () => ({
+      type: 'CONNECT_EXTENSION_TOKEN',
+      token,
+      webBaseUrl,
+      apiBaseUrl
+    }),
+    [apiBaseUrl, token, webBaseUrl]
+  );
+
+  useEffect(() => {
+    if (blockedReason) {
+      setState('failed');
+      setMessage(blockedReason);
+      return;
+    }
+
+    if (!extensionId) {
+      setState('failed');
+      setMessage('Missing extension id. Open this page from the extension options screen.');
+      return;
+    }
+
+    const runtime = window.chrome?.runtime;
+    if (!runtime?.sendMessage) {
+      setState('failed');
+      setMessage('Chrome extension messaging is not available in this browser context.');
+      return;
+    }
+
+    runtime.sendMessage(extensionId, payload, (response: { ok?: boolean; error?: string } | undefined) => {
+      const lastError = runtime.lastError;
+      if (lastError || !response?.ok) {
+        setState('failed');
+        setMessage(response?.error || lastError?.message || 'The extension did not accept the token.');
+        return;
+      }
+
+      setState('connected');
+      setMessage('Extension connected. You can return to LinkedIn and start searching.');
+    });
+  }, [extensionId, payload]);
+
+  const Icon = state === 'connected' ? CheckCircle2 : state === 'failed' ? XCircle : Loader2;
+
+  return (
+    <div className="mx-auto max-w-xl px-4 py-16 sm:px-6 lg:px-8">
+      <div className="border border-gray-200 bg-white p-6 shadow-sm">
+        <Icon className={`h-8 w-8 ${state === 'sending' ? 'animate-spin' : ''}`} />
+        <h1 className="mt-5 text-2xl font-semibold text-gray-950">
+          {state === 'connected'
+            ? 'Extension connected'
+            : state === 'failed'
+              ? 'Could not connect extension'
+              : 'Connecting extension'}
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-gray-600">{message}</p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button asChild className="rounded-md">
+            <Link href="/dashboard">Open dashboard</Link>
+          </Button>
+          <Button asChild variant="outline" className="rounded-md">
+            <Link href="/dashboard/extension">Connection settings</Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+declare global {
+  interface Window {
+    chrome?: any;
+  }
+}
