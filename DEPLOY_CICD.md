@@ -4,7 +4,7 @@ This repo includes a GitHub Actions workflow that deploys only the `server/` fol
 
 ## What It Does
 
-On every push to `main` that changes `server/**`:
+On every push to `main` that changes `server/**` or `.github/workflows/deploy-server.yml`:
 
 ```text
 GitHub Actions
@@ -16,6 +16,8 @@ GitHub Actions
 ```
 
 The workflow does not upload `.env`, so production secrets stay on the server.
+
+You can also run it manually from GitHub Actions with `workflow_dispatch`.
 
 ## Required GitHub Secrets
 
@@ -32,6 +34,37 @@ PUBLIC_HEALTH_URL=https://contacts.gaid.studio/health
 ```
 
 Adjust paths if your server uses a different user or project directory.
+
+## One-Time VPS Setup
+
+Install Docker, create the deploy folder, and keep production env on the server:
+
+```bash
+sudo mkdir -p /opt/connection/server
+sudo chown -R deployer:deployer /opt/connection
+nano /opt/connection/server/.env
+```
+
+If your current Compose project lives in `/root/muxing`, make sure the Compose file contains this service:
+
+```yaml
+  connection_contacts:
+    build: /opt/connection/server
+    container_name: connection_contacts
+    restart: always
+    network_mode: "host"
+    env_file:
+      - /opt/connection/server/.env
+```
+
+Run the service once manually before relying on CI/CD:
+
+```bash
+cd /root/muxing
+docker compose up -d --build connection_contacts
+docker logs --tail=80 connection_contacts
+curl http://localhost:8787/health
+```
 
 ## Server Requirements
 
@@ -78,5 +111,23 @@ If Docker requires sudo for this user, either add the user to the `docker` group
 usermod -aG docker deployer
 ```
 
-or update the workflow command to use `sudo docker compose`.
+Then log out and log back in as `deployer` so the new group membership is active.
 
+## Daily Deployment
+
+After the one-time setup:
+
+```bash
+git add server .github/workflows/deploy-server.yml DEPLOY_CICD.md
+git commit -m "Add contacts server CI/CD"
+git push origin main
+```
+
+The workflow will deploy automatically. Changes under `extension/**` alone do not trigger server deployment.
+
+## Troubleshooting
+
+- If `Configure SSH` fails, check `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_KEY`, and the deploy user's `authorized_keys`.
+- If `Sync server files` fails, check `DEPLOY_PATH` permissions.
+- If `Rebuild container` fails, SSH into the VPS and run `docker compose config` inside `COMPOSE_PATH`.
+- If `Health check` fails, check `PUBLIC_HEALTH_URL`, Cloudflare Tunnel routing, and `docker logs connection_contacts`.

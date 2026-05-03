@@ -8,6 +8,13 @@ on:
       - ".github/workflows/deploy-server.yml"
   workflow_dispatch:
 
+concurrency:
+  group: deploy-contacts-server
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -30,13 +37,7 @@ jobs:
 
       - name: Check server syntax
         run: |
-          node --check src/index.js
-          node --check src/lib/apollo.js
-          node --check src/lib/contacts-provider.js
-          node --check src/lib/email.js
-          node --check src/lib/explorium.js
-          node --check src/lib/mock.js
-          node --check src/lib/ranking.js
+          find src -name '*.js' -print0 | xargs -0 -n1 node --check
 
   deploy:
     needs: validate
@@ -53,6 +54,9 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_KEY: ${{ secrets.SSH_KEY }}
         run: |
+          test -n "$SSH_HOST"
+          test -n "$SSH_USER"
+          test -n "$SSH_KEY"
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
@@ -71,9 +75,11 @@ jobs:
         env:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
+          test -n "$DEPLOY_PATH"
           ssh deploy-server "mkdir -p '$DEPLOY_PATH'"
           rsync -az --delete \
             --exclude '.env' \
+            --exclude '.env.*' \
             --exclude 'node_modules' \
             server/ deploy-server:"$DEPLOY_PATH"/
 
@@ -81,11 +87,12 @@ jobs:
         env:
           COMPOSE_PATH: ${{ secrets.COMPOSE_PATH }}
         run: |
+          test -n "$COMPOSE_PATH"
           ssh deploy-server "cd '$COMPOSE_PATH' && docker compose up -d --build connection_contacts && docker logs --tail=80 connection_contacts"
 
       - name: Health check
         env:
           PUBLIC_HEALTH_URL: ${{ secrets.PUBLIC_HEALTH_URL }}
         run: |
+          test -n "$PUBLIC_HEALTH_URL"
           curl --fail --silent --show-error "$PUBLIC_HEALTH_URL"
-
