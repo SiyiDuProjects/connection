@@ -22,12 +22,15 @@ export default async function ConnectExtensionPage({
   const webBaseUrl = process.env.NEXT_PUBLIC_WEB_BASE_URL || process.env.BASE_URL || 'http://localhost:3000';
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8787';
   const blockedReason = getBlockedReason(extensionId);
-  const token = extensionId && !blockedReason ? await createExtensionToken(user.id) : '';
+  const extensionToken = extensionId && !blockedReason
+    ? await createExtensionToken(user.id)
+    : null;
 
   return (
     <ConnectExtensionClient
       extensionId={extensionId}
-      token={token}
+      token={extensionToken?.token || ''}
+      tokenId={extensionToken?.tokenId || null}
       webBaseUrl={webBaseUrl.replace(/\/+$/, '')}
       apiBaseUrl={apiBaseUrl.replace(/\/+$/, '')}
       blockedReason={blockedReason}

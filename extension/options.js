@@ -5,14 +5,20 @@ const detailsEl = document.getElementById("accountDetails");
 const statusEl = document.getElementById("status");
 
 const DEFAULT_API_BASE_URL = "https://contacts.gaid.studio";
-const DEFAULT_WEB_BASE_URL = "https://contacts.gaid.studio";
+const DEFAULT_WEB_BASE_URL = "https://gaid.studio";
 
 boot();
 
 async function boot() {
   const stored = await chrome.storage.sync.get(["apiBaseUrl", "webBaseUrl", "extensionApiToken"]);
   apiInput.value = stored.apiBaseUrl || DEFAULT_API_BASE_URL;
-  webInput.value = stored.webBaseUrl || DEFAULT_WEB_BASE_URL;
+  const webBaseUrl = cleanUrl(stored.webBaseUrl);
+  webInput.value = !webBaseUrl || webBaseUrl === DEFAULT_API_BASE_URL
+    ? DEFAULT_WEB_BASE_URL
+    : webBaseUrl;
+  if (webInput.value !== stored.webBaseUrl) {
+    await chrome.storage.sync.set({ webBaseUrl: webInput.value });
+  }
   await renderStatus();
 }
 
@@ -70,7 +76,7 @@ async function renderStatus() {
 
   const response = await chrome.runtime.sendMessage({ type: "GET_ACCOUNT_STATUS" });
   if (!response?.ok) {
-    stateEl.textContent = "Not connected";
+    stateEl.textContent = response?.status === 0 ? "API unreachable" : "Not connected";
     detailsEl.textContent = response?.error || "Sign in on the website to connect this extension.";
     return;
   }

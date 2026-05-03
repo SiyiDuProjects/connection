@@ -54,6 +54,26 @@ app.get("/health", (_req, res) => {
   });
 });
 
+app.get(["/connect-extension", "/pricing"], (req, res) => {
+  const webBaseUrl = getWebRedirectBaseUrl();
+  if (!webBaseUrl) {
+    return res.status(503).send(
+      "Web app URL is not configured. Set WEB_BASE_URL on the contacts API server."
+    );
+  }
+
+  const redirectUrl = new URL(req.path, webBaseUrl);
+  for (const [key, value] of Object.entries(req.query)) {
+    if (Array.isArray(value)) {
+      value.forEach((item) => redirectUrl.searchParams.append(key, String(item)));
+    } else if (value !== undefined) {
+      redirectUrl.searchParams.set(key, String(value));
+    }
+  }
+
+  res.redirect(302, redirectUrl.toString());
+});
+
 app.get("/api/account", async (req, res, next) => {
   try {
     const [account, balance] = await Promise.all([
@@ -240,6 +260,29 @@ function normalizeJob(input) {
 
 function clean(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function getWebRedirectBaseUrl() {
+  const fallback = "https://gaid.studio";
+  const value = String(process.env.WEB_BASE_URL || process.env.BASE_URL || fallback).replace(/\/+$/, "");
+
+  try {
+    const url = new URL(value);
+    const allowedHosts = new Set([
+      "gaid.studio",
+      "www.gaid.studio",
+      "localhost",
+      "127.0.0.1"
+    ]);
+
+    if (allowedHosts.has(url.hostname) && !url.hostname.toLowerCase().includes("lemon")) {
+      return url.origin;
+    }
+  } catch (_error) {
+    return fallback;
+  }
+
+  return fallback;
 }
 
 function providerStatus() {

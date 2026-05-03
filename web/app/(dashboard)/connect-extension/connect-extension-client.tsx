@@ -10,12 +10,14 @@ type ConnectState = 'sending' | 'connected' | 'failed';
 export function ConnectExtensionClient({
   extensionId,
   token,
+  tokenId,
   webBaseUrl,
   apiBaseUrl,
   blockedReason
 }: {
   extensionId: string;
   token: string;
+  tokenId: number | null;
   webBaseUrl: string;
   apiBaseUrl: string;
   blockedReason?: string;
@@ -43,13 +45,17 @@ export function ConnectExtensionClient({
     if (!extensionId) {
       setState('failed');
       setMessage('Missing extension id. Open this page from the extension options screen.');
+      revokePendingToken(tokenId);
       return;
     }
 
-    const runtime = window.chrome?.runtime;
+    const runtime = window.chrome?.runtime || window.browser?.runtime;
     if (!runtime?.sendMessage) {
       setState('failed');
-      setMessage('Chrome extension messaging is not available in this browser context.');
+      setMessage(
+        'Could not reach the extension from this browser tab. Reload the extension, then open Connect again from the extension options in the same browser.'
+      );
+      revokePendingToken(tokenId);
       return;
     }
 
@@ -58,13 +64,14 @@ export function ConnectExtensionClient({
       if (lastError || !response?.ok) {
         setState('failed');
         setMessage(response?.error || lastError?.message || 'The extension did not accept the token.');
+        revokePendingToken(tokenId);
         return;
       }
 
       setState('connected');
       setMessage('Extension connected. You can return to LinkedIn and start searching.');
     });
-  }, [extensionId, payload]);
+  }, [blockedReason, extensionId, payload, tokenId]);
 
   const Icon = state === 'connected' ? CheckCircle2 : state === 'failed' ? XCircle : Loader2;
 
@@ -93,8 +100,19 @@ export function ConnectExtensionClient({
   );
 }
 
+function revokePendingToken(tokenId: number | null) {
+  if (!tokenId) return;
+
+  fetch('/api/extension-token', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tokenId })
+  }).catch(() => {});
+}
+
 declare global {
   interface Window {
     chrome?: any;
+    browser?: any;
   }
 }

@@ -1,6 +1,8 @@
 const DEFAULT_API_BASE_URL = "https://contacts.gaid.studio";
-const DEFAULT_WEB_BASE_URL = "https://contacts.gaid.studio";
+const DEFAULT_WEB_BASE_URL = "https://gaid.studio";
 const LINKEDIN_JOBS_URL = "https://www.linkedin.com/jobs/*";
+const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connection settings.";
+const SESSION_EXPIRED_ERROR = "Session expired. Sign in again to reconnect the extension.";
 
 chrome.runtime.onInstalled.addListener(() => {
   refreshLinkedInTabs();
@@ -79,13 +81,14 @@ async function handleExternalMessage(message, sender) {
   const apiBaseUrl = cleanUrl(message.apiBaseUrl) || DEFAULT_API_BASE_URL;
   const webBaseUrl = cleanUrl(message.webBaseUrl) || DEFAULT_WEB_BASE_URL;
   await chrome.storage.sync.set({ extensionApiToken: token, apiBaseUrl, webBaseUrl });
-  await getAccountStatus();
   return { ok: true };
 }
 
 function isAllowedWebsite(url) {
   const origin = new URL(url).origin;
   return [
+    "https://gaid.studio",
+    "https://www.gaid.studio",
     "https://contacts.gaid.studio",
     "http://localhost:3000",
     "http://127.0.0.1:3000"
@@ -99,7 +102,12 @@ async function getApiBaseUrl() {
 
 async function getWebBaseUrl() {
   const stored = await chrome.storage.sync.get(["webBaseUrl"]);
-  return (stored.webBaseUrl || DEFAULT_WEB_BASE_URL).replace(/\/+$/, "");
+  const value = cleanUrl(stored.webBaseUrl);
+  if (!value || value === DEFAULT_API_BASE_URL) {
+    await chrome.storage.sync.set({ webBaseUrl: DEFAULT_WEB_BASE_URL });
+    return DEFAULT_WEB_BASE_URL;
+  }
+  return value;
 }
 
 async function getAccountStatus() {
@@ -108,13 +116,25 @@ async function getAccountStatus() {
     return { ok: false, status: 401, error: "Sign in on the website to connect this extension.", action: await loginAction() };
   }
 
-  const response = await fetch(`${baseUrl}/api/account`, {
+  const response = await safeFetch(`${baseUrl}/api/account`, {
     headers: { Authorization: `Bearer ${token}` }
   });
-  const payload = await response.json().catch(() => ({}));
+  if (!response.ok && response.networkError) {
+    return { ok: false, status: 0, error: API_UNREACHABLE_ERROR, action: await loginAction() };
+  }
+
+  const payload = await safeJson(response);
   if (!response.ok) {
-    const action = response.status === 402 ? await pricingAction() : await loginAction();
-    return { ok: false, status: response.status, error: payload.error || "Could not load account status.", action };
+    if (response.status === 401) {
+      await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
+      return { ok: false, status: 401, error: SESSION_EXPIRED_ERROR, action: await loginAction() };
+    }
+
+    const action = response.status === 402 ? await pricingAction() : null;
+    const error = response.status === 402
+      ? "Credits are insufficient. Upgrade or wait for your next monthly grant."
+      : `${payload.error || "Could not load account status."} Try again shortly.`;
+    return { ok: false, status: response.status, error, action };
   }
 
   await chrome.storage.sync.set({ accountStatus: payload });
@@ -128,7 +148,7 @@ async function postJson(path, body) {
   }
 
   const url = `${baseUrl}${path}`;
-  const response = await fetch(url, {
+  const response = await safeFetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -136,20 +156,31 @@ async function postJson(path, body) {
     },
     body: JSON.stringify(body || {})
   });
+  if (!response.ok && response.networkError) {
+    return { ok: false, status: 0, error: API_UNREACHABLE_ERROR, action: await loginAction() };
+  }
 
-  const payload = await response.json().catch(() => ({}));
+  const payload = await safeJson(response);
   if (!response.ok) {
     if (response.status === 401) {
       await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
     }
-    const action = response.status === 402 ? await pricingAction() : await loginAction();
-    const prompt = response.status === 402
-      ? "Credits are insufficient. Upgrade or wait for your next monthly grant."
-      : "Sign in again to reconnect the extension.";
+    const action = response.status === 401
+      ? await loginAction()
+      : response.status === 402
+        ? await pricingAction()
+        : null;
+    const prompt = response.status === 401
+      ? SESSION_EXPIRED_ERROR
+      : response.status === 402
+        ? "Credits are insufficient. Upgrade or wait for your next monthly grant."
+        : "Try again shortly.";
     return {
       ok: false,
       status: response.status,
-      error: `${payload.error || `Request failed with ${response.status}`} ${prompt}`,
+      error: response.status === 401 || response.status === 402
+        ? prompt
+        : `${payload.error || `Request failed with ${response.status}`} ${prompt}`,
       action
     };
   }
@@ -173,6 +204,24 @@ async function pricingAction() {
     label: "Open pricing",
     url: `${await getWebBaseUrl()}/pricing`
   };
+}
+
+async function safeFetch(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      networkError: true,
+      error
+    };
+  }
+}
+
+async function safeJson(response) {
+  if (!response?.json) return {};
+  return response.json().catch(() => ({}));
 }
 
 function cleanUrl(value) {

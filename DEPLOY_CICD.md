@@ -84,6 +84,7 @@ Your production `.env` should contain:
 
 ```env
 PORT=8787
+WEB_BASE_URL=https://gaid.studio
 POSTGRES_URL=postgresql://...
 CONTACT_PROVIDER=explorium
 APOLLO_MOCK=false
@@ -98,6 +99,8 @@ EMAIL_DRAFT_CREDITS=1
 ```
 
 `POSTGRES_URL` must point to the same Neon database used by the `web/` app. Extension API tokens, credits, settings, and usage logs live in that database.
+
+`WEB_BASE_URL` must point to the deployed Next.js web app, not the contacts API service. Production should be `https://gaid.studio`; do not set this to Lemon Squeezy, Stripe, or any other billing/provider domain. The API service redirects `/connect-extension` and `/pricing` there so older or default extension links do not show `Cannot GET`.
 
 ## Web App Deployment
 
@@ -118,10 +121,15 @@ Required Vercel environment variables:
 POSTGRES_URL=postgresql://...
 STRIPE_SECRET_KEY=sk_test_or_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-BASE_URL=https://your-web-domain.com
+BASE_URL=https://gaid.studio
+NEXT_PUBLIC_WEB_BASE_URL=https://gaid.studio
+NEXT_PUBLIC_API_BASE_URL=https://contacts.gaid.studio
+ALLOWED_EXTENSION_IDS=ojajfgpfdkmaiccoeffhbdbccefpbala
 AUTH_SECRET=long-random-secret
 MONTHLY_CREDITS=100
 ```
+
+`ALLOWED_EXTENSION_IDS` is comma-separated. The checked-in unpacked development extension has stable ID `ojajfgpfdkmaiccoeffhbdbccefpbala`; add a Chrome Web Store ID later only if you publish a separate signed build.
 
 The Neon schema has already been created once with `corepack pnpm db:migrate`. For future schema changes, run migrations before or during deployment:
 

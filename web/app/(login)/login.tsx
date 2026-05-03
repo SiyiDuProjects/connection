@@ -19,6 +19,12 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
     mode === 'signin' ? signIn : signUp,
     { error: '' }
   );
+  const switchHref = getSwitchHref({
+    mode,
+    redirect,
+    priceId,
+    inviteId
+  });
 
   return (
     <div className="min-h-[100dvh] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
@@ -125,9 +131,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
 
           <div className="mt-6">
             <Link
-              href={`${mode === 'signin' ? '/sign-up' : '/sign-in'}${
-                redirect ? `?redirect=${redirect}` : ''
-              }${priceId ? `&priceId=${priceId}` : ''}`}
+              href={switchHref}
               className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-full shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
             >
               {mode === 'signin'
@@ -139,4 +143,25 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
       </div>
     </div>
   );
+}
+
+function getSwitchHref({
+  mode,
+  redirect,
+  priceId,
+  inviteId
+}: {
+  mode: 'signin' | 'signup';
+  redirect: string | null;
+  priceId: string | null;
+  inviteId: string | null;
+}) {
+  const params = new URLSearchParams();
+  if (redirect) params.set('redirect', redirect);
+  if (priceId) params.set('priceId', priceId);
+  if (inviteId) params.set('inviteId', inviteId);
+
+  const path = mode === 'signin' ? '/sign-up' : '/sign-in';
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
 }

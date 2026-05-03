@@ -151,7 +151,13 @@
   }
 
   function inlineButtonClass(target) {
-    return `${target.saveButton.className} fc-button fc-inline-button`.trim();
+    const extraClass = isSearchResultsJobPage() ? " fc-search-results-button" : "";
+    return `${target.saveButton.className} fc-button fc-inline-button${extraClass}`.trim();
+  }
+
+  function isSearchResultsJobPage() {
+    if (!location.pathname.startsWith("/jobs/search-results/")) return false;
+    return new URLSearchParams(location.search).has("currentJobId");
   }
 
   function scoreJobActionButton(button) {
@@ -261,6 +267,7 @@
         window.open(button.dataset.actionUrl, "_blank", "noopener,noreferrer");
       });
     });
+
   }
 
   function renderBody() {
@@ -268,7 +275,7 @@
     if (state.error) {
       return `
         <div class="fc-status fc-error">${escapeHtml(state.error)}</div>
-        ${state.action?.url ? `<button class="fc-secondary" type="button" data-action-url="${escapeAttr(state.action.url)}">${escapeHtml(state.action.label || "Open website")}</button>` : ""}
+        ${renderActionButton(state.action)}
       `;
     }
     if (!state.contacts.length) return `<div class="fc-status">No contacts found yet.</div>`;
@@ -277,6 +284,15 @@
       <div class="fc-section-title">Top Matches</div>
       ${state.contacts.map(renderContact).join("")}
     `;
+  }
+
+  function renderActionButton(action) {
+    if (!action) return "";
+    const label = escapeHtml(action.label || "Open website");
+    if (action.url) {
+      return `<button class="fc-secondary" type="button" data-action-url="${escapeAttr(action.url)}">${label}</button>`;
+    }
+    return "";
   }
 
   function renderContact(contact, index) {

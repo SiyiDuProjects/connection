@@ -45,6 +45,7 @@ APOLLO_API_KEY=your_apollo_api_key
 APOLLO_MOCK=true
 EXPLORIUM_API_KEY=your_explorium_api_key
 EXTENSION_ORIGIN=chrome-extension://your-real-extension-id
+WEB_BASE_URL=https://gaid.studio
 GMAIL_SUBJECT_PREFIX=Quick question from a Berkeley student
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX=60
@@ -126,8 +127,7 @@ In the Chrome Extension options page, set:
 
 ```text
 API URL: https://contacts.your-domain.com
-Website URL: https://your-web-domain.com
-Token: generate this from Dashboard > Extension
+Website URL: https://gaid.studio
 ```
 
-Then click Save and allow the requested host permission.
+Then click Connect and allow the requested host permission. The unpacked development extension ID is fixed by `extension/manifest.json` as `ojajfgpfdkmaiccoeffhbdbccefpbala`; use that value in the web app `ALLOWED_EXTENSION_IDS`.

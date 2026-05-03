@@ -15,12 +15,15 @@ export async function createExtensionToken(userId: number) {
     );
 
   const token = `fc_${randomBytes(32).toString('base64url')}`;
-  await db.insert(extensionApiTokens).values({
-    userId,
-    tokenHash: hashToken(token)
-  });
+  const [createdToken] = await db
+    .insert(extensionApiTokens)
+    .values({
+      userId,
+      tokenHash: hashToken(token)
+    })
+    .returning({ id: extensionApiTokens.id });
 
-  return token;
+  return { token, tokenId: createdToken.id };
 }
 
 export async function revokeExtensionTokens(userId: number) {
@@ -30,6 +33,19 @@ export async function revokeExtensionTokens(userId: number) {
     .where(
       and(
         eq(extensionApiTokens.userId, userId),
+        isNull(extensionApiTokens.revokedAt)
+      )
+    );
+}
+
+export async function revokeExtensionToken(userId: number, tokenId: number) {
+  await db
+    .update(extensionApiTokens)
+    .set({ revokedAt: new Date() })
+    .where(
+      and(
+        eq(extensionApiTokens.userId, userId),
+        eq(extensionApiTokens.id, tokenId),
         isNull(extensionApiTokens.revokedAt)
       )
     );

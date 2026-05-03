@@ -65,3 +65,5 @@ EXPLORIUM_SEARCH_LIMIT=5
 7. Open a LinkedIn job page like `https://www.linkedin.com/jobs/view/...`.
 
 The extension defaults to `https://contacts.gaid.studio`. Change the API base URL in the extension options page if you need to use a local or staging server.
+
+The unpacked development extension has a stable ID from `extension/manifest.json`: `ojajfgpfdkmaiccoeffhbdbccefpbala`. Set the web app `ALLOWED_EXTENSION_IDS` environment variable to that ID, or to a comma-separated list if you also publish a Chrome Web Store build.

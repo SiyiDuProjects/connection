@@ -21,6 +21,7 @@ import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createCheckoutSession } from '@/lib/payments/stripe';
 import { getUser, getUserWithTeam } from '@/lib/db/queries';
+import { revokeExtensionTokens } from '@/lib/extension-tokens';
 import {
   validatedAction,
   validatedActionWithUser
@@ -120,7 +121,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
 
   if (existingUser.length > 0) {
     return {
-      error: 'Failed to create user. Please try again.',
+      error: 'This email already has an account. Sign in instead.',
       email,
       password
     };
@@ -232,9 +233,17 @@ function isInternalRedirect(value: string | null): value is string {
 }
 
 export async function signOut() {
-  const user = (await getUser()) as User;
+  const user = (await getUser()) as User | null;
+  if (!user) {
+    (await cookies()).delete('session');
+    return;
+  }
+
   const userWithTeam = await getUserWithTeam(user.id);
-  await logActivity(userWithTeam?.teamId, user.id, ActivityType.SIGN_OUT);
+  await Promise.all([
+    revokeExtensionTokens(user.id),
+    logActivity(userWithTeam?.teamId, user.id, ActivityType.SIGN_OUT)
+  ]);
   (await cookies()).delete('session');
 }
 

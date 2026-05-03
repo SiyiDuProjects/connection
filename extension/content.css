@@ -84,6 +84,14 @@
   color: #fff !important;
 }
 
+.fc-inline-entry .fc-search-results-button {
+  border-radius: 20px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  min-height: 40px !important;
+  padding: 0 16px !important;
+}
+
 .fc-panel {
   background: #fff;
   border-left: 1px solid #d0d7de;
