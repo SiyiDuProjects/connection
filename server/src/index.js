@@ -5,6 +5,15 @@ import helmet from "helmet";
 import { searchContacts, revealEmail } from "./lib/contacts-provider.js";
 import { rankContacts } from "./lib/ranking.js";
 import { createDraft, createGmailUrl } from "./lib/email.js";
+import {
+  getBearerToken,
+  getCreditBalance,
+  getUserFromApiToken,
+  getUserSettings,
+  isAccountDbConfigured,
+  logApiUsage,
+  spendCredits
+} from "./lib/account.js";
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -32,15 +41,19 @@ app.use(cors({
   }
 }));
 app.use("/api", apiLimiter);
+app.use("/api", requireAuth);
 
 app.get("/health", (_req, res) => {
   res.json({
     ok: true,
-    provider: providerStatus()
+    provider: providerStatus(),
+    auth: {
+      accountDbConfigured: isAccountDbConfigured()
+    }
   });
 });
 
-app.post("/api/contacts/search", async (req, res, next) => {
+app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("CONTACT_SEARCH_CREDITS", 1)), async (req, res, next) => {
   try {
     const job = normalizeJob(req.body);
     if (!job.companyName) {
@@ -49,13 +62,15 @@ app.post("/api/contacts/search", async (req, res, next) => {
 
     const contacts = await searchContacts(job);
     const ranked = rankContacts(contacts, job).slice(0, 10);
-    res.json({ ok: true, contacts: ranked });
+    await chargeAndRecord(req, "contacts.search", { resultCount: ranked.length });
+    res.json({ ok: true, contacts: ranked, credits: { remaining: await getCreditBalance(req.user.id) } });
   } catch (error) {
+    await recordUsage(req, "contacts.search", 0, "error", { error: error.message }).catch(() => {});
     next(error);
   }
 });
 
-app.post("/api/contacts/reveal", async (req, res, next) => {
+app.post("/api/contacts/reveal", requireCredits("contacts.reveal", creditCost("CONTACT_REVEAL_CREDITS", 1)), async (req, res, next) => {
   try {
     const contact = req.body?.contact;
     if (!contact) return res.status(400).json({ ok: false, error: "Missing contact." });
@@ -63,22 +78,31 @@ app.post("/api/contacts/reveal", async (req, res, next) => {
     const email = contact.email || await revealEmail(contact);
     if (!email) return res.status(404).json({ ok: false, error: "No email found for this contact." });
 
-    res.json({ ok: true, email });
+    await chargeAndRecord(req, "contacts.reveal", { provider: contact.provider });
+    res.json({ ok: true, email, credits: { remaining: await getCreditBalance(req.user.id) } });
   } catch (error) {
+    await recordUsage(req, "contacts.reveal", 0, "error", { error: error.message }).catch(() => {});
     next(error);
   }
 });
 
-app.post("/api/email/draft", (req, res) => {
-  const contact = req.body?.contact;
-  const job = normalizeJob(req.body?.job || {});
+app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRAFT_CREDITS", 1)), async (req, res, next) => {
+  try {
+    const contact = req.body?.contact;
+    const job = normalizeJob(req.body?.job || {});
 
-  if (!contact?.email) {
-    return res.status(400).json({ ok: false, error: "Reveal an email before drafting." });
+    if (!contact?.email) {
+      return res.status(400).json({ ok: false, error: "Reveal an email before drafting." });
+    }
+
+    const settings = await getUserSettings(req.user.id);
+    const draft = createDraft(contact, job, settings);
+    await chargeAndRecord(req, "email.draft", { hasSettings: Boolean(Object.keys(settings).length) });
+    res.json({ ok: true, ...draft, gmailUrl: createGmailUrl(contact.email, draft), credits: { remaining: await getCreditBalance(req.user.id) } });
+  } catch (error) {
+    await recordUsage(req, "email.draft", 0, "error", { error: error.message }).catch(() => {});
+    next(error);
   }
-
-  const draft = createDraft(contact, job);
-  res.json({ ok: true, ...draft, gmailUrl: createGmailUrl(contact.email, draft) });
 });
 
 app.use((error, _req, res, _next) => {
@@ -113,6 +137,83 @@ function createRateLimiter({ windowMs, max }) {
 
     return next();
   };
+}
+
+async function requireAuth(req, res, next) {
+  try {
+    const token = getBearerToken(req);
+    if (!token) return res.status(401).json({ ok: false, error: "Sign in to use this API." });
+
+    req.user = await getUserFromApiToken(token);
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+function requireCredits(action, amount) {
+  return async (req, res, next) => {
+    try {
+      const balance = await getCreditBalance(req.user.id);
+      if (balance < amount) {
+        return res.status(402).json({
+          ok: false,
+          error: "Insufficient credits",
+          credits: { remaining: balance, required: amount }
+        });
+      }
+
+      req.creditCharge = { action, amount };
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+async function chargeAndRecord(req, action, response) {
+  const charge = req.creditCharge || { action, amount: 0 };
+  const result = await spendCredits({
+    userId: req.user.id,
+    amount: charge.amount,
+    action,
+    metadata: summarizeRequest(req)
+  });
+
+  if (!result?.ok) {
+    const error = new Error("Insufficient credits");
+    error.status = 402;
+    error.publicMessage = "Insufficient credits";
+    throw error;
+  }
+
+  await recordUsage(req, action, charge.amount, "success", response);
+}
+
+async function recordUsage(req, action, credits, status, response) {
+  if (!req.user?.id) return;
+  await logApiUsage({
+    userId: req.user.id,
+    action,
+    credits,
+    status,
+    request: summarizeRequest(req),
+    response
+  });
+}
+
+function summarizeRequest(req) {
+  const body = req.body || {};
+  return {
+    companyName: body.companyName || body.job?.companyName,
+    jobTitle: body.jobTitle || body.job?.jobTitle,
+    contactProvider: body.contact?.provider,
+    contactId: body.contact?.id || body.contact?.linkedinUrl
+  };
+}
+
+function creditCost(name, fallback) {
+  return Math.max(0, Number(process.env[name] || fallback));
 }
 
 function normalizeJob(input) {

@@ -39,6 +39,7 @@ Create `/opt/connection/server/.env`:
 
 ```env
 PORT=8787
+POSTGRES_URL=postgresql://...
 CONTACT_PROVIDER=explorium
 APOLLO_API_KEY=your_apollo_api_key
 APOLLO_MOCK=true
@@ -47,6 +48,9 @@ EXTENSION_ORIGIN=chrome-extension://your-real-extension-id
 GMAIL_SUBJECT_PREFIX=Quick question from a Berkeley student
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX=60
+CONTACT_SEARCH_CREDITS=1
+CONTACT_REVEAL_CREDITS=1
+EMAIL_DRAFT_CREDITS=1
 ```
 
 Use Explorium for the live provider:
@@ -121,7 +125,9 @@ curl http://localhost:8787/health
 In the Chrome Extension options page, set:
 
 ```text
-https://contacts.your-domain.com
+API URL: https://contacts.your-domain.com
+Website URL: https://your-web-domain.com
+Token: generate this from Dashboard > Extension
 ```
 
 Then click Save and allow the requested host permission.

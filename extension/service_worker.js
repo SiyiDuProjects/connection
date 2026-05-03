@@ -9,8 +9,6 @@ chrome.runtime.onStartup.addListener(() => {
   refreshLinkedInTabs();
 });
 
-refreshLinkedInTabs();
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage(message)
     .then(sendResponse)
@@ -60,17 +58,30 @@ async function getApiBaseUrl() {
 }
 
 async function postJson(path, body) {
-  const baseUrl = await getApiBaseUrl();
+  const [baseUrl, token] = await Promise.all([getApiBaseUrl(), getExtensionApiToken()]);
+  if (!token) {
+    return { ok: false, error: "Connect your account from the extension options page before using Find Contacts." };
+  }
+
   const url = `${baseUrl}${path}`;
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
     body: JSON.stringify(body || {})
   });
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    return { ok: false, error: `${new URL(baseUrl).host}: ${payload.error || `Request failed with ${response.status}`}` };
+    const upgradeHint = response.status === 402 ? " Add credits or upgrade from the website." : "";
+    return { ok: false, error: `${new URL(baseUrl).host}: ${payload.error || `Request failed with ${response.status}`}${upgradeHint}` };
   }
   return payload;
+}
+
+async function getExtensionApiToken() {
+  const stored = await chrome.storage.sync.get(["extensionApiToken"]);
+  return String(stored.extensionApiToken || "").trim();
 }

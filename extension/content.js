@@ -10,7 +10,8 @@
     error: "",
     contacts: [],
     job: null,
-    revealed: new Map()
+    revealed: new Map(),
+    revealing: new Set()
   };
 
   function isJobPage() {
@@ -269,6 +270,7 @@
   function renderContact(contact, index) {
     const id = contact.id || contact.linkedinUrl || String(index);
     const email = state.revealed.get(id) || contact.email;
+    const isRevealing = state.revealing.has(id);
     const education = contact.education ? ` · ${contact.education}` : "";
     const locationText = contact.location ? ` · ${contact.location}` : "";
     const reasons = Array.isArray(contact.reasons) && contact.reasons.length
@@ -282,7 +284,7 @@
         <div class="fc-reasons">${escapeHtml(reasons)}</div>
         ${email ? `<div class="fc-email">${escapeHtml(email)}</div>` : ""}
         <div class="fc-actions">
-          <button class="fc-secondary" type="button" data-reveal="${escapeAttr(id)}">${email ? "Refresh Email" : "Reveal Email"}</button>
+          ${email ? "" : `<button class="fc-secondary" type="button" data-reveal="${escapeAttr(id)}" ${isRevealing ? "disabled" : ""}>${isRevealing ? "Revealing..." : "Reveal Email"}</button>`}
           <button class="fc-secondary" type="button" data-draft="${escapeAttr(id)}">Draft Email</button>
         </div>
       </article>
@@ -315,6 +317,11 @@
   async function revealEmail(contactId) {
     const contact = findContact(contactId);
     if (!contact) return;
+    if (state.revealed.has(contactId) || contact.email || state.revealing.has(contactId)) return;
+
+    state.revealing.add(contactId);
+    state.error = "";
+    renderPanel();
 
     try {
       const response = await sendRuntimeMessage({
@@ -326,6 +333,9 @@
       renderPanel();
     } catch (error) {
       state.error = error.message || "Could not reveal email.";
+      renderPanel();
+    } finally {
+      state.revealing.delete(contactId);
       renderPanel();
     }
   }

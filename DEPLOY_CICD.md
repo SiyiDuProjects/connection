@@ -2,6 +2,8 @@
 
 This repo includes a GitHub Actions workflow that deploys only the `server/` folder to the VPS and rebuilds the existing Docker Compose service.
 
+The Next.js SaaS app in `web/` is separate. Deploy it with Vercel or add a second VPS service/workflow.
+
 ## What It Does
 
 On every push to `main` that changes `server/**` or `.github/workflows/deploy-server.yml`:
@@ -82,6 +84,7 @@ Your production `.env` should contain:
 
 ```env
 PORT=8787
+POSTGRES_URL=postgresql://...
 CONTACT_PROVIDER=explorium
 APOLLO_MOCK=false
 EXPLORIUM_API_KEY=your_explorium_api_key
@@ -89,7 +92,51 @@ EXTENSION_ORIGIN=
 GMAIL_SUBJECT_PREFIX=Quick question from a Berkeley student
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX=60
+CONTACT_SEARCH_CREDITS=1
+CONTACT_REVEAL_CREDITS=1
+EMAIL_DRAFT_CREDITS=1
 ```
+
+`POSTGRES_URL` must point to the same Neon database used by the `web/` app. Extension API tokens, credits, settings, and usage logs live in that database.
+
+## Web App Deployment
+
+Recommended first production path: deploy `web/` to Vercel.
+
+Use these Vercel settings:
+
+```text
+Root Directory: web
+Framework Preset: Next.js
+Install Command: corepack pnpm install
+Build Command: corepack pnpm build
+```
+
+Required Vercel environment variables:
+
+```env
+POSTGRES_URL=postgresql://...
+STRIPE_SECRET_KEY=sk_test_or_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+BASE_URL=https://your-web-domain.com
+AUTH_SECRET=long-random-secret
+MONTHLY_CREDITS=100
+```
+
+The Neon schema has already been created once with `corepack pnpm db:migrate`. For future schema changes, run migrations before or during deployment:
+
+```bash
+cd web
+corepack pnpm db:migrate
+```
+
+You can make Vercel run migrations by changing the build command to:
+
+```text
+corepack pnpm db:migrate && corepack pnpm build
+```
+
+For production teams, a separate migration GitHub Action is cleaner than running migrations inside every web build.
 
 ## Deploy User
 
@@ -123,7 +170,7 @@ git commit -m "Add contacts server CI/CD"
 git push origin main
 ```
 
-The workflow will deploy automatically. Changes under `extension/**` alone do not trigger server deployment.
+The workflow will deploy automatically. Changes under `extension/**` or `web/**` alone do not trigger this server deployment.
 
 ## Troubleshooting
 

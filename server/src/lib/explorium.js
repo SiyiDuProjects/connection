@@ -1,13 +1,17 @@
 const EXPLORIUM_BASE_URL = "https://api.explorium.ai/v1";
+const DEFAULT_SEARCH_MODE = "preview";
+const DEFAULT_SEARCH_LIMIT = 5;
+const revealCache = new Map();
 
 export async function searchExploriumContacts(job) {
   requireExploriumKey();
 
+  const searchLimit = exploriumSearchLimit();
   const payload = {
     request_context: null,
-    mode: "full",
-    size: 25,
-    page_size: 25,
+    mode: exploriumSearchMode(),
+    size: searchLimit,
+    page_size: searchLimit,
     page: 1,
     exclude: null,
     next_cursor: null,
@@ -32,13 +36,18 @@ export async function revealExploriumEmail(contact) {
   if (contact.email) return contact.email;
   if (!contact.exploriumProspectId) return "";
 
+  const cacheKey = String(contact.exploriumProspectId);
+  if (revealCache.has(cacheKey)) return revealCache.get(cacheKey);
+
   const data = await exploriumPost("/prospects/contacts_information/enrich", {
     request_context: {},
     prospect_id: contact.exploriumProspectId,
     parameters: {}
   });
 
-  return extractEmail(data.data || data);
+  const email = extractEmail(data.data || data);
+  if (email) revealCache.set(cacheKey, email);
+  return email;
 }
 
 async function exploriumPost(path, payload, options = {}) {
@@ -96,11 +105,12 @@ function exploriumPublicMessage(response, data) {
 }
 
 function fallbackPayload(job) {
+  const searchLimit = exploriumSearchLimit();
   return {
     request_context: null,
-    mode: "full",
-    size: 25,
-    page_size: 25,
+    mode: exploriumSearchMode(),
+    size: searchLimit,
+    page_size: searchLimit,
     page: 1,
     exclude: null,
     next_cursor: null,
@@ -109,6 +119,17 @@ function fallbackPayload(job) {
       has_email: { value: true }
     }
   };
+}
+
+function exploriumSearchMode() {
+  const mode = String(process.env.EXPLORIUM_SEARCH_MODE || DEFAULT_SEARCH_MODE).toLowerCase();
+  return mode === "full" ? "full" : "preview";
+}
+
+function exploriumSearchLimit() {
+  const value = Number.parseInt(process.env.EXPLORIUM_SEARCH_LIMIT || "", 10);
+  if (Number.isInteger(value) && value > 0) return Math.min(value, 25);
+  return DEFAULT_SEARCH_LIMIT;
 }
 
 function normalizeProspect(prospect, job) {

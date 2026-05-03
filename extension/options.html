@@ -11,7 +11,15 @@
       <h1>Find Contacts Options</h1>
       <label for="apiBaseUrl">Server API base URL</label>
       <input id="apiBaseUrl" type="url" placeholder="https://contacts.gaid.studio">
-      <button id="save" type="button">Save</button>
+      <label for="webBaseUrl">Account website URL</label>
+      <input id="webBaseUrl" type="url" placeholder="http://localhost:3000">
+      <label for="apiToken">Extension API token</label>
+      <textarea id="apiToken" spellcheck="false" placeholder="Paste the token generated from Dashboard > Extension"></textarea>
+      <div class="actions">
+        <button id="save" type="button">Save</button>
+        <button id="connect" type="button" class="secondary">Open account</button>
+        <button id="clearToken" type="button" class="secondary">Sign out</button>
+      </div>
       <p id="status" role="status"></p>
     </main>
     <script src="options.js"></script>
