@@ -1,0 +1,91 @@
+name: Deploy contacts server
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "server/**"
+      - ".github/workflows/deploy-server.yml"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check server syntax
+        run: |
+          node --check src/index.js
+          node --check src/lib/apollo.js
+          node --check src/lib/contacts-provider.js
+          node --check src/lib/email.js
+          node --check src/lib/explorium.js
+          node --check src/lib/mock.js
+          node --check src/lib/ranking.js
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${SSH_PORT:-22}" "$SSH_HOST" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host deploy-server
+            HostName $SSH_HOST
+            Port ${SSH_PORT:-22}
+            User $SSH_USER
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Sync server files
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh deploy-server "mkdir -p '$DEPLOY_PATH'"
+          rsync -az --delete \
+            --exclude '.env' \
+            --exclude 'node_modules' \
+            server/ deploy-server:"$DEPLOY_PATH"/
+
+      - name: Rebuild container
+        env:
+          COMPOSE_PATH: ${{ secrets.COMPOSE_PATH }}
+        run: |
+          ssh deploy-server "cd '$COMPOSE_PATH' && docker compose up -d --build connection_contacts && docker logs --tail=80 connection_contacts"
+
+      - name: Health check
+        env:
+          PUBLIC_HEALTH_URL: ${{ secrets.PUBLIC_HEALTH_URL }}
+        run: |
+          curl --fail --silent --show-error "$PUBLIC_HEALTH_URL"
+
