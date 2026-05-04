@@ -10,7 +10,8 @@ export function searchMockContacts(job) {
       location: "San Jose, CA",
       education: "UC Berkeley",
       linkedinUrl: "",
-      email: `jane.doe@${domain}`,
+      email: "",
+      mockEmail: `jane.doe@${domain}`,
       emailStatus: "mock"
     },
     {
@@ -22,7 +23,8 @@ export function searchMockContacts(job) {
       location: "San Francisco Bay Area",
       education: "",
       linkedinUrl: "",
-      email: `john.smith@${domain}`,
+      email: "",
+      mockEmail: `john.smith@${domain}`,
       emailStatus: "mock"
     },
     {
@@ -34,14 +36,15 @@ export function searchMockContacts(job) {
       location: "Palo Alto, CA",
       education: "University of California Berkeley",
       linkedinUrl: "",
-      email: `alex.chen@${domain}`,
+      email: "",
+      mockEmail: `alex.chen@${domain}`,
       emailStatus: "mock"
     }
   ];
 }
 
 export function revealMockEmail(contact) {
-  return contact.email || `${slug(contact.name || "contact")}@${domainFromCompany(contact.companyName)}`;
+  return contact.email || contact.mockEmail || `${slug(contact.name || "contact")}@${domainFromCompany(contact.companyName)}`;
 }
 
 function domainFromCompany(companyName) {
@@ -55,4 +58,3 @@ function slug(value) {
     .replace(/[^a-z0-9]+/g, ".")
     .replace(/^\.+|\.+$/g, "");
 }
-

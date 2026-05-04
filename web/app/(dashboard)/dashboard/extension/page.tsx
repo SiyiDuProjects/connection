@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,14 +37,27 @@ export default function ExtensionPage() {
             <StatusItem label="Created" value={formatDate(data?.token?.createdAt)} />
             <StatusItem label="Last used" value={formatDate(data?.token?.lastUsedAt)} />
           </div>
-          <p className="text-sm text-muted-foreground">
-            Connect from the Chrome extension options page. The website creates
-            a fresh token, revokes any older active token, and sends it directly
-            to the extension. Tokens are not displayed here.
-          </p>
+          <div className="border border-gray-200 p-4 text-sm text-gray-700">
+            <p className="font-medium text-gray-950">Connect from the Chrome extension options page.</p>
+            <p className="mt-2 text-muted-foreground">
+              The website creates a fresh token, revokes older active tokens,
+              and sends the new token directly to the extension. Tokens are not displayed here.
+            </p>
+          </div>
+          {!data?.hasToken ? (
+            <div className="border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              Open the extension options page and choose "Sign in on website". If the browser blocks the connection, confirm this extension ID is passed in the URL.
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-2">
+            <Button asChild type="button" className="rounded-md">
+              <Link href="/connect-extension">Connect extension</Link>
+            </Button>
             <Button type="button" variant="outline" onClick={revokeToken}>
               Disconnect extension
+            </Button>
+            <Button asChild type="button" variant="outline" className="rounded-md">
+              <Link href="/pricing">Add credits</Link>
             </Button>
           </div>
         </CardContent>

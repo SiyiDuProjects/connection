@@ -17,6 +17,7 @@ import {
   invitations
 } from '@/lib/db/schema';
 import { comparePasswords, hashPassword, setSession } from '@/lib/auth/session';
+import { issueEmailVerification } from '@/lib/auth/email-verification';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createCheckoutSession } from '@/lib/payments/stripe';
@@ -51,7 +52,8 @@ const signInSchema = z.object({
 });
 
 export const signIn = validatedAction(signInSchema, async (data, formData) => {
-  const { email, password } = data;
+  const { password } = data;
+  const email = data.email.toLowerCase();
 
   const userWithTeam = await db
     .select({
@@ -67,8 +69,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
   if (userWithTeam.length === 0) {
     return {
       error: 'Invalid email or password. Please try again.',
-      email,
-      password
+      email
     };
   }
 
@@ -82,9 +83,13 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
   if (!isPasswordValid) {
     return {
       error: 'Invalid email or password. Please try again.',
-      email,
-      password
+      email
     };
+  }
+
+  if (!foundUser.emailVerifiedAt) {
+    await issueEmailVerification(foundUser.id, foundUser.email);
+    redirect(`/verify-email?email=${encodeURIComponent(foundUser.email)}`);
   }
 
   await Promise.all([
@@ -110,8 +115,9 @@ const signUpSchema = z.object({
   inviteId: z.string().optional()
 });
 
-export const signUp = validatedAction(signUpSchema, async (data, formData) => {
-  const { email, password, inviteId } = data;
+export const signUp = validatedAction(signUpSchema, async (data) => {
+  const { password, inviteId } = data;
+  const email = data.email.toLowerCase();
 
   const existingUser = await db
     .select()
@@ -122,8 +128,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   if (existingUser.length > 0) {
     return {
       error: 'This email already has an account. Sign in instead.',
-      email,
-      password
+      email
     };
   }
 
@@ -140,8 +145,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   if (!createdUser) {
     return {
       error: 'Failed to create user. Please try again.',
-      email,
-      password
+      email
     };
   }
 
@@ -180,7 +184,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
         .where(eq(teams.id, teamId))
         .limit(1);
     } else {
-      return { error: 'Invalid or expired invitation.', email, password };
+      return { error: 'Invalid or expired invitation.', email };
     }
   } else {
     // Create a new team if there's no invitation
@@ -193,8 +197,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     if (!createdTeam) {
       return {
         error: 'Failed to create team. Please try again.',
-        email,
-        password
+        email
       };
     }
 
@@ -213,20 +216,36 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   await Promise.all([
     db.insert(teamMembers).values(newTeamMember),
     logActivity(teamId, createdUser.id, ActivityType.SIGN_UP),
-    setSession(createdUser)
+    issueEmailVerification(createdUser.id, createdUser.email)
   ]);
 
-  const redirectTo = formData.get('redirect') as string | null;
-  if (redirectTo === 'checkout') {
-    const priceId = formData.get('priceId') as string;
-    return createCheckoutSession({ team: createdTeam, priceId });
-  }
-  if (isInternalRedirect(redirectTo)) {
-    redirect(redirectTo);
-  }
-
-  redirect('/dashboard');
+  redirect(`/verify-email?email=${encodeURIComponent(createdUser.email)}`);
 });
+
+const resendVerificationSchema = z.object({
+  email: z.string().email().min(3).max(255)
+});
+
+export const resendVerification = validatedAction(
+  resendVerificationSchema,
+  async (data) => {
+    const email = data.email.toLowerCase();
+    const [foundUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (foundUser && !foundUser.emailVerifiedAt && !foundUser.deletedAt) {
+      await issueEmailVerification(foundUser.id, foundUser.email);
+    }
+
+    return {
+      success: 'If that account needs verification, a new link has been sent.',
+      email
+    };
+  }
+);
 
 function isInternalRedirect(value: string | null): value is string {
   return Boolean(value && value.startsWith('/') && !value.startsWith('//'));
@@ -365,13 +384,29 @@ const updateAccountSchema = z.object({
 export const updateAccount = validatedActionWithUser(
   updateAccountSchema,
   async (data, _, user) => {
-    const { name, email } = data;
+    const { name } = data;
+    const email = data.email.toLowerCase();
     const userWithTeam = await getUserWithTeam(user.id);
+    const emailChanged = email !== user.email;
 
     await Promise.all([
-      db.update(users).set({ name, email }).where(eq(users.id, user.id)),
+      db
+        .update(users)
+        .set({
+          name,
+          email,
+          emailVerifiedAt: emailChanged ? null : user.emailVerifiedAt,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, user.id)),
       logActivity(userWithTeam?.teamId, user.id, ActivityType.UPDATE_ACCOUNT)
     ]);
+
+    if (emailChanged) {
+      await issueEmailVerification(user.id, email);
+      (await cookies()).delete('session');
+      redirect(`/verify-email?email=${encodeURIComponent(email)}`);
+    }
 
     return { name, success: 'Account updated successfully.' };
   }

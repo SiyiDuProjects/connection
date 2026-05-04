@@ -3,7 +3,7 @@ import { getActiveExtensionTokenInfo, getCreditBalance, getRecentUsage, getSetti
 export async function GET() {
   const user = await getUser();
   if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
   const [balance, usage, settings, team, extensionToken] = await Promise.all([
@@ -14,9 +14,29 @@ export async function GET() {
     getActiveExtensionTokenInfo(user.id)
   ]);
 
+  const profileFields = [
+    settings?.targetRole,
+    settings?.emailTone,
+    settings?.senderProfile,
+    (settings?.defaultSearchPreferences as Record<string, unknown> | null)?.contactRole
+  ];
+  const completedProfileFields = profileFields.filter(Boolean).length;
+  const successfulSearch = usage.find((item) => item.action === 'contacts.search' && item.status === 'success');
+  const successfulDraft = usage.find((item) => item.action === 'email.draft' && item.status === 'success');
+
   return Response.json({
+    ok: true,
     user,
-    credits: { balance },
+    credits: {
+      balance,
+      remaining: balance,
+      status: balance > 0 ? 'available' : 'empty',
+      costs: {
+        search: Number(process.env.CONTACT_SEARCH_CREDITS || 1),
+        reveal: Number(process.env.CONTACT_REVEAL_CREDITS || 1),
+        draft: Number(process.env.EMAIL_DRAFT_CREDITS || 1)
+      }
+    },
     usage,
     settings,
     subscription: {
@@ -26,6 +46,28 @@ export async function GET() {
     extension: {
       connected: Boolean(extensionToken),
       lastUsedAt: extensionToken?.lastUsedAt || null
+    },
+    onboarding: {
+      profile: {
+        complete: completedProfileFields >= 3,
+        completedFields: completedProfileFields,
+        totalFields: profileFields.length
+      },
+      extension: {
+        connected: Boolean(extensionToken),
+        lastUsedAt: extensionToken?.lastUsedAt || null
+      },
+      linkedIn: {
+        recentSuccessfulSearchAt: successfulSearch?.createdAt || null
+      },
+      draft: {
+        recentSuccessfulDraftAt: successfulDraft?.createdAt || null
+      },
+      billing: {
+        planName: team?.planName || 'Free',
+        status: team?.subscriptionStatus || 'inactive',
+        creditsRemaining: balance
+      }
     }
   });
 }

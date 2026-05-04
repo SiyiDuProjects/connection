@@ -137,9 +137,10 @@ function normalizeProspect(prospect, job) {
   const company = prospect.company_name || prospect.business_name || prospect.current_company_name || job.companyName;
   const contactData = prospect.contacts_information || prospect.contact_details || prospect;
   const email = extractEmail(contactData);
+  const linkedinUrl = extractLinkedinUrl(prospect);
 
   return {
-    id: id || prospect.linkedin || prospect.linkedin_url || prospect.full_name,
+    id: id || linkedinUrl || prospect.full_name,
     provider: "explorium",
     exploriumProspectId: id,
     name: prospect.full_name || prospect.name || [prospect.first_name, prospect.last_name].filter(Boolean).join(" "),
@@ -148,10 +149,30 @@ function normalizeProspect(prospect, job) {
     companyDomain: prospect.company_domain || prospect.domain || "",
     location: prospect.location || prospect.city_region_country || [prospect.city, prospect.region, prospect.country_code].filter(Boolean).join(", "),
     education: prospect.education || "",
-    linkedinUrl: prospect.linkedin || prospect.linkedin_url || "",
+    linkedinUrl,
     email: "",
     emailStatus: email ? "available" : prospect.professional_email_status || prospect.email_status || ""
   };
+}
+
+function extractLinkedinUrl(prospect) {
+  return firstString(
+    prospect.linkedin,
+    prospect.linkedin_url,
+    prospect.linkedinUrl,
+    prospect.linkedin_profile_url,
+    prospect.linkedin_profile,
+    prospect.social?.linkedin,
+    prospect.social_links?.linkedin,
+    prospect.contacts_information?.linkedin,
+    prospect.contacts_information?.linkedin_url,
+    prospect.contact_details?.linkedin,
+    prospect.contact_details?.linkedin_url
+  );
+}
+
+function firstString(...values) {
+  return values.find((value) => typeof value === "string" && value.trim())?.trim() || "";
 }
 
 function extractEmail(data) {

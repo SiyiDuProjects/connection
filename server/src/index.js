@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { searchContacts, revealEmail } from "./lib/contacts-provider.js";
 import { rankContacts } from "./lib/ranking.js";
 import { createDraft, createGmailUrl } from "./lib/email.js";
+import { errorHandler, fail, logRequest, ok, publicError, requestContext, writeLog } from "./lib/http.js";
 import {
   getBearerToken,
   getAccountSummary,
@@ -24,6 +25,8 @@ const apiLimiter = createRateLimiter({
 });
 
 app.use(helmet());
+app.use(requestContext);
+app.use(logRequest);
 app.use(express.json({ limit: "64kb" }));
 app.use(cors({
   origin(origin, callback) {
@@ -45,8 +48,7 @@ app.use("/api", apiLimiter);
 app.use("/api", requireAuth);
 
 app.get("/health", (_req, res) => {
-  res.json({
-    ok: true,
+  ok(res, {
     provider: providerStatus(),
     auth: {
       accountDbConfigured: isAccountDbConfigured()
@@ -80,7 +82,11 @@ app.get("/api/account", async (req, res, next) => {
       getAccountSummary(req.user.id),
       getCreditBalance(req.user.id)
     ]);
-    res.json({ ok: true, ...account, credits: { balance } });
+    if (account.onboarding?.billing) {
+      account.onboarding.billing.creditsRemaining = balance;
+      account.onboarding.billing.creditStatus = balance > 0 ? "available" : "empty";
+    }
+    ok(res, { ...account, credits: { balance, remaining: balance } });
   } catch (error) {
     next(error);
   }
@@ -90,13 +96,23 @@ app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("C
   try {
     const job = normalizeJob(req.body);
     if (!job.companyName) {
-      return res.status(400).json({ ok: false, error: "Missing company name from LinkedIn job page." });
+      return fail(res, 400, "Could not read the company name from this LinkedIn job page.", {
+        action: { label: "Open job details", url: job.jobUrl || "https://www.linkedin.com/jobs/" },
+        credits: { remaining: await getCreditBalance(req.user.id) }
+      });
     }
 
-    const contacts = await searchContacts(job);
+    const contacts = await searchContacts(job).catch((error) => {
+      writeLog("warn", "contacts.provider_failed", {
+        requestId: req.requestId,
+        provider: providerStatus().contactProvider,
+        error: error.message
+      });
+      throw publicError("Contact search is temporarily unavailable. Try again shortly.", 503);
+    });
     const ranked = rankContacts(contacts, job).slice(0, 10);
     await chargeAndRecord(req, "contacts.search", { resultCount: ranked.length });
-    res.json({ ok: true, contacts: ranked, credits: { remaining: await getCreditBalance(req.user.id) } });
+    ok(res, { contacts: ranked, credits: { remaining: await getCreditBalance(req.user.id) } });
   } catch (error) {
     await recordUsage(req, "contacts.search", 0, "error", { error: error.message }).catch(() => {});
     next(error);
@@ -106,13 +122,24 @@ app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("C
 app.post("/api/contacts/reveal", requireCredits("contacts.reveal", creditCost("CONTACT_REVEAL_CREDITS", 1)), async (req, res, next) => {
   try {
     const contact = req.body?.contact;
-    if (!contact) return res.status(400).json({ ok: false, error: "Missing contact." });
+    if (!contact) return fail(res, 400, "Choose a contact before revealing an email.");
 
-    const email = contact.email || await revealEmail(contact);
-    if (!email) return res.status(404).json({ ok: false, error: "No email found for this contact." });
+    const email = contact.email || await revealEmail(contact).catch((error) => {
+      writeLog("warn", "contacts.reveal_provider_failed", {
+        requestId: req.requestId,
+        provider: contact.provider || providerStatus().contactProvider,
+        error: error.message
+      });
+      throw publicError("Email reveal is temporarily unavailable. Try again shortly.", 503);
+    });
+    if (!email) {
+      return fail(res, 404, "No email was found for this contact.", {
+        credits: { remaining: await getCreditBalance(req.user.id) }
+      });
+    }
 
     await chargeAndRecord(req, "contacts.reveal", { provider: contact.provider });
-    res.json({ ok: true, email, credits: { remaining: await getCreditBalance(req.user.id) } });
+    ok(res, { email, credits: { remaining: await getCreditBalance(req.user.id) } });
   } catch (error) {
     await recordUsage(req, "contacts.reveal", 0, "error", { error: error.message }).catch(() => {});
     next(error);
@@ -125,26 +152,25 @@ app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRA
     const job = normalizeJob(req.body?.job || {});
 
     if (!contact?.email) {
-      return res.status(400).json({ ok: false, error: "Reveal an email before drafting." });
+      return fail(res, 400, "Reveal an email before drafting.", {
+        credits: { remaining: await getCreditBalance(req.user.id) }
+      });
     }
 
     const settings = await getUserSettings(req.user.id);
-    const draft = createDraft(contact, job, settings);
-    await chargeAndRecord(req, "email.draft", { hasSettings: Boolean(Object.keys(settings).length) });
-    res.json({ ok: true, ...draft, gmailUrl: createGmailUrl(contact.email, draft), credits: { remaining: await getCreditBalance(req.user.id) } });
+    const draft = await createDraft(contact, job, settings);
+    await chargeAndRecord(req, "email.draft", {
+      hasSettings: Boolean(Object.keys(settings).length),
+      ai: draft.ai
+    });
+    ok(res, { ...draft, gmailUrl: createGmailUrl(contact.email, draft), credits: { remaining: await getCreditBalance(req.user.id) } });
   } catch (error) {
     await recordUsage(req, "email.draft", 0, "error", { error: error.message }).catch(() => {});
     next(error);
   }
 });
 
-app.use((error, _req, res, _next) => {
-  console.error(error);
-  res.status(error.status || 500).json({
-    ok: false,
-    error: error.publicMessage || error.message || "Server error"
-  });
-});
+app.use(errorHandler);
 
 app.listen(port, () => {
   console.log(`Find Contacts server listening on http://localhost:${port}`);
@@ -165,7 +191,7 @@ function createRateLimiter({ windowMs, max }) {
 
     bucket.count += 1;
     if (bucket.count > max) {
-      return res.status(429).json({ ok: false, error: "Too many requests. Try again shortly." });
+      return fail(res, 429, "Too many requests. Try again shortly.");
     }
 
     return next();
@@ -175,7 +201,11 @@ function createRateLimiter({ windowMs, max }) {
 async function requireAuth(req, res, next) {
   try {
     const token = getBearerToken(req);
-    if (!token) return res.status(401).json({ ok: false, error: "Sign in to use this API." });
+    if (!token) {
+      return fail(res, 401, "Sign in to use this API.", {
+        action: { label: "Connect extension", url: `${getWebRedirectBaseUrl()}/connect-extension` }
+      });
+    }
 
     req.user = await getUserFromApiToken(token);
     next();
@@ -189,9 +219,8 @@ function requireCredits(action, amount) {
     try {
       const balance = await getCreditBalance(req.user.id);
       if (balance < amount) {
-        return res.status(402).json({
-          ok: false,
-          error: "Insufficient credits",
+        return fail(res, 402, "Insufficient credits", {
+          action: { label: "Open pricing", url: `${getWebRedirectBaseUrl()}/pricing` },
           credits: { remaining: balance, required: amount }
         });
       }
@@ -214,10 +243,10 @@ async function chargeAndRecord(req, action, response) {
   });
 
   if (!result?.ok) {
-    const error = new Error("Insufficient credits");
-    error.status = 402;
-    error.publicMessage = "Insufficient credits";
-    throw error;
+    throw publicError("Insufficient credits", 402, {
+      action: { label: "Open pricing", url: `${getWebRedirectBaseUrl()}/pricing` },
+      credits: { remaining: result?.balance ?? 0, required: charge.amount }
+    });
   }
 
   await recordUsage(req, action, charge.amount, "success", response);
@@ -254,12 +283,20 @@ function normalizeJob(input) {
     companyName: clean(input?.companyName),
     jobTitle: clean(input?.jobTitle),
     jobLocation: clean(input?.jobLocation),
-    jobUrl: clean(input?.jobUrl)
+    jobUrl: clean(input?.jobUrl),
+    jobDescription: cleanMultiline(input?.jobDescription)
   };
 }
 
 function clean(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function cleanMultiline(value) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
 }
 
 function getWebRedirectBaseUrl() {

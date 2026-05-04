@@ -65,16 +65,16 @@ export default async function PricingPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <PricingCard
           name={basePlan?.name || 'Base'}
-          price={basePrice?.unitAmount || 800}
-          interval={basePrice?.interval || 'month'}
-          trialDays={basePrice?.trialPeriodDays || 7}
+          price={basePrice?.unitAmount}
+          interval={basePrice?.interval}
+          trialDays={basePrice?.trialPeriodDays}
           priceId={basePrice?.id}
         />
         <PricingCard
           name={plusPlan?.name || 'Plus'}
-          price={plusPrice?.unitAmount || 1200}
-          interval={plusPrice?.interval || 'month'}
-          trialDays={plusPrice?.trialPeriodDays || 7}
+          price={plusPrice?.unitAmount}
+          interval={plusPrice?.interval}
+          trialDays={plusPrice?.trialPeriodDays}
           priceId={plusPrice?.id}
         />
       </div>
@@ -90,12 +90,13 @@ function PricingCard({
   priceId
 }: {
   name: string;
-  price: number;
-  interval: string;
-  trialDays: number;
+  price?: number | null;
+  interval?: string | null;
+  trialDays?: number | null;
   priceId?: string;
 }) {
   const copy = planCopy[name as keyof typeof planCopy] || planCopy.Base;
+  const configured = Boolean(priceId && typeof price === 'number' && interval);
 
   return (
     <section className="border border-gray-200 bg-white p-6 shadow-sm">
@@ -109,11 +110,11 @@ function PricingCard({
         </p>
       </div>
       <p className="mt-7 text-4xl font-medium text-gray-950">
-        ${price / 100}{' '}
-        <span className="text-base font-normal text-gray-600">/ {interval}</span>
+        {configured ? `$${price! / 100}` : 'Configuring'}
+        {configured ? <span className="text-base font-normal text-gray-600"> / {interval}</span> : null}
       </p>
       <p className="mt-2 text-sm text-gray-500">
-        Includes a {trialDays} day free trial.
+        {configured && trialDays ? `Includes a ${trialDays} day free trial.` : 'Stripe checkout is not available yet.'}
       </p>
       <ul className="mt-7 space-y-3">
         {copy.features.map((feature) => (
@@ -123,7 +124,7 @@ function PricingCard({
           </li>
         ))}
       </ul>
-      {priceId ? (
+      {configured ? (
         <form action={checkoutAction} className="mt-8">
           <input type="hidden" name="priceId" value={priceId} />
           <SubmitButton />

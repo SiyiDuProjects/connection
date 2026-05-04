@@ -99,8 +99,16 @@ async function apolloPost(path, payload) {
 
 function normalizeApolloPerson(person, organizationFallback = {}) {
   const organization = person.organization || person.account || {};
+  const linkedinUrl = firstString(
+    person.linkedin_url,
+    person.linkedinUrl,
+    person.linkedin_profile_url,
+    person.person?.linkedin_url,
+    person.contact?.linkedin_url
+  );
+
   return {
-    id: person.id || person.linkedin_url || person.email,
+    id: person.id || linkedinUrl || person.email,
     apolloId: person.person_id || person.id,
     name: person.name || [person.first_name, person.last_name].filter(Boolean).join(" "),
     title: person.title || "",
@@ -108,10 +116,14 @@ function normalizeApolloPerson(person, organizationFallback = {}) {
     companyDomain: organization.primary_domain || organization.website_url || organization.domain || organizationFallback.domain || "",
     location: [person.city, person.state, person.country].filter(Boolean).join(", "),
     education: normalizeEducation(person),
-    linkedinUrl: person.linkedin_url || "",
+    linkedinUrl,
     email: "",
     emailStatus: person.email_status || ""
   };
+}
+
+function firstString(...values) {
+  return values.find((value) => typeof value === "string" && value.trim())?.trim() || "";
 }
 
 function normalizeOrganization(organization) {

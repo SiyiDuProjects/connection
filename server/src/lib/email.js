@@ -1,17 +1,59 @@
-export function createDraft(contact, job, settings = {}) {
+const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+
+export async function createDraft(contact, job, settings = {}) {
+  const fallback = createTemplateDraft(contact, job, settings);
+
+  if (!process.env.OPENAI_API_KEY) {
+    return {
+      ...fallback,
+      personalizationNotes: fallbackNotes(contact, job, settings),
+      missingContext: missingContext(job, settings),
+      ai: { used: false, provider: "template" }
+    };
+  }
+
+  try {
+    const draft = await createAiDraft(contact, job, settings);
+    return {
+      ...draft,
+      ai: {
+        used: true,
+        provider: "openai",
+        model: openAiModel()
+      }
+    };
+  } catch (error) {
+    console.error("AI draft generation failed:", error.message || error);
+    return {
+      ...fallback,
+      personalizationNotes: fallbackNotes(contact, job, settings),
+      missingContext: missingContext(job, settings),
+      ai: {
+        used: false,
+        provider: "template",
+        model: openAiModel(),
+        error: "AI generation was unavailable, so a safe template draft was used."
+      }
+    };
+  }
+}
+
+function createTemplateDraft(contact, job, settings = {}) {
   const company = job.companyName || contact.companyName || "your company";
   const subject = process.env.GMAIL_SUBJECT_PREFIX || `Quick question about ${company}`;
   const firstName = String(contact.name || "").split(" ")[0] || "there";
   const titleLine = contact.title ? `I saw your work as ${articleFor(contact.title)} ${contact.title} at ${company}.` : `I came across your profile at ${company}.`;
-  const targetRole = settings.target_role || job.jobTitle;
+  const preferences = settings.default_search_preferences || settings.defaultSearchPreferences || {};
+  const targetRole = settings.target_role || settings.targetRole || job.jobTitle;
   const jobLine = targetRole ? `I'm interested in the ${targetRole} role` : `I'm interested in opportunities`;
-  const senderProfile = settings.sender_profile || "I'm a Berkeley student";
-  const toneLine = toneSentence(settings.email_tone);
+  const senderProfile = settings.sender_profile || settings.senderProfile || "I'm a Berkeley student";
+  const toneLine = toneSentence(settings.email_tone || settings.emailTone);
+  const contactPerspective = contactRoleLabel(preferences.contactRole || preferences.contact_role || preferences.seniority);
 
   const body = [
     `Hi ${firstName},`,
     "",
-    `${titleLine} ${jobLine} and wanted to ask if you would be open to a brief conversation or pointing me toward the right recruiting contact.`,
+    `${titleLine} ${jobLine} and wanted to ask if you would be open to a brief conversation${contactPerspective ? ` from your perspective as ${contactPerspective}` : ""}.`,
     "",
     `${senderProfile}${toneLine} and would really appreciate any advice on the team, the role, or the application process.`,
     "",
@@ -40,8 +82,195 @@ function articleFor(title) {
 function toneSentence(tone) {
   const normalized = String(tone || "").toLowerCase();
   if (normalized.includes("concise")) return ", keeping this brief,";
+  if (normalized.includes("confident")) return ", and I thought my background could be relevant,";
   if (normalized.includes("warm")) return ", and I wanted to reach out personally,";
   if (normalized.includes("formal")) return ", and I would be grateful for your guidance,";
   return "";
+}
+
+function contactRoleLabel(value) {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized === "hiring-manager") return "a hiring manager";
+  if (normalized === "team-lead") return "a team lead";
+  if (normalized === "alumni") return "an alum";
+  if (normalized === "executive") return "a company leader";
+  if (normalized === "recruiter") return "a recruiter";
+  return "";
+}
+
+async function createAiDraft(contact, job, settings) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    Number(process.env.AI_DRAFT_TIMEOUT_MS || 20_000)
+  );
+
+  try {
+    const response = await fetch(OPENAI_RESPONSES_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: openAiModel(),
+        instructions: aiInstructions(),
+        input: buildAiInput(contact, job, settings),
+        text: {
+          format: {
+            type: "json_schema",
+            name: "personalized_reachout_email",
+            strict: true,
+            schema: draftSchema()
+          }
+        },
+        store: false
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(data.error?.message || `OpenAI request failed with ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+
+    const outputText = extractOutputText(data);
+    const parsed = JSON.parse(outputText);
+    return normalizeAiDraft(parsed, job, settings);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function aiInstructions() {
+  return [
+    "You write concise, truthful cold outreach emails for job seekers.",
+    "Use only the resume/background, job description, and contact details provided.",
+    "Do not invent work experience, degrees, referrals, prior conversations, or personal relationships.",
+    "Do not claim the contact can refer the sender. Ask for advice, a brief chat, or the right recruiting contact.",
+    "Keep the email between 120 and 180 words. Use a natural human tone, not a sales pitch.",
+    "Return only valid JSON matching the schema."
+  ].join("\n");
+}
+
+function buildAiInput(contact, job, settings) {
+  return JSON.stringify({
+    sender: {
+      targetRole: settings.target_role || settings.targetRole || job.jobTitle || "",
+      emailTone: settings.email_tone || settings.emailTone || "warm",
+      contactRole: (settings.default_search_preferences || settings.defaultSearchPreferences || {}).contactRole || "",
+      shortProfile: settings.sender_profile || settings.senderProfile || "",
+      resumeContext: truncate(settings.resume_context || settings.resumeContext, Number(process.env.AI_DRAFT_MAX_RESUME_CHARS || 20_000))
+    },
+    job: {
+      companyName: job.companyName || contact.companyName || "",
+      jobTitle: job.jobTitle || "",
+      jobLocation: job.jobLocation || "",
+      jobUrl: job.jobUrl || "",
+      jobDescription: truncate(job.jobDescription, Number(process.env.AI_DRAFT_MAX_JD_CHARS || 12_000))
+    },
+    contact: {
+      name: contact.name || "",
+      title: contact.title || "",
+      companyName: contact.companyName || job.companyName || "",
+      location: contact.location || "",
+      education: contact.education || "",
+      linkedinUrl: contact.linkedinUrl || "",
+      reasons: Array.isArray(contact.reasons) ? contact.reasons.slice(0, 5) : []
+    }
+  });
+}
+
+function draftSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      subject: { type: "string" },
+      body: { type: "string" },
+      personalizationNotes: {
+        type: "array",
+        items: { type: "string" }
+      },
+      missingContext: {
+        type: "array",
+        items: { type: "string" }
+      }
+    },
+    required: ["subject", "body", "personalizationNotes", "missingContext"]
+  };
+}
+
+function extractOutputText(data) {
+  if (typeof data.output_text === "string") return data.output_text;
+
+  const parts = [];
+  for (const item of data.output || []) {
+    for (const content of item.content || []) {
+      if (content.type === "output_text" && content.text) parts.push(content.text);
+    }
+  }
+  const text = parts.join("\n").trim();
+  if (!text) throw new Error("OpenAI response did not include output text.");
+  return text;
+}
+
+function normalizeAiDraft(value, job, settings) {
+  const subject = cleanLine(value.subject).slice(0, 140) || `Quick question about ${job.companyName || "the role"}`;
+  const body = cleanBody(value.body);
+  if (!body) throw new Error("AI response did not include an email body.");
+
+  return {
+    subject,
+    body,
+    personalizationNotes: normalizeStringArray(value.personalizationNotes).slice(0, 5),
+    missingContext: Array.from(new Set([
+      ...missingContext(job, settings),
+      ...normalizeStringArray(value.missingContext)
+    ])).slice(0, 5)
+  };
+}
+
+function fallbackNotes(contact, job, settings) {
+  const notes = [];
+  if (settings.resume_context || settings.sender_profile || settings.resumeContext || settings.senderProfile) notes.push("Used your saved profile context.");
+  if (job.jobTitle || job.companyName) notes.push("Referenced the LinkedIn job and company.");
+  if (contact.title || contact.companyName) notes.push("Referenced the selected contact's role.");
+  return notes.length ? notes : ["Used available job and contact details."];
+}
+
+function missingContext(job, settings) {
+  const missing = [];
+  if (!settings.resume_context && !settings.sender_profile && !settings.resumeContext && !settings.senderProfile) missing.push("Add your resume or personal background for stronger personalization.");
+  if (!job.jobDescription) missing.push("LinkedIn job description was not available.");
+  return missing;
+}
+
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map(cleanLine).filter(Boolean);
+}
+
+function cleanLine(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function cleanBody(value) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+}
+
+function truncate(value, maxLength) {
+  const text = String(value || "").trim();
+  if (!text || text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}\n[truncated]`;
+}
+
+function openAiModel() {
+  return process.env.OPENAI_MODEL || "gpt-5-mini";
 }
 

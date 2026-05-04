@@ -15,6 +15,20 @@
       "when": 1777830000000,
       "tag": "0001_personal_credits",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777831000000,
+      "tag": "0002_resume_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777832000000,
+      "tag": "0003_email_verification",
+      "breakpoints": true
     }
   ]
 }

@@ -53,12 +53,17 @@ export async function getAccountSummary(userId) {
       teams.plan_name,
       teams.subscription_status,
       extension_api_tokens.id as extension_token_id,
-      extension_api_tokens.last_used_at
+      extension_api_tokens.last_used_at,
+      user_settings.target_role,
+      user_settings.email_tone,
+      user_settings.sender_profile,
+      user_settings.default_search_preferences
     from users
     left join team_members on team_members.user_id = users.id
     left join teams on teams.id = team_members.team_id
     left join extension_api_tokens on extension_api_tokens.user_id = users.id
       and extension_api_tokens.revoked_at is null
+    left join user_settings on user_settings.user_id = users.id
     where users.id = ${userId}
       and users.deleted_at is null
     order by extension_api_tokens.created_at desc
@@ -66,6 +71,25 @@ export async function getAccountSummary(userId) {
   `;
 
   const account = rows[0] || {};
+  const preferences = account.default_search_preferences || {};
+  const profileFields = [
+    account.target_role,
+    account.email_tone,
+    account.sender_profile,
+    preferences.contactRole || preferences.contact_role
+  ];
+  const completedProfileFields = profileFields.filter(Boolean).length;
+  const usageRows = await sql`
+    select action, status, created_at
+    from api_usage
+    where user_id = ${userId}
+      and status = 'success'
+    order by created_at desc
+    limit 20
+  `;
+  const successfulSearch = usageRows.find((row) => row.action === "contacts.search");
+  const successfulDraft = usageRows.find((row) => row.action === "email.draft");
+
   return {
     user: { id: account.id, email: account.email },
     subscription: {
@@ -75,6 +99,27 @@ export async function getAccountSummary(userId) {
     extension: {
       connected: Boolean(account.extension_token_id),
       lastUsedAt: account.last_used_at || null
+    },
+    onboarding: {
+      profile: {
+        complete: completedProfileFields >= 3,
+        completedFields: completedProfileFields,
+        totalFields: profileFields.length
+      },
+      extension: {
+        connected: Boolean(account.extension_token_id),
+        lastUsedAt: account.last_used_at || null
+      },
+      linkedIn: {
+        recentSuccessfulSearchAt: successfulSearch?.created_at || null
+      },
+      draft: {
+        recentSuccessfulDraftAt: successfulDraft?.created_at || null
+      },
+      billing: {
+        planName: account.plan_name || "Free",
+        status: account.subscription_status || "inactive"
+      }
     }
   };
 }
@@ -83,7 +128,7 @@ export async function getUserSettings(userId) {
   ensureConfigured();
 
   const rows = await sql`
-    select target_role, email_tone, default_search_preferences, sender_profile
+    select target_role, email_tone, default_search_preferences, sender_profile, resume_context
     from user_settings
     where user_id = ${userId}
     limit 1

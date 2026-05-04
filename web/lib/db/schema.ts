@@ -14,6 +14,7 @@ export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 100 }),
   email: varchar('email', { length: 255 }).notNull().unique(),
+  emailVerifiedAt: timestamp('email_verified_at'),
   passwordHash: text('password_hash').notNull(),
   role: varchar('role', { length: 20 }).notNull().default('member'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -70,6 +71,17 @@ export const invitations = pgTable('invitations', {
   status: varchar('status', { length: 20 }).notNull().default('pending'),
 });
 
+export const emailVerificationTokens = pgTable('email_verification_tokens', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  usedAt: timestamp('used_at'),
+});
+
 export const userSettings = pgTable('user_settings', {
   id: serial('id').primaryKey(),
   userId: integer('user_id')
@@ -81,6 +93,7 @@ export const userSettings = pgTable('user_settings', {
     .notNull()
     .default({}),
   senderProfile: text('sender_profile'),
+  resumeContext: text('resume_context'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -137,6 +150,7 @@ export const teamsRelations = relations(teams, ({ many }) => ({
 export const usersRelations = relations(users, ({ many }) => ({
   teamMembers: many(teamMembers),
   invitationsSent: many(invitations),
+  emailVerificationTokens: many(emailVerificationTokens),
 }));
 
 export const invitationsRelations = relations(invitations, ({ one }) => ({
@@ -171,6 +185,16 @@ export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const emailVerificationTokensRelations = relations(
+  emailVerificationTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [emailVerificationTokens.userId],
+      references: [users.id],
+    }),
+  })
+);
 
 export const userSettingsRelations = relations(userSettings, ({ one }) => ({
   user: one(users, {
@@ -213,6 +237,8 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type Invitation = typeof invitations.$inferSelect;
 export type NewInvitation = typeof invitations.$inferInsert;
+export type EmailVerificationToken =
+  typeof emailVerificationTokens.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;
 export type ExtensionApiToken = typeof extensionApiTokens.$inferSelect;
 export type CreditLedger = typeof creditLedger.$inferSelect;

@@ -3,7 +3,7 @@ import { handleSubscriptionChange, stripe } from '@/lib/payments/stripe';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
 import { creditLedger, stripeWebhookEvents, teams, teamMembers } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -93,6 +93,22 @@ async function grantRenewalCredits(invoice: Stripe.Invoice) {
     .limit(1);
 
   if (!member) {
+    return;
+  }
+
+  const existingGrant = await db
+    .select({ id: creditLedger.id })
+    .from(creditLedger)
+    .where(
+      and(
+        eq(creditLedger.userId, member.userId),
+        eq(creditLedger.action, 'subscription.monthly_grant'),
+        sql`${creditLedger.metadata}->>'invoiceId' = ${invoice.id}`
+      )
+    )
+    .limit(1);
+
+  if (existingGrant.length > 0) {
     return;
   }
 

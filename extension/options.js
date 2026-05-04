@@ -11,13 +11,10 @@ boot();
 
 async function boot() {
   const stored = await chrome.storage.sync.get(["apiBaseUrl", "webBaseUrl", "extensionApiToken"]);
-  apiInput.value = stored.apiBaseUrl || DEFAULT_API_BASE_URL;
-  const webBaseUrl = cleanUrl(stored.webBaseUrl);
-  webInput.value = !webBaseUrl || webBaseUrl === DEFAULT_API_BASE_URL
-    ? DEFAULT_WEB_BASE_URL
-    : webBaseUrl;
-  if (webInput.value !== stored.webBaseUrl) {
-    await chrome.storage.sync.set({ webBaseUrl: webInput.value });
+  webInput.value = normalizeWebBaseUrl(stored.webBaseUrl);
+  apiInput.value = normalizeApiBaseUrl(stored.apiBaseUrl, webInput.value);
+  if (webInput.value !== stored.webBaseUrl || apiInput.value !== stored.apiBaseUrl) {
+    await chrome.storage.sync.set({ apiBaseUrl: apiInput.value, webBaseUrl: webInput.value });
   }
   await renderStatus();
 }
@@ -48,8 +45,8 @@ document.getElementById("clearToken").addEventListener("click", async () => {
 });
 
 async function saveUrls() {
-  const apiBaseUrl = cleanUrl(apiInput.value) || DEFAULT_API_BASE_URL;
-  const webBaseUrl = cleanUrl(webInput.value) || DEFAULT_WEB_BASE_URL;
+  const webBaseUrl = normalizeWebBaseUrl(webInput.value);
+  const apiBaseUrl = normalizeApiBaseUrl(apiInput.value, webBaseUrl);
 
   try {
     const apiOrigin = new URL(apiBaseUrl).origin;
@@ -90,4 +87,27 @@ async function renderStatus() {
 
 function cleanUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function normalizeWebBaseUrl(value) {
+  const url = cleanUrl(value);
+  if (!url) return DEFAULT_WEB_BASE_URL;
+  if (url === DEFAULT_API_BASE_URL) return DEFAULT_WEB_BASE_URL;
+  if (url.includes("connection-lemon.vercel.app")) return DEFAULT_WEB_BASE_URL;
+  if (url.includes("contacts.gaid.studio")) return DEFAULT_WEB_BASE_URL;
+  return url;
+}
+
+function normalizeApiBaseUrl(value, webBaseUrl) {
+  const url = cleanUrl(value);
+  const webUrl = cleanUrl(webBaseUrl);
+  const isLocalWeb = webUrl.includes("localhost") || webUrl.includes("127.0.0.1");
+  if (!url) return DEFAULT_API_BASE_URL;
+  if (!isLocalWeb && (url.includes("localhost") || url.includes("127.0.0.1"))) {
+    return DEFAULT_API_BASE_URL;
+  }
+  if (url.includes("gaid.studio") && !url.includes("contacts.gaid.studio")) {
+    return DEFAULT_API_BASE_URL;
+  }
+  return url;
 }

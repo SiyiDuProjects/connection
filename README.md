@@ -27,9 +27,14 @@ POSTGRES_URL=postgresql://...
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 BASE_URL=http://localhost:3000
+APP_URL=http://localhost:3000
 AUTH_SECRET=generate-a-long-random-secret
+EMAIL_FROM="Find Contacts <noreply@yourdomain.com>"
+RESEND_API_KEY=re_...
 MONTHLY_CREDITS=100
 ```
+
+For local development, email verification links are printed to the web server log if `EMAIL_FROM` and `RESEND_API_KEY` are not set. Production should configure both values so sign-up and resend flows can deliver verification email.
 
 After signing in, open `Dashboard > Extension` and generate an extension API token.
 

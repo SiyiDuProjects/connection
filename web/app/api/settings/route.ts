@@ -1,12 +1,23 @@
 import { eq } from 'drizzle-orm';
+import { z } from 'zod';
 import { db } from '@/lib/db/drizzle';
 import { userSettings } from '@/lib/db/schema';
 import { getSettings, getUser } from '@/lib/db/queries';
 
+const settingsSchema = z.object({
+  targetRole: z.string().max(200).optional(),
+  emailTone: z.enum(['warm', 'concise', 'confident', 'formal']).default('warm'),
+  senderProfile: z.string().max(2000).optional(),
+  resumeContext: z.string().max(40000).optional(),
+  location: z.string().max(120).optional(),
+  seniority: z.enum(['recruiter', 'hiring-manager', 'team-lead', 'alumni', 'executive']).optional(),
+  contactRole: z.enum(['recruiter', 'hiring-manager', 'team-lead', 'alumni']).optional()
+});
+
 export async function GET() {
   const user = await getUser();
   if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
   return Response.json(await getSettings(user.id));
@@ -15,18 +26,28 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = await getUser();
   if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const payload = await request.json();
+  const parsed = settingsSchema.safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success) {
+    return Response.json(
+      { ok: false, error: 'Check the highlighted fields and try again.' },
+      { status: 400 }
+    );
+  }
+
+  const payload = parsed.data;
   const values = {
     userId: user.id,
     targetRole: clean(payload.targetRole),
-    emailTone: clean(payload.emailTone) || 'warm',
+    emailTone: payload.emailTone,
     senderProfile: clean(payload.senderProfile),
+    resumeContext: cleanMultiline(payload.resumeContext),
     defaultSearchPreferences: {
       location: clean(payload.location),
-      seniority: clean(payload.seniority)
+      seniority: payload.seniority || 'recruiter',
+      contactRole: payload.contactRole || 'recruiter'
     },
     updatedAt: new Date()
   };
@@ -46,4 +67,11 @@ export async function POST(request: Request) {
 
 function clean(value: unknown) {
   return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function cleanMultiline(value: unknown) {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
 }

@@ -8,11 +8,15 @@
   let state = {
     loading: false,
     error: "",
+    prompt: null,
     action: null,
+    creditsRemaining: null,
     contacts: [],
     job: null,
     revealed: new Map(),
-    revealing: new Set()
+    revealing: new Set(),
+    drafts: new Map(),
+    drafting: new Set()
   };
 
   function isJobPage() {
@@ -69,17 +73,25 @@
       companyName,
       jobTitle: title,
       jobLocation: locationText,
-      jobUrl: location.href
+      jobUrl: location.href,
+      jobDescription: getJobDescription()
     };
+  }
+
+  function getJobDescription() {
+    return textFrom([
+      ".jobs-description__content",
+      ".jobs-box__html-content",
+      ".jobs-description-content__text",
+      ".description__text",
+      ".show-more-less-html__markup"
+    ]);
   }
 
   function companyNameFromAriaLabel() {
     const companyElement = document.querySelector('[aria-label^="Company,"]');
     const label = companyElement?.getAttribute("aria-label") || "";
-    return label
-      .replace(/^Company,\s*/i, "")
-      .replace(/\.$/, "")
-      .trim();
+    return label.replace(/^Company,\s*/i, "").replace(/\.$/, "").trim();
   }
 
   function ensureButton() {
@@ -93,14 +105,11 @@
     if (existing && document.body.contains(existing)) {
       const root = document.getElementById(ROOT_ID);
       if (root && target && root.parentElement !== target.row) {
-        root.removeAttribute("style");
         setInlineRootClass(root, target);
         placeButtonRoot(root, target);
       } else if (root && target) {
-        root.removeAttribute("style");
         setInlineRootClass(root, target);
       } else if (root && !target && !root.classList.contains("fc-floating-entry")) {
-        root.removeAttribute("style");
         root.className = "fc-root fc-entry fc-floating-entry";
         document.body.appendChild(root);
       }
@@ -122,18 +131,14 @@
     button.addEventListener("click", openPanel);
 
     root.appendChild(button);
-    if (target) {
-      placeButtonRoot(root, target);
-    } else {
-      document.body.appendChild(root);
-    }
+    if (target) placeButtonRoot(root, target);
+    else document.body.appendChild(root);
   }
 
   function findJobActionsTarget() {
     const saveButton = Array.from(document.querySelectorAll("button"))
       .filter((button) => isVisible(button) && isSaveButton(button))
       .sort((first, second) => scoreJobActionButton(second) - scoreJobActionButton(first))[0];
-
     if (!saveButton) return null;
 
     const saveWrapper = saveButton.parentElement;
@@ -156,8 +161,8 @@
   }
 
   function isSearchResultsJobPage() {
-    if (!location.pathname.startsWith("/jobs/search-results/")) return false;
-    return new URLSearchParams(location.search).has("currentJobId");
+    return location.pathname.startsWith("/jobs/search-results/")
+      && new URLSearchParams(location.search).has("currentJobId");
   }
 
   function scoreJobActionButton(button) {
@@ -178,7 +183,6 @@
   function hasSiblingApplyAction(button) {
     const row = button.parentElement?.parentElement;
     if (!row) return false;
-
     return Array.from(row.querySelectorAll("a, button")).some((element) => {
       if (element === button) return false;
       const value = [
@@ -207,11 +211,8 @@
 
   function placeButtonRoot(root, target) {
     const { row, after } = target;
-    if (after.parentElement === row) {
-      row.insertBefore(root, after.nextSibling);
-      return;
-    }
-    row.appendChild(root);
+    if (after.parentElement === row) row.insertBefore(root, after.nextSibling);
+    else row.appendChild(root);
   }
 
   function isVisible(element) {
@@ -237,7 +238,7 @@
   function renderPanel() {
     const panel = ensurePanel();
     const company = state.job?.companyName || "this company";
-    const subtitle = [state.job?.jobTitle, state.job?.jobLocation].filter(Boolean).join(" · ");
+    const subtitle = [state.job?.jobTitle, state.job?.jobLocation].filter(Boolean).join(" - ");
 
     panel.innerHTML = `
       <div class="fc-header">
@@ -245,7 +246,10 @@
           <h2 class="fc-title">Find Contacts @ ${escapeHtml(company)}</h2>
           <div class="fc-subtitle">${escapeHtml(subtitle || "LinkedIn job page")}</div>
         </div>
-        <button class="fc-close" type="button" aria-label="Close">×</button>
+        <div class="fc-header-actions">
+          ${renderCredits()}
+          <button class="fc-close" type="button" aria-label="Close">&times;</button>
+        </div>
       </div>
       <div class="fc-body">${renderBody()}</div>
     `;
@@ -262,28 +266,50 @@
       button.addEventListener("click", () => draftEmail(button.dataset.draft));
     });
 
+    panel.querySelectorAll("[data-open-gmail]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const draft = state.drafts.get(button.dataset.openGmail);
+        if (draft?.gmailUrl) window.open(draft.gmailUrl, "_blank", "noopener,noreferrer");
+      });
+    });
+
     panel.querySelectorAll("[data-action-url]").forEach((button) => {
       button.addEventListener("click", () => {
         window.open(button.dataset.actionUrl, "_blank", "noopener,noreferrer");
       });
     });
-
   }
 
   function renderBody() {
     if (state.loading) return `<div class="fc-status">Finding relevant company contacts...</div>`;
+    if (state.prompt) {
+      return `
+        <div class="fc-status fc-prompt">${escapeHtml(state.prompt)}</div>
+        ${renderActionButton(state.action)}
+      `;
+    }
     if (state.error) {
       return `
         <div class="fc-status fc-error">${escapeHtml(state.error)}</div>
         ${renderActionButton(state.action)}
       `;
     }
-    if (!state.contacts.length) return `<div class="fc-status">No contacts found yet.</div>`;
+    if (!state.contacts.length) {
+      return `
+        ${renderCredits("body")}
+        <div class="fc-status">No contacts found yet.</div>
+      `;
+    }
 
     return `
       <div class="fc-section-title">Top Matches</div>
       ${state.contacts.map(renderContact).join("")}
     `;
+  }
+
+  function renderCredits(placement = "header") {
+    if (state.creditsRemaining === null || state.creditsRemaining === undefined) return "";
+    return `<div class="fc-credits fc-credits-${placement}">${escapeHtml(`${state.creditsRemaining} credits left`)}</div>`;
   }
 
   function renderActionButton(action) {
@@ -299,23 +325,49 @@
     const id = contact.id || contact.linkedinUrl || String(index);
     const email = state.revealed.get(id) || contact.email;
     const isRevealing = state.revealing.has(id);
-    const education = contact.education ? ` · ${contact.education}` : "";
-    const locationText = contact.location ? ` · ${contact.location}` : "";
+    const isDrafting = state.drafting.has(id);
+    const draft = state.drafts.get(id);
+    const education = contact.education ? ` - ${contact.education}` : "";
+    const locationText = contact.location ? ` - ${contact.location}` : "";
     const reasons = Array.isArray(contact.reasons) && contact.reasons.length
-      ? contact.reasons.join(" · ")
+      ? contact.reasons.join(" - ")
       : "Ranked by job and company relevance";
+    const name = escapeHtml(contact.name || "Unknown contact");
+    const linkedInUrl = safeHttpUrl(contact.linkedinUrl);
+    const nameContent = linkedInUrl
+      ? `<a class="fc-contact-link" href="${escapeAttr(linkedInUrl)}" target="_blank" rel="noopener noreferrer">${name}</a>`
+      : name;
 
     return `
       <article class="fc-contact">
-        <p class="fc-contact-name">${index + 1}. ${escapeHtml(contact.name || "Unknown contact")}</p>
+        <p class="fc-contact-name">${index + 1}. ${nameContent}</p>
         <p class="fc-contact-meta">${escapeHtml(contact.title || "Company contact")}${escapeHtml(education)}${escapeHtml(locationText)}</p>
         <div class="fc-reasons">${escapeHtml(reasons)}</div>
+        <div class="fc-email-state">${email ? "Email revealed" : "Email hidden until reveal"}</div>
         ${email ? `<div class="fc-email">${escapeHtml(email)}</div>` : ""}
         <div class="fc-actions">
+          ${linkedInUrl ? `<button class="fc-secondary" type="button" data-action-url="${escapeAttr(linkedInUrl)}">LinkedIn</button>` : ""}
           ${email ? "" : `<button class="fc-secondary" type="button" data-reveal="${escapeAttr(id)}" ${isRevealing ? "disabled" : ""}>${isRevealing ? "Revealing..." : "Reveal Email"}</button>`}
-          <button class="fc-secondary" type="button" data-draft="${escapeAttr(id)}">Draft Email</button>
+          <button class="fc-secondary" type="button" data-draft="${escapeAttr(id)}" ${isDrafting ? "disabled" : ""}>${isDrafting ? "Generating..." : "Generate AI Email"}</button>
         </div>
+        ${draft ? renderDraftPreview(id, draft) : ""}
       </article>
+    `;
+  }
+
+  function renderDraftPreview(id, draft) {
+    const notes = Array.isArray(draft.personalizationNotes) ? draft.personalizationNotes : [];
+    const missing = Array.isArray(draft.missingContext) ? draft.missingContext : [];
+    return `
+      <div class="fc-draft">
+        <div class="fc-draft-label">AI email preview</div>
+        <div class="fc-draft-subject">${escapeHtml(draft.subject || "")}</div>
+        <pre class="fc-draft-body">${escapeHtml(draft.body || "")}</pre>
+        ${notes.length ? `<div class="fc-draft-notes"><strong>Used:</strong> ${escapeHtml(notes.join(" - "))}</div>` : ""}
+        ${missing.length ? `<div class="fc-draft-missing"><strong>Missing:</strong> ${escapeHtml(missing.join(" - "))}</div>` : ""}
+        ${draft.ai?.provider === "template" ? `<div class="fc-draft-missing">AI was unavailable, so a safe template was used.</div>` : ""}
+        <button class="fc-secondary" type="button" data-open-gmail="${escapeAttr(id)}">Open Gmail draft</button>
+      </div>
     `;
   }
 
@@ -325,15 +377,28 @@
     panel.classList.add("fc-open");
     state.loading = true;
     state.error = "";
+    state.prompt = null;
     state.action = null;
+    state.contacts = [];
+    state.drafts.clear();
     renderPanel();
 
     try {
+      if (!state.job.companyName) {
+        throw apiError({
+          ok: false,
+          status: 400,
+          error: "Could not read the company name from this LinkedIn job page. Open the full job details, wait for LinkedIn to finish loading, then try again.",
+          action: { label: "Open LinkedIn Jobs", url: "https://www.linkedin.com/jobs/" }
+        }, "Could not read the job page.");
+      }
+
       const response = await sendRuntimeMessage({
         type: "CONTACTS_SEARCH",
         payload: state.job
       });
       if (!response?.ok) throw apiError(response, "Could not find contacts.");
+      setCredits(response);
       state.contacts = response.contacts || [];
     } catch (error) {
       applyError(error, "Could not find contacts.");
@@ -350,6 +415,7 @@
 
     state.revealing.add(contactId);
     state.error = "";
+    state.prompt = null;
     state.action = null;
     renderPanel();
 
@@ -359,11 +425,10 @@
         payload: { contact, job: state.job }
       });
       if (!response?.ok) throw apiError(response, "Could not reveal email.");
+      setCredits(response);
       state.revealed.set(contactId, response.email);
-      renderPanel();
     } catch (error) {
       applyError(error, "Could not reveal email.");
-      renderPanel();
     } finally {
       state.revealing.delete(contactId);
       renderPanel();
@@ -376,11 +441,18 @@
 
     const email = state.revealed.get(contactId) || contact.email;
     if (!email) {
-      state.error = "Reveal this contact's email before drafting.";
+      state.error = "Reveal this contact's email before generating a draft.";
+      state.prompt = null;
       state.action = null;
       renderPanel();
       return;
     }
+
+    state.drafting.add(contactId);
+    state.error = "";
+    state.prompt = null;
+    state.action = null;
+    renderPanel();
 
     try {
       const response = await sendRuntimeMessage({
@@ -388,9 +460,12 @@
         payload: { contact: { ...contact, email }, job: state.job }
       });
       if (!response?.ok) throw apiError(response, "Could not draft email.");
-      window.open(response.gmailUrl, "_blank", "noopener,noreferrer");
+      setCredits(response);
+      state.drafts.set(contactId, response);
     } catch (error) {
       applyError(error, "Could not draft email.");
+    } finally {
+      state.drafting.delete(contactId);
       renderPanel();
     }
   }
@@ -398,12 +473,28 @@
   function apiError(response, fallback) {
     const error = new Error(response?.error || fallback);
     error.action = response?.action || null;
+    error.status = response?.status || null;
+    error.credits = response?.credits || null;
     return error;
   }
 
   function applyError(error, fallback) {
-    state.error = error.message || fallback;
+    setCredits(error);
+    if (error.status === 401) {
+      state.prompt = error.message || "Sign in on the website to connect this extension.";
+      state.error = "";
+    } else {
+      state.error = error.message || fallback;
+      state.prompt = null;
+    }
     state.action = error.action || null;
+  }
+
+  function setCredits(source) {
+    const remaining = source?.credits?.remaining ?? source?.credits?.balance;
+    if (Number.isFinite(Number(remaining))) {
+      state.creditsRemaining = Number(remaining);
+    }
   }
 
   function findContact(contactId) {
@@ -441,6 +532,20 @@
     return escapeHtml(value);
   }
 
+  function safeHttpUrl(value) {
+    let url = String(value || "").trim();
+    if (!url) return "";
+    if (/^(www\.)?linkedin\.com\//i.test(url)) {
+      url = `https://${url}`;
+    }
+    try {
+      const parsed = new URL(url);
+      return ["http:", "https:"].includes(parsed.protocol) ? parsed.toString() : "";
+    } catch (_error) {
+      return "";
+    }
+  }
+
   function boot() {
     window[CLEANUP_KEY]?.();
     document.getElementById(ROOT_ID)?.remove();
@@ -472,9 +577,6 @@
     };
   }
 
-  if (document.body) {
-    boot();
-  } else {
-    document.addEventListener("DOMContentLoaded", boot, { once: true });
-  }
+  if (document.body) boot();
+  else document.addEventListener("DOMContentLoaded", boot, { once: true });
 })();

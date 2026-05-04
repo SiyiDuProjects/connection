@@ -11,7 +11,7 @@ This is a starter template for building a SaaS application using **Next.js** wit
 - Dashboard pages with CRUD operations on users/teams
 - Basic RBAC with Owner and Member roles
 - Subscription management with Stripe Customer Portal
-- Email/password authentication with JWTs stored to cookies
+- Email/password authentication with email verification and JWTs stored to cookies
 - Global middleware to protect logged-in routes
 - Local middleware to protect Server Actions or validate Zod schemas
 - Activity logging system for any user events
@@ -107,6 +107,7 @@ In your Vercel project settings (or during deployment), add all the necessary en
 3. `STRIPE_WEBHOOK_SECRET`: Use the webhook secret from the production webhook you created in step 1.
 4. `POSTGRES_URL`: Set this to your production database URL.
 5. `AUTH_SECRET`: Set this to a random string. `openssl rand -base64 32` will generate one.
+6. `EMAIL_FROM` and `RESEND_API_KEY`: Configure these for production email verification. In local development, verification links are printed to the server log when they are omitted.
 
 ## Other Templates
 

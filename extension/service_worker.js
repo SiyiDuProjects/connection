@@ -78,8 +78,8 @@ async function handleExternalMessage(message, sender) {
     return { ok: false, error: "Missing extension token." };
   }
 
-  const apiBaseUrl = cleanUrl(message.apiBaseUrl) || DEFAULT_API_BASE_URL;
-  const webBaseUrl = cleanUrl(message.webBaseUrl) || DEFAULT_WEB_BASE_URL;
+  const webBaseUrl = normalizeWebBaseUrl(message.webBaseUrl);
+  const apiBaseUrl = normalizeApiBaseUrl(message.apiBaseUrl, webBaseUrl);
   await chrome.storage.sync.set({ extensionApiToken: token, apiBaseUrl, webBaseUrl });
   return { ok: true };
 }
@@ -96,18 +96,45 @@ function isAllowedWebsite(url) {
 }
 
 async function getApiBaseUrl() {
-  const stored = await chrome.storage.sync.get(["apiBaseUrl"]);
-  return (stored.apiBaseUrl || DEFAULT_API_BASE_URL).replace(/\/+$/, "");
+  const stored = await chrome.storage.sync.get(["apiBaseUrl", "webBaseUrl"]);
+  const webBaseUrl = normalizeWebBaseUrl(stored.webBaseUrl);
+  const apiBaseUrl = normalizeApiBaseUrl(stored.apiBaseUrl, webBaseUrl);
+  if (apiBaseUrl !== stored.apiBaseUrl || webBaseUrl !== stored.webBaseUrl) {
+    await chrome.storage.sync.set({ apiBaseUrl, webBaseUrl });
+  }
+  return apiBaseUrl;
 }
 
 async function getWebBaseUrl() {
   const stored = await chrome.storage.sync.get(["webBaseUrl"]);
-  const value = cleanUrl(stored.webBaseUrl);
-  if (!value || value === DEFAULT_API_BASE_URL) {
-    await chrome.storage.sync.set({ webBaseUrl: DEFAULT_WEB_BASE_URL });
-    return DEFAULT_WEB_BASE_URL;
+  const value = normalizeWebBaseUrl(stored.webBaseUrl);
+  if (value !== stored.webBaseUrl) {
+    await chrome.storage.sync.set({ webBaseUrl: value });
   }
   return value;
+}
+
+function normalizeWebBaseUrl(value) {
+  const url = cleanUrl(value);
+  if (!url) return DEFAULT_WEB_BASE_URL;
+  if (url === DEFAULT_API_BASE_URL) return DEFAULT_WEB_BASE_URL;
+  if (url.includes("connection-lemon.vercel.app")) return DEFAULT_WEB_BASE_URL;
+  if (url.includes("contacts.gaid.studio")) return DEFAULT_WEB_BASE_URL;
+  return url;
+}
+
+function normalizeApiBaseUrl(value, webBaseUrl) {
+  const url = cleanUrl(value);
+  const webUrl = cleanUrl(webBaseUrl);
+  const isLocalWeb = webUrl.includes("localhost") || webUrl.includes("127.0.0.1");
+  if (!url) return DEFAULT_API_BASE_URL;
+  if (!isLocalWeb && (url.includes("localhost") || url.includes("127.0.0.1"))) {
+    return DEFAULT_API_BASE_URL;
+  }
+  if (url.includes("gaid.studio") && !url.includes("contacts.gaid.studio")) {
+    return DEFAULT_API_BASE_URL;
+  }
+  return url;
 }
 
 async function getAccountStatus() {
@@ -178,6 +205,7 @@ async function postJson(path, body) {
     return {
       ok: false,
       status: response.status,
+      credits: payload.credits || null,
       error: response.status === 401 || response.status === 402
         ? prompt
         : `${payload.error || `Request failed with ${response.status}`} ${prompt}`,

@@ -42,6 +42,10 @@ export async function getUser() {
     return null;
   }
 
+  if (!user[0].emailVerifiedAt) {
+    return null;
+  }
+
   return user[0];
 }
 

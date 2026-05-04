@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { ActivityType } from '@/lib/db/schema';
-import { getActivityLogs } from '@/lib/db/queries';
+import { getActivityLogs, getRecentUsage, getUser } from '@/lib/db/queries';
 
 const iconMap: Record<ActivityType, LucideIcon> = {
   [ActivityType.SIGN_UP]: UserPlus,
@@ -69,13 +69,18 @@ function formatAction(action: ActivityType): string {
 }
 
 export default async function ActivityPage() {
-  const logs = await getActivityLogs();
+  const user = await getUser();
+  const [logs, usage] = await Promise.all([
+    getActivityLogs(),
+    user ? getRecentUsage(user.id) : []
+  ]);
 
   return (
     <section className="flex-1 p-4 lg:p-8">
       <h1 className="text-lg lg:text-2xl font-medium text-gray-900 mb-6">
         Activity Log
       </h1>
+      <div className="grid gap-6 xl:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
@@ -121,6 +126,55 @@ export default async function ActivityPage() {
           )}
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>API usage and credits</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {usage.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left">
+                    <th className="py-2">Action</th>
+                    <th className="py-2">Credits</th>
+                    <th className="py-2">Status</th>
+                    <th className="py-2">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usage.map((row) => (
+                    <tr key={row.id} className="border-b">
+                      <td className="py-2">{formatUsageAction(row.action)}</td>
+                      <td className="py-2">{row.credits}</td>
+                      <td className="py-2">{row.status}</td>
+                      <td className="py-2">{new Date(row.createdAt).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <AlertCircle className="mb-4 h-12 w-12 text-orange-500" />
+              <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                No API usage yet
+              </h3>
+              <p className="max-w-sm text-sm text-gray-500">
+                Contact searches, email reveals, and draft creation will appear here with credit costs.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      </div>
     </section>
   );
+}
+
+function formatUsageAction(action: string) {
+  return action
+    .split('.')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }

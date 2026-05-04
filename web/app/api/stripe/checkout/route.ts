@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { creditLedger, users, teams, teamMembers } from '@/lib/db/schema';
 import { setSession } from '@/lib/auth/session';
@@ -88,12 +88,26 @@ export async function GET(request: NextRequest) {
       })
       .where(eq(teams.id, userTeam[0].teamId));
 
-    await db.insert(creditLedger).values({
-      userId: user[0].id,
-      amount: Number(process.env.MONTHLY_CREDITS || 100),
-      action: 'subscription.initial_grant',
-      metadata: { subscriptionId }
-    });
+    const existingGrant = await db
+      .select({ id: creditLedger.id })
+      .from(creditLedger)
+      .where(
+        and(
+          eq(creditLedger.userId, user[0].id),
+          eq(creditLedger.action, 'subscription.initial_grant'),
+          sql`${creditLedger.metadata}->>'subscriptionId' = ${subscriptionId}`
+        )
+      )
+      .limit(1);
+
+    if (existingGrant.length === 0) {
+      await db.insert(creditLedger).values({
+        userId: user[0].id,
+        amount: Number(process.env.MONTHLY_CREDITS || 100),
+        action: 'subscription.initial_grant',
+        metadata: { subscriptionId, checkoutSessionId: session.id }
+      });
+    }
 
     await setSession(user[0]);
     return NextResponse.redirect(new URL('/dashboard', request.url));
