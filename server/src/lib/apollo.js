@@ -27,8 +27,8 @@ export async function searchApolloContacts(job) {
 
   if (organization?.id) {
     payload.organization_ids = [organization.id];
-  } else if (organization?.domain) {
-    payload.q_organization_domains_list = [organization.domain];
+  } else if (organization?.domain || job.companyDomain) {
+    payload.q_organization_domains_list = [organization?.domain || job.companyDomain];
   } else {
     payload.q_keywords = job.companyName;
   }
@@ -42,7 +42,7 @@ export async function revealApolloEmail(contact) {
   requireApolloKey();
 
   if (contact.email) return contact.email;
-  if (!contact.apolloId) return "";
+  if (!contact.apolloId && !contact.linkedinUrl && !contact.name) return "";
 
   const data = await apolloPost("/people/match", compactPayload({
     id: contact.apolloId,
@@ -60,6 +60,7 @@ export async function revealApolloEmail(contact) {
 async function findOrganization(job) {
   const data = await apolloPost("/mixed_companies/search", compactPayload({
     q_organization_name: job.companyName,
+    q_organization_domains_list: job.companyDomain ? [job.companyDomain] : undefined,
     organization_job_locations: locationTerms(job.jobLocation),
     q_organization_job_titles: job.jobTitle ? [job.jobTitle] : undefined,
     page: 1,
@@ -68,7 +69,7 @@ async function findOrganization(job) {
 
   const organizations = data.organizations || data.companies || data.accounts || [];
   const normalized = organizations.map(normalizeOrganization);
-  return pickBestOrganization(normalized, job.companyName);
+  return pickBestOrganization(normalized, job.companyName, job.companyDomain);
 }
 
 async function apolloPost(path, payload) {
@@ -134,8 +135,13 @@ function normalizeOrganization(organization) {
   };
 }
 
-function pickBestOrganization(organizations, companyName) {
+function pickBestOrganization(organizations, companyName, companyDomain = "") {
   if (!organizations.length) return null;
+  const wantedDomain = cleanDomain(companyDomain);
+  if (wantedDomain) {
+    const domainMatch = organizations.find((organization) => cleanDomain(organization.domain) === wantedDomain);
+    if (domainMatch) return domainMatch;
+  }
   const wanted = normalizeCompanyName(companyName);
   return organizations.find((organization) => normalizeCompanyName(organization.name) === wanted) || organizations[0];
 }

@@ -1,15 +1,15 @@
 const DEFAULT_API_BASE_URL = "https://contacts.gaid.studio";
 const DEFAULT_WEB_BASE_URL = "https://gaid.studio";
-const LINKEDIN_JOBS_URL = "https://www.linkedin.com/*";
+const SUPPORTED_URLS = ["https://*/*", "http://*/*"];
 const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connection settings.";
 const SESSION_EXPIRED_ERROR = "Session expired. Sign in again.";
 
 chrome.runtime.onInstalled.addListener(() => {
-  refreshLinkedInTabs();
+  refreshSupportedTabs();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  refreshLinkedInTabs();
+  refreshSupportedTabs();
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -26,12 +26,12 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
   return true;
 });
 
-async function refreshLinkedInTabs() {
+async function refreshSupportedTabs() {
   try {
-    const tabs = await chrome.tabs.query({ url: LINKEDIN_JOBS_URL });
+    const tabs = await chrome.tabs.query({ url: SUPPORTED_URLS });
     await Promise.allSettled(tabs.map(injectIntoTab));
   } catch (error) {
-    console.warn("Could not refresh LinkedIn content scripts", error);
+    console.warn("Could not refresh supported content scripts", error);
   }
 }
 
@@ -63,8 +63,6 @@ async function handleMessage(message, sender) {
       return postJson("/api/contacts/reveal", message.payload, sender);
     case "EMAIL_DRAFT":
       return postJson("/api/email/draft", message.payload, sender);
-    case "EMAIL_SEND":
-      return postJson("/api/email/send", message.payload, sender);
     case "GET_ACCOUNT_STATUS":
       return getAccountStatus(sender);
     default:
@@ -101,7 +99,7 @@ async function connectExtensionSession(message, sender) {
   const webBaseUrl = normalizeWebBaseUrl(message.webBaseUrl);
   const apiBaseUrl = normalizeApiBaseUrl(message.apiBaseUrl, webBaseUrl);
   await chrome.storage.sync.set({ extensionApiToken: token, apiBaseUrl, webBaseUrl });
-  await notifyLinkedInTabsAccountUpdated();
+  await notifySupportedTabsAccountUpdated();
   await returnToSourceTab(message.returnTo, sender);
   return { ok: true };
 }
@@ -121,7 +119,7 @@ async function clearExtensionSession(sender) {
   }
 
   await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
-  await notifyLinkedInTabsAccountUpdated();
+  await notifySupportedTabsAccountUpdated();
   return { ok: true };
 }
 
@@ -136,9 +134,9 @@ async function returnToSourceTab(value, sender) {
   }
 }
 
-async function notifyLinkedInTabsAccountUpdated() {
+async function notifySupportedTabsAccountUpdated() {
   try {
-    const tabs = await chrome.tabs.query({ url: LINKEDIN_JOBS_URL });
+    const tabs = await chrome.tabs.query({ url: SUPPORTED_URLS });
     await Promise.allSettled(tabs.map(async (tab) => {
       if (!tab.id) return;
       try {
@@ -148,7 +146,7 @@ async function notifyLinkedInTabsAccountUpdated() {
       }
     }));
   } catch (error) {
-    console.warn("Could not notify LinkedIn tabs after sign in", error);
+    console.warn("Could not notify supported tabs after sign in", error);
   }
 }
 
@@ -302,7 +300,7 @@ function safeReturnUrl(sender) {
 
   try {
     const parsed = new URL(url);
-    if (parsed.origin === "https://www.linkedin.com" && parsed.pathname.startsWith("/jobs/")) {
+    if (parsed.protocol === "https:" || parsed.protocol === "http:") {
       return parsed.toString();
     }
     if (parsed.protocol === "chrome-extension:") {

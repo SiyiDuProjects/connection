@@ -10,6 +10,7 @@ const settingsSchema = z.object({
   emailSignature: z.string().max(1000).optional(),
   introStyle: z.enum(['student', 'career-switcher', 'experienced', 'founder']).default('student'),
   emailTone: z.enum(['warm', 'concise', 'confident', 'formal']).default('warm'),
+  targetRole: z.string().max(200).optional(),
   senderProfile: z.string().max(2000).optional(),
   resumeContext: z.string().max(40000).optional()
 });
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
     school: clean(payload.school),
     emailSignature: cleanMultiline(payload.emailSignature),
     introStyle: payload.introStyle,
-    targetRole: null,
+    targetRole: clean(payload.targetRole),
     emailTone: payload.emailTone,
     senderProfile: clean(payload.senderProfile),
     resumeContext: cleanMultiline(payload.resumeContext),

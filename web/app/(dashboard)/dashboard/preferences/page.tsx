@@ -12,6 +12,7 @@ type Settings = {
   emailSignature?: string | null;
   introStyle?: 'student' | 'career-switcher' | 'experienced' | 'founder';
   emailTone?: 'warm' | 'concise' | 'confident' | 'formal';
+  targetRole?: string | null;
   senderProfile?: string | null;
   resumeContext?: string | null;
 };
@@ -73,6 +74,9 @@ export default function PreferencesPage() {
                 <Input id="school" name="school" defaultValue={settings.school || ''} placeholder="UC Berkeley" disabled={loading || saving} />
               </Field>
             </div>
+            <Field label="Default target role / 求职方向" id="targetRole">
+              <Input id="targetRole" name="targetRole" defaultValue={settings.targetRole || ''} placeholder="Software Engineer Intern, Product Manager, Data Analyst..." disabled={loading || saving} />
+            </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Email tone" id="emailTone">
                 <select id="emailTone" name="emailTone" defaultValue={settings.emailTone || 'warm'} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">

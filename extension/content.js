@@ -6,6 +6,14 @@
   const CLEANUP_KEY = "__fcLinkedInCleanup";
   const AUTH_LISTENER_KEY = "__fcLinkedInAuthListener";
 
+  const PAGE_TYPES = {
+    LINKEDIN_JOB: "linkedin_job",
+    LINKEDIN_COMPANY: "linkedin_company",
+    LINKEDIN_PERSON: "linkedin_person",
+    EXTERNAL_JOB: "external_job",
+    COMPANY_SITE: "company_site"
+  };
+
   let state = {
     loading: false,
     error: "",
@@ -13,14 +21,12 @@
     action: null,
     creditsRemaining: null,
     contacts: [],
-    job: null,
+    pageContext: null,
     manualJobTitle: "",
     revealed: new Map(),
     revealing: new Set(),
     drafts: new Map(),
-    drafting: new Set(),
-    sending: new Set(),
-    sent: new Map()
+    drafting: new Set()
   };
 
   if (window[AUTH_LISTENER_KEY]) {
@@ -38,9 +44,60 @@
   };
   chrome.runtime.onMessage.addListener(window[AUTH_LISTENER_KEY]);
 
-  function isSupportedPage() {
-    if (location.hostname !== "www.linkedin.com") return false;
-    if (location.pathname.startsWith("/company/")) return true;
+  const adapters = [
+    linkedInAdapter(),
+    handshakeAdapter(),
+    indeedAdapter(),
+    genericCompanyAdapter()
+  ];
+
+  function getPageContext() {
+    for (const adapter of adapters) {
+      const context = adapter.getContext();
+      if (context?.type && isSupportedContext(context)) {
+        return normalizePageContext(context, adapter.label);
+      }
+    }
+    return null;
+  }
+
+  function isSupportedContext(context) {
+    if (context.type === PAGE_TYPES.LINKEDIN_PERSON) return Boolean(context.personName || context.personLinkedInUrl);
+    return Boolean(context.companyName || context.companyDomain);
+  }
+
+  function normalizePageContext(context, label) {
+    const sourceUrl = location.href;
+    return {
+      type: context.type,
+      source: label || "",
+      companyName: cleanText(context.companyName),
+      companyDomain: cleanDomain(context.companyDomain),
+      jobTitle: cleanText(context.jobTitle),
+      jobLocation: cleanText(context.jobLocation),
+      jobDescription: cleanMultiline(context.jobDescription),
+      personName: cleanText(context.personName),
+      personTitle: cleanText(context.personTitle),
+      personLinkedInUrl: cleanText(context.personLinkedInUrl),
+      sourceUrl,
+      pageTitle: cleanText(context.pageTitle)
+    };
+  }
+
+  function linkedInAdapter() {
+    return {
+      label: "LinkedIn",
+      getContext() {
+        if (location.hostname !== "www.linkedin.com") return null;
+        if (isLinkedInJobPage()) return getLinkedInJobContext();
+        if (location.pathname.startsWith("/company/")) return getLinkedInCompanyContext();
+        if (location.pathname.startsWith("/in/")) return getLinkedInPersonContext();
+        return null;
+      }
+    };
+  }
+
+  function isLinkedInJobPage() {
     if (location.pathname.startsWith("/jobs/view/")) return true;
     if (location.pathname.startsWith("/jobs/collections/")) return true;
     if (location.pathname.startsWith("/jobs/search-results/")) {
@@ -52,16 +109,7 @@
     return false;
   }
 
-  function textFrom(selectors) {
-    for (const selector of selectors) {
-      const element = document.querySelector(selector);
-      const text = element?.textContent?.replace(/\s+/g, " ").trim();
-      if (text) return text;
-    }
-    return "";
-  }
-
-  function getJobContext() {
+  function getLinkedInJobContext() {
     const title = textFrom([
       ".job-details-jobs-unified-top-card__job-title",
       ".jobs-unified-top-card__job-title",
@@ -72,9 +120,6 @@
     ]);
 
     const companyName = textFrom([
-      ".org-top-card-summary__title",
-      ".org-top-card-primary-content__title",
-      "h1.org-top-card-summary__title",
       ".job-details-jobs-unified-top-card__company-name a",
       ".job-details-jobs-unified-top-card__company-name",
       ".jobs-unified-top-card__company-name a",
@@ -93,38 +138,132 @@
     ]);
 
     return {
+      type: PAGE_TYPES.LINKEDIN_JOB,
       companyName,
       jobTitle: title,
       jobLocation: locationText,
-      jobUrl: location.href,
-      jobDescription: getJobDescription()
+      jobDescription: getJobDescription(),
+      pageTitle: [companyName, title].filter(Boolean).join(" - ")
     };
   }
 
-  function getJobDescription() {
-    return textFrom([
-      ".jobs-description__content",
-      ".jobs-box__html-content",
-      ".jobs-description-content__text",
-      ".description__text",
-      ".show-more-less-html__markup"
+  function getLinkedInCompanyContext() {
+    const companyName = textFrom([
+      ".org-top-card-summary__title",
+      ".org-top-card-primary-content__title",
+      "h1.org-top-card-summary__title",
+      "h1"
     ]);
+    const website = textFrom([
+      'a[href^="http"]:not([href*="linkedin.com"])'
+    ]);
+    const href = document.querySelector('a[href^="http"]:not([href*="linkedin.com"])')?.href || "";
+
+    return {
+      type: PAGE_TYPES.LINKEDIN_COMPANY,
+      companyName,
+      companyDomain: cleanDomain(href || website),
+      pageTitle: companyName || "LinkedIn company"
+    };
   }
 
-  function companyNameFromAriaLabel() {
-    const companyElement = document.querySelector('[aria-label^="Company,"]');
-    const label = companyElement?.getAttribute("aria-label") || "";
-    return label.replace(/^Company,\s*/i, "").replace(/\.$/, "").trim();
+  function getLinkedInPersonContext() {
+    const personName = textFrom([
+      "main h1",
+      ".pv-text-details__left-panel h1",
+      ".text-heading-xlarge"
+    ]);
+    const personTitle = textFrom([
+      ".text-body-medium.break-words",
+      ".pv-text-details__left-panel .text-body-medium"
+    ]);
+    const companyName = textFrom([
+      '.pv-text-details__right-panel a[href*="/company/"]',
+      '.pv-top-card--experience-list-item a[href*="/company/"]',
+      'a[href*="/company/"]'
+    ]);
+
+    return {
+      type: PAGE_TYPES.LINKEDIN_PERSON,
+      companyName,
+      personName,
+      personTitle,
+      personLinkedInUrl: location.href,
+      pageTitle: personName || "LinkedIn profile"
+    };
+  }
+
+  function handshakeAdapter() {
+    return {
+      label: "Handshake",
+      getContext() {
+        if (!/(\.|^)joinhandshake\.com$/i.test(location.hostname)) return null;
+        if (!looksLikeJobPage()) return null;
+        return {
+          type: PAGE_TYPES.EXTERNAL_JOB,
+          companyName: textFrom(['[data-hook*="employer"]', 'a[href*="/emp/"]', "h2", "h3"]),
+          jobTitle: textFrom(["h1", '[data-hook*="job-title"]']),
+          jobLocation: textFrom(['[data-hook*="location"]', '[class*="location"]']),
+          jobDescription: textFrom(['[data-hook*="description"]', '[class*="description"]', "main"]),
+          pageTitle: document.title
+        };
+      }
+    };
+  }
+
+  function indeedAdapter() {
+    return {
+      label: "Indeed",
+      getContext() {
+        if (!/(\.|^)indeed\.com$/i.test(location.hostname)) return null;
+        if (!looksLikeJobPage()) return null;
+        return {
+          type: PAGE_TYPES.EXTERNAL_JOB,
+          companyName: textFrom(['[data-testid="inlineHeader-companyName"]', '[data-company-name="true"]', ".jobsearch-CompanyInfoContainer a", ".icl-u-lg-mr--sm"]),
+          jobTitle: textFrom(['[data-testid="jobsearch-JobInfoHeader-title"]', ".jobsearch-JobInfoHeader-title", "h1"]),
+          jobLocation: textFrom(['[data-testid="job-location"]', ".jobsearch-JobInfoHeader-subtitle div"]),
+          jobDescription: textFrom(["#jobDescriptionText", ".jobsearch-jobDescriptionText", "main"]),
+          pageTitle: document.title
+        };
+      }
+    };
+  }
+
+  function genericCompanyAdapter() {
+    return {
+      label: "Website",
+      getContext() {
+        if (!["http:", "https:"].includes(location.protocol)) return null;
+        if (isExcludedGenericHost(location.hostname)) return null;
+        if (location.hostname.endsWith("linkedin.com")) return null;
+
+        const companyName = metaContent("og:site_name")
+          || metaContent("application-name")
+          || hostCompanyName(location.hostname);
+        const jobTitle = looksLikeJobPage() ? textFrom(["h1", '[class*="job-title"]', '[class*="posting-title"]']) : "";
+        const jobDescription = looksLikeJobPage() ? textFrom(['[class*="job-description"]', '[class*="posting"]', '[class*="description"]', "main"]) : "";
+
+        return {
+          type: jobTitle || jobDescription ? PAGE_TYPES.EXTERNAL_JOB : PAGE_TYPES.COMPANY_SITE,
+          companyName,
+          companyDomain: location.hostname,
+          jobTitle,
+          jobDescription,
+          pageTitle: document.title || companyName
+        };
+      }
+    };
   }
 
   function ensureButton() {
-    if (!isSupportedPage()) {
+    const context = getPageContext();
+    if (!context) {
       document.getElementById(ROOT_ID)?.remove();
       return;
     }
 
     const existing = document.getElementById(BUTTON_ID);
-    const target = findJobActionsTarget();
+    const target = context.type === PAGE_TYPES.LINKEDIN_JOB ? findJobActionsTarget() : null;
     if (existing && document.body.contains(existing)) {
       const root = document.getElementById(ROOT_ID);
       if (root && target && root.parentElement !== target.row) {
@@ -150,7 +289,7 @@
     button.className = target ? inlineButtonClass(target) : "fc-button";
     button.id = BUTTON_ID;
     button.type = "button";
-    button.textContent = "Find with Gaid";
+    button.textContent = context.type === PAGE_TYPES.LINKEDIN_PERSON ? "Email with Gaid" : "Find with Gaid";
     button.addEventListener("click", openPanel);
 
     root.appendChild(button);
@@ -260,14 +399,15 @@
 
   function renderPanel() {
     const panel = ensurePanel();
-    const company = state.job?.companyName || "this company";
-    const subtitle = [state.job?.jobTitle, state.job?.jobLocation].filter(Boolean).join(" - ");
+    const context = state.pageContext || {};
+    const title = panelTitle(context);
+    const subtitle = panelSubtitle(context);
 
     panel.innerHTML = `
       <div class="fc-header">
         <div>
-          <h2 class="fc-title">Gaid @ ${escapeHtml(company)}</h2>
-          <div class="fc-subtitle">${escapeHtml(subtitle || "LinkedIn job page")}</div>
+          <h2 class="fc-title">${escapeHtml(title)}</h2>
+          <div class="fc-subtitle">${escapeHtml(subtitle)}</div>
         </div>
         <div class="fc-header-actions">
           ${renderCredits()}
@@ -296,14 +436,17 @@
       button.addEventListener("click", () => draftEmail(button.dataset.draft));
     });
 
-    panel.querySelectorAll("[data-send-email]").forEach((button) => {
-      button.addEventListener("click", () => sendEmail(button.dataset.sendEmail));
-    });
-
     panel.querySelectorAll("[data-open-gmail]").forEach((button) => {
       button.addEventListener("click", () => {
         const draft = state.drafts.get(button.dataset.openGmail);
         if (draft?.gmailUrl) window.open(draft.gmailUrl, "_blank", "noopener,noreferrer");
+      });
+    });
+
+    panel.querySelectorAll("[data-open-mailto]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const draft = state.drafts.get(button.dataset.openMailto);
+        if (draft?.mailtoUrl) window.location.href = draft.mailtoUrl;
       });
     });
 
@@ -314,8 +457,22 @@
     });
   }
 
+  function panelTitle(context) {
+    if (context.type === PAGE_TYPES.LINKEDIN_PERSON) return `Gaid @ ${context.personName || "LinkedIn profile"}`;
+    return `Gaid @ ${context.companyName || context.companyDomain || "this company"}`;
+  }
+
+  function panelSubtitle(context) {
+    if (context.type === PAGE_TYPES.LINKEDIN_PERSON) {
+      return [context.personTitle, context.companyName].filter(Boolean).join(" - ") || "LinkedIn people profile";
+    }
+    return [context.jobTitle, context.jobLocation, context.source].filter(Boolean).join(" - ")
+      || context.pageTitle
+      || "Company context";
+  }
+
   function renderBody() {
-    if (state.loading) return `<div class="fc-status">Finding relevant company contacts...</div>`;
+    if (state.loading) return `<div class="fc-status">${escapeHtml(loadingLabel())}</div>`;
     if (state.prompt) {
       return `
         <div class="fc-status fc-prompt">${escapeHtml(state.prompt)}</div>
@@ -335,15 +492,21 @@
       `;
     }
 
+    const sectionTitle = state.pageContext?.type === PAGE_TYPES.LINKEDIN_PERSON ? "Contact" : "Top Matches";
     return `
       ${renderMissingJobTitleInput()}
-      <div class="fc-section-title">Top Matches</div>
+      <div class="fc-section-title">${sectionTitle}</div>
       ${state.contacts.map(renderContact).join("")}
     `;
   }
 
+  function loadingLabel() {
+    if (state.pageContext?.type === PAGE_TYPES.LINKEDIN_PERSON) return "Preparing this contact...";
+    return "Finding relevant company contacts...";
+  }
+
   function renderMissingJobTitleInput() {
-    if (state.job?.jobTitle) return "";
+    if (state.pageContext?.jobTitle) return "";
     return `
       <label class="fc-draft-missing">
         Optional role or ask
@@ -371,14 +534,12 @@
     const email = state.revealed.get(id) || contact.email;
     const isRevealing = state.revealing.has(id);
     const isDrafting = state.drafting.has(id);
-    const isSending = state.sending.has(id);
     const draft = state.drafts.get(id);
-    const sent = state.sent.get(id);
     const education = contact.education ? ` - ${contact.education}` : "";
     const locationText = contact.location ? ` - ${contact.location}` : "";
     const reasons = Array.isArray(contact.reasons) && contact.reasons.length
       ? contact.reasons.join(" - ")
-      : "Ranked by job and company relevance";
+      : contact.provider === "linkedin-profile" ? "Selected LinkedIn profile" : "Ranked by role and company relevance";
     const name = escapeHtml(contact.name || "Unknown contact");
     const linkedInUrl = safeHttpUrl(contact.linkedinUrl);
     const nameContent = linkedInUrl
@@ -387,7 +548,7 @@
 
     return `
       <article class="fc-contact">
-        <p class="fc-contact-name">${index + 1}. ${nameContent}</p>
+        <p class="fc-contact-name">${state.pageContext?.type === PAGE_TYPES.LINKEDIN_PERSON ? "" : `${index + 1}. `}${nameContent}</p>
         <p class="fc-contact-meta">${escapeHtml(contact.title || "Company contact")}${escapeHtml(education)}${escapeHtml(locationText)}</p>
         <div class="fc-reasons">${escapeHtml(reasons)}</div>
         <div class="fc-email-state">${email ? "Email revealed" : "Email hidden until reveal"}</div>
@@ -398,7 +559,6 @@
           <button class="fc-secondary" type="button" data-draft="${escapeAttr(id)}" ${isDrafting ? "disabled" : ""}>${isDrafting ? "Generating..." : "Generate AI Email"}</button>
         </div>
         ${draft ? renderDraftPreview(id, draft) : ""}
-        ${sent ? `<div class="fc-draft-notes"><strong>Sent:</strong> tracked in Gmail. Follow-up due ${escapeHtml(formatDate(sent.followUpDueAt))} if there is no reply.</div>` : ""}
       </article>
     `;
   }
@@ -407,8 +567,6 @@
     const notes = Array.isArray(draft.personalizationNotes) ? draft.personalizationNotes : [];
     const missing = Array.isArray(draft.missingContext) ? draft.missingContext : [];
     const warnings = Array.isArray(draft.warnings) ? draft.warnings : [];
-    const canSend = draft.gmail?.connected;
-    const isSending = state.sending.has(id);
     return `
       <div class="fc-draft">
         <div class="fc-draft-label">AI email preview</div>
@@ -418,14 +576,14 @@
         ${missing.length ? `<div class="fc-draft-missing"><strong>Missing:</strong> ${escapeHtml(missing.join(" - "))}</div>` : ""}
         ${warnings.length ? `<div class="fc-draft-missing"><strong>Review:</strong> ${escapeHtml(warnings.join(" - "))}</div>` : ""}
         ${draft.ai?.provider === "template" ? `<div class="fc-draft-missing">AI was unavailable, so a safe template was used.</div>` : ""}
-        ${canSend ? `<button class="fc-secondary" type="button" data-send-email="${escapeAttr(id)}" ${isSending ? "disabled" : ""}>${isSending ? "Sending..." : "Send with Gmail tracking"}</button>` : `<div class="fc-draft-missing">Connect Gmail in the dashboard to send and track replies.</div>`}
+        <button class="fc-secondary" type="button" data-open-mailto="${escapeAttr(id)}">Open email app</button>
         <button class="fc-secondary" type="button" data-open-gmail="${escapeAttr(id)}">Open Gmail draft</button>
       </div>
     `;
   }
 
   async function openPanel() {
-    state.job = getJobContext();
+    state.pageContext = getPageContext();
     state.manualJobTitle = "";
     const panel = ensurePanel();
     panel.classList.add("fc-open");
@@ -435,22 +593,29 @@
     state.action = null;
     state.contacts = [];
     state.drafts.clear();
-    state.sent.clear();
     renderPanel();
 
     try {
-      if (!state.job.companyName) {
+      if (!state.pageContext) {
+        throw apiError({ ok: false, status: 400, error: "This page is not supported yet." }, "This page is not supported yet.");
+      }
+
+      if (state.pageContext.type === PAGE_TYPES.LINKEDIN_PERSON) {
+        state.contacts = [contactFromPersonContext(state.pageContext)];
+        return;
+      }
+
+      if (!state.pageContext.companyName && !state.pageContext.companyDomain) {
         throw apiError({
           ok: false,
           status: 400,
-          error: "Could not read the company name from this LinkedIn job page. Open the full job details, wait for LinkedIn to finish loading, then try again.",
-          action: { label: "Open LinkedIn Jobs", url: "https://www.linkedin.com/jobs/" }
-        }, "Could not read the job page.");
+          error: "Could not read the company name from this page."
+        }, "Could not read the page.");
       }
 
       const response = await sendRuntimeMessage({
         type: "CONTACTS_SEARCH",
-        payload: state.job
+        payload: { pageContext: state.pageContext }
       });
       if (!response?.ok) throw apiError(response, "Could not find contacts.");
       setCredits(response);
@@ -461,6 +626,20 @@
       state.loading = false;
       renderPanel();
     }
+  }
+
+  function contactFromPersonContext(context) {
+    return {
+      id: context.personLinkedInUrl || context.personName || "linkedin-person",
+      provider: "linkedin-profile",
+      name: context.personName,
+      title: context.personTitle,
+      companyName: context.companyName,
+      companyDomain: context.companyDomain,
+      linkedinUrl: context.personLinkedInUrl,
+      email: "",
+      reasons: ["Current LinkedIn profile"]
+    };
   }
 
   async function revealEmail(contactId) {
@@ -477,7 +656,7 @@
     try {
       const response = await sendRuntimeMessage({
         type: "CONTACTS_REVEAL",
-        payload: { contact, job: state.job }
+        payload: { contact, pageContext: state.pageContext }
       });
       if (!response?.ok) throw apiError(response, "Could not reveal email.");
       setCredits(response);
@@ -512,7 +691,7 @@
     try {
       const response = await sendRuntimeMessage({
         type: "EMAIL_DRAFT",
-        payload: { contact: { ...contact, email }, job: effectiveJobContext() }
+        payload: { contact: { ...contact, email }, pageContext: effectivePageContext() }
       });
       if (!response?.ok) throw apiError(response, "Could not draft email.");
       setCredits(response);
@@ -525,44 +704,10 @@
     }
   }
 
-  async function sendEmail(contactId) {
-    const contact = findContact(contactId);
-    const draft = state.drafts.get(contactId);
-    const email = state.revealed.get(contactId) || contact?.email;
-    if (!contact || !draft || !email || state.sending.has(contactId)) return;
-
-    state.sending.add(contactId);
-    state.error = "";
-    state.prompt = null;
-    state.action = null;
-    renderPanel();
-
-    try {
-      const response = await sendRuntimeMessage({
-        type: "EMAIL_SEND",
-        payload: {
-          to: email,
-          subject: draft.subject,
-          body: draft.body,
-          contact: { ...contact, email },
-          job: effectiveJobContext()
-        }
-      });
-      if (!response?.ok) throw apiError(response, "Could not send email.");
-      setCredits(response);
-      state.sent.set(contactId, response.sent || {});
-    } catch (error) {
-      applyError(error, "Could not send email.");
-    } finally {
-      state.sending.delete(contactId);
-      renderPanel();
-    }
-  }
-
-  function effectiveJobContext() {
+  function effectivePageContext() {
     return {
-      ...(state.job || {}),
-      jobTitle: state.job?.jobTitle || state.manualJobTitle.trim()
+      ...(state.pageContext || {}),
+      jobTitle: state.pageContext?.jobTitle || state.manualJobTitle.trim()
     };
   }
 
@@ -593,12 +738,6 @@
     }
   }
 
-  function formatDate(value) {
-    if (!value) return "later";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? "later" : date.toLocaleDateString();
-  }
-
   function findContact(contactId) {
     return state.contacts.find((contact, index) => {
       const id = contact.id || contact.linkedinUrl || String(index);
@@ -608,17 +747,106 @@
 
   async function sendRuntimeMessage(message) {
     if (typeof chrome === "undefined" || !chrome.runtime?.id) {
-      throw new Error("Extension context was refreshed. Reload this LinkedIn tab and try again.");
+      throw new Error("Extension context was refreshed. Reload this tab and try again.");
     }
 
     try {
       return await chrome.runtime.sendMessage(message);
     } catch (error) {
       if (String(error?.message || "").includes("Extension context invalidated")) {
-        throw new Error("Extension context was refreshed. Reload this LinkedIn tab and try again.");
+        throw new Error("Extension context was refreshed. Reload this tab and try again.");
       }
       throw error;
     }
+  }
+
+  function textFrom(selectors) {
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+      const text = element?.textContent?.replace(/\s+/g, " ").trim();
+      if (text) return text;
+    }
+    return "";
+  }
+
+  function getJobDescription() {
+    return textFrom([
+      ".jobs-description__content",
+      ".jobs-box__html-content",
+      ".jobs-description-content__text",
+      ".description__text",
+      ".show-more-less-html__markup"
+    ]);
+  }
+
+  function companyNameFromAriaLabel() {
+    const companyElement = document.querySelector('[aria-label^="Company,"]');
+    const label = companyElement?.getAttribute("aria-label") || "";
+    return label.replace(/^Company,\s*/i, "").replace(/\.$/, "").trim();
+  }
+
+  function looksLikeJobPage() {
+    const path = `${location.pathname} ${location.search}`.toLowerCase();
+    const title = document.title.toLowerCase();
+    return /\b(job|jobs|career|careers|position|positions|opening|openings|posting|requisition)\b/.test(path)
+      || /\b(job|career|position|opening)\b/.test(title)
+      || Boolean(document.querySelector('[class*="job"], [id*="job"], [data-testid*="job"]'));
+  }
+
+  function metaContent(name) {
+    return document.querySelector(`meta[property="${name}"], meta[name="${name}"]`)?.content?.trim() || "";
+  }
+
+  function isExcludedGenericHost(hostname) {
+    const host = hostname.replace(/^www\./i, "").toLowerCase();
+    return [
+      "gaid.studio",
+      "contacts.gaid.studio",
+      "localhost",
+      "127.0.0.1",
+      "google.com",
+      "bing.com",
+      "duckduckgo.com",
+      "yahoo.com",
+      "gmail.com",
+      "mail.google.com",
+      "outlook.live.com",
+      "github.com",
+      "youtube.com",
+      "facebook.com",
+      "instagram.com",
+      "x.com",
+      "twitter.com",
+      "reddit.com"
+    ].some((excluded) => host === excluded || host.endsWith(`.${excluded}`));
+  }
+
+  function hostCompanyName(hostname) {
+    const clean = hostname.replace(/^www\./i, "").split(".")[0] || "";
+    return clean
+      .replace(/[-_]+/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+      .trim();
+  }
+
+  function cleanText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function cleanMultiline(value) {
+    return String(value || "")
+      .replace(/\r\n/g, "\n")
+      .replace(/[ \t]+\n/g, "\n")
+      .trim();
+  }
+
+  function cleanDomain(value) {
+    return String(value || "")
+      .replace(/^https?:\/\//i, "")
+      .replace(/^www\./i, "")
+      .split("/")[0]
+      .trim()
+      .toLowerCase();
   }
 
   function escapeHtml(value) {

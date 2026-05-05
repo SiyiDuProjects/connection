@@ -57,10 +57,10 @@
 
 .fc-floating-entry {
   bottom: 24px;
-  left: 24px;
+  left: auto;
   margin-top: 12px;
   position: fixed;
-  right: auto;
+  right: 24px;
   width: auto;
   z-index: 2147483647;
 }

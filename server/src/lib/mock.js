@@ -1,5 +1,5 @@
 export function searchMockContacts(job) {
-  const domain = domainFromCompany(job.companyName);
+  const domain = job.companyDomain || domainFromCompany(job.companyName);
   return [
     {
       id: "mock-jane",

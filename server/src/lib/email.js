@@ -78,6 +78,14 @@ export function createGmailUrl(to, draft) {
   return `https://mail.google.com/mail/?${params.toString()}`;
 }
 
+export function createMailtoUrl(to, draft) {
+  const params = new URLSearchParams({
+    subject: draft.subject,
+    body: draft.body
+  });
+  return `mailto:${encodeURIComponent(to)}?${params.toString()}`;
+}
+
 function articleFor(title) {
   return /^[aeiou]/i.test(String(title || "")) ? "an" : "a";
 }
@@ -153,7 +161,8 @@ function aiInstructions() {
     "Use only the resume/background, job description, and contact details provided.",
     "Do not invent work experience, degrees, referrals, prior conversations, or personal relationships.",
     "Do not claim the contact can refer the sender. Ask for advice, a brief chat, or the right recruiting contact.",
-    "Treat saved sender profile data as stable personal context. Treat company, job title, job description, and contact data as page-specific context.",
+    "Treat saved sender profile data as stable personal context. Treat company, role intent, job description, selected profile, and contact data as page-specific context.",
+    "If the context is a LinkedIn people profile, write to that one person and do not imply a job posting exists unless one was provided.",
     "If job title or job description is missing, still write a usable email and list the missing fields in missingContext.",
     "Add warnings for weak personalization, missing role context, or anything the sender should verify before sending.",
     "Keep the email between 120 and 180 words. Use a natural human tone, not a sales pitch.",
@@ -173,11 +182,22 @@ function buildAiInput(contact, job, settings) {
       resumeContext: truncate(settings.resume_context || settings.resumeContext, Number(process.env.AI_DRAFT_MAX_RESUME_CHARS || 20_000))
     },
     job: {
+      type: job.type || "",
       companyName: job.companyName || contact.companyName || "",
       jobTitle: job.jobTitle || "",
+      targetRole: job.targetRole || "",
       jobLocation: job.jobLocation || "",
       jobUrl: job.jobUrl || "",
+      sourceUrl: job.sourceUrl || job.jobUrl || "",
       jobDescription: truncate(job.jobDescription, Number(process.env.AI_DRAFT_MAX_JD_CHARS || 12_000))
+    },
+    pageContext: {
+      type: job.type || "",
+      source: job.source || "",
+      pageTitle: job.pageTitle || "",
+      personName: job.personName || contact.name || "",
+      personTitle: job.personTitle || contact.title || "",
+      personLinkedInUrl: job.personLinkedInUrl || contact.linkedinUrl || ""
     },
     contact: {
       name: contact.name || "",
@@ -249,7 +269,8 @@ function normalizeAiDraft(value, job, settings) {
 function fallbackNotes(contact, job, settings) {
   const notes = [];
   if (settings.resume_context || settings.sender_profile || settings.resumeContext || settings.senderProfile) notes.push("Used your saved profile context.");
-  if (job.jobTitle || job.companyName) notes.push("Referenced the LinkedIn job and company.");
+  if (job.type === "linkedin_person") notes.push("Referenced the selected LinkedIn profile.");
+  else if (job.jobTitle || job.companyName) notes.push("Referenced the page role and company.");
   if (contact.title || contact.companyName) notes.push("Referenced the selected contact's role.");
   return notes.length ? notes : ["Used available job and contact details."];
 }
@@ -257,8 +278,8 @@ function fallbackNotes(contact, job, settings) {
 function missingContext(job, settings) {
   const missing = [];
   if (!settings.resume_context && !settings.sender_profile && !settings.resumeContext && !settings.senderProfile) missing.push("Add your resume or personal background for stronger personalization.");
-  if (!job.jobTitle) missing.push("Job title was not available.");
-  if (!job.jobDescription) missing.push("LinkedIn job description was not available.");
+  if (!job.jobTitle && job.type !== "linkedin_person") missing.push("Job title was not available.");
+  if (!job.jobDescription && !["linkedin_person", "linkedin_company", "company_site"].includes(job.type)) missing.push("Job description was not available.");
   return missing;
 }
 

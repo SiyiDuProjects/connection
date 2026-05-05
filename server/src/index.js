@@ -4,8 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { searchContacts, revealEmail } from "./lib/contacts-provider.js";
 import { rankContacts } from "./lib/ranking.js";
-import { createDraft, createGmailUrl } from "./lib/email.js";
-import { getGmailStatus, sendTrackedGmail } from "./lib/gmail.js";
+import { createDraft, createGmailUrl, createMailtoUrl } from "./lib/email.js";
 import { errorHandler, fail, logRequest, ok, publicError, requestContext, writeLog } from "./lib/http.js";
 import {
   getBearerToken,
@@ -95,15 +94,16 @@ app.get("/api/account", async (req, res, next) => {
 
 app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("CONTACT_SEARCH_CREDITS", 1)), async (req, res, next) => {
   try {
-    const job = normalizeJob(req.body);
-    if (!job.companyName) {
-      return fail(res, 400, "Could not read the company name from this LinkedIn job page.", {
-        action: { label: "Open job details", url: job.jobUrl || "https://www.linkedin.com/jobs/" },
+    const settings = await getUserSettings(req.user.id);
+    const context = normalizeContext(req.body?.pageContext || req.body, settings);
+    if (!context.companyName && !context.companyDomain) {
+      return fail(res, 400, "Could not read the company name from this page.", {
+        action: { label: "Open page", url: context.sourceUrl || context.jobUrl || "https://www.linkedin.com/jobs/" },
         credits: { remaining: await getCreditBalance(req.user.id) }
       });
     }
 
-    const contacts = await searchContacts(job).catch((error) => {
+    const contacts = await searchContacts(context).catch((error) => {
       writeLog("warn", "contacts.provider_failed", {
         requestId: req.requestId,
         provider: providerStatus().contactProvider,
@@ -111,7 +111,7 @@ app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("C
       });
       throw publicError("Contact search is temporarily unavailable. Try again shortly.", 503);
     });
-    const ranked = rankContacts(contacts, job).slice(0, 10);
+    const ranked = rankContacts(contacts, context).slice(0, 10);
     await chargeAndRecord(req, "contacts.search", { resultCount: ranked.length });
     ok(res, { contacts: ranked, credits: { remaining: await getCreditBalance(req.user.id) } });
   } catch (error) {
@@ -150,7 +150,8 @@ app.post("/api/contacts/reveal", requireCredits("contacts.reveal", creditCost("C
 app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRAFT_CREDITS", 1)), async (req, res, next) => {
   try {
     const contact = req.body?.contact;
-    const job = normalizeJob(req.body?.job || {});
+    const settings = await getUserSettings(req.user.id);
+    const context = normalizeContext(req.body?.pageContext || req.body?.job || {}, settings);
 
     if (!contact?.email) {
       return fail(res, 400, "Reveal an email before drafting.", {
@@ -158,44 +159,19 @@ app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRA
       });
     }
 
-    const settings = await getUserSettings(req.user.id);
-    const draft = await createDraft(contact, job, settings);
+    const draft = await createDraft(contact, context, settings);
     await chargeAndRecord(req, "email.draft", {
       hasSettings: Boolean(Object.keys(settings).length),
       ai: draft.ai
     });
-    const gmail = await getGmailStatus(req.user.id).catch(() => null);
-    ok(res, { ...draft, gmailUrl: createGmailUrl(contact.email, draft), gmail: { connected: Boolean(gmail), emailAddress: gmail?.email_address || null }, credits: { remaining: await getCreditBalance(req.user.id) } });
+    ok(res, {
+      ...draft,
+      mailtoUrl: createMailtoUrl(contact.email, draft),
+      gmailUrl: createGmailUrl(contact.email, draft),
+      credits: { remaining: await getCreditBalance(req.user.id) }
+    });
   } catch (error) {
     await recordUsage(req, "email.draft", 0, "error", { error: error.message }).catch(() => {});
-    next(error);
-  }
-});
-
-app.post("/api/email/send", async (req, res, next) => {
-  try {
-    const contact = req.body?.contact || {};
-    const job = normalizeJob(req.body?.job || {});
-    const to = clean(req.body?.to || contact.email);
-    const subject = clean(req.body?.subject);
-    const body = cleanMultiline(req.body?.body);
-
-    if (!to || !subject || !body) {
-      return fail(res, 400, "Email recipient, subject, and body are required.");
-    }
-
-    const sent = await sendTrackedGmail({
-      userId: req.user.id,
-      to,
-      subject,
-      body,
-      contact,
-      job
-    });
-    await recordUsage(req, "email.send", 0, "success", { threadId: sent.threadId, messageId: sent.messageId });
-    ok(res, { sent, credits: { remaining: await getCreditBalance(req.user.id) } });
-  } catch (error) {
-    await recordUsage(req, "email.send", 0, "error", { error: error.message }).catch(() => {});
     next(error);
   }
 });
@@ -296,9 +272,13 @@ async function recordUsage(req, action, credits, status, response) {
 
 function summarizeRequest(req) {
   const body = req.body || {};
+  const context = body.pageContext || body.job || body;
   return {
-    companyName: body.companyName || body.job?.companyName,
-    jobTitle: body.jobTitle || body.job?.jobTitle,
+    type: context.type,
+    companyName: context.companyName,
+    companyDomain: context.companyDomain,
+    jobTitle: context.jobTitle,
+    targetRole: context.targetRole,
     contactProvider: body.contact?.provider,
     contactId: body.contact?.id || body.contact?.linkedinUrl
   };
@@ -308,13 +288,26 @@ function creditCost(name, fallback) {
   return Math.max(0, Number(process.env[name] || fallback));
 }
 
-function normalizeJob(input) {
+function normalizeContext(input, settings = {}) {
+  const targetRole = clean(settings.target_role || settings.targetRole);
+  const jobTitle = clean(input?.jobTitle);
+  const sourceUrl = clean(input?.sourceUrl || input?.jobUrl);
   return {
+    type: clean(input?.type || "linkedin_job"),
+    source: clean(input?.source),
     companyName: clean(input?.companyName),
-    jobTitle: clean(input?.jobTitle),
+    companyDomain: cleanDomain(input?.companyDomain),
+    jobTitle: jobTitle || targetRole,
+    originalJobTitle: jobTitle,
+    targetRole,
     jobLocation: clean(input?.jobLocation),
-    jobUrl: clean(input?.jobUrl),
-    jobDescription: cleanMultiline(input?.jobDescription)
+    jobUrl: sourceUrl,
+    sourceUrl,
+    jobDescription: cleanMultiline(input?.jobDescription),
+    personName: clean(input?.personName),
+    personTitle: clean(input?.personTitle),
+    personLinkedInUrl: clean(input?.personLinkedInUrl),
+    pageTitle: clean(input?.pageTitle)
   };
 }
 
@@ -327,6 +320,15 @@ function cleanMultiline(value) {
     .replace(/\r\n/g, "\n")
     .replace(/[ \t]+\n/g, "\n")
     .trim();
+}
+
+function cleanDomain(value) {
+  return String(value || "")
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .split("/")[0]
+    .trim()
+    .toLowerCase();
 }
 
 function getWebRedirectBaseUrl() {
