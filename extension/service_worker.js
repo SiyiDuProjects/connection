@@ -13,7 +13,7 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  handleMessage(message)
+  handleMessage(message, sender)
     .then(sendResponse)
     .catch((error) => sendResponse({ ok: false, error: error.message || "Unexpected error" }));
   return true;
@@ -49,16 +49,16 @@ async function injectIntoTab(tab) {
   });
 }
 
-async function handleMessage(message) {
+async function handleMessage(message, sender) {
   switch (message?.type) {
     case "CONTACTS_SEARCH":
-      return postJson("/api/contacts/search", message.payload);
+      return postJson("/api/contacts/search", message.payload, sender);
     case "CONTACTS_REVEAL":
-      return postJson("/api/contacts/reveal", message.payload);
+      return postJson("/api/contacts/reveal", message.payload, sender);
     case "EMAIL_DRAFT":
-      return postJson("/api/email/draft", message.payload);
+      return postJson("/api/email/draft", message.payload, sender);
     case "GET_ACCOUNT_STATUS":
-      return getAccountStatus();
+      return getAccountStatus(sender);
     default:
       return { ok: false, error: "Unknown message type" };
   }
@@ -82,7 +82,19 @@ async function handleExternalMessage(message, sender) {
   const apiBaseUrl = normalizeApiBaseUrl(message.apiBaseUrl, webBaseUrl);
   await chrome.storage.sync.set({ extensionApiToken: token, apiBaseUrl, webBaseUrl });
   await notifyLinkedInTabsAccountUpdated();
+  await returnToSourceTab(message.returnTo, sender);
   return { ok: true };
+}
+
+async function returnToSourceTab(value, sender) {
+  const returnUrl = safeReturnUrl({ url: value });
+  if (!returnUrl || !sender?.tab?.id) return;
+
+  try {
+    await chrome.tabs.update(sender.tab.id, { url: returnUrl });
+  } catch (error) {
+    console.warn("Could not return to source tab after sign in", error);
+  }
 }
 
 async function notifyLinkedInTabsAccountUpdated() {
@@ -154,24 +166,24 @@ function normalizeApiBaseUrl(value, webBaseUrl) {
   return url;
 }
 
-async function getAccountStatus() {
+async function getAccountStatus(sender) {
   const [baseUrl, token] = await Promise.all([getApiBaseUrl(), getExtensionApiToken()]);
   if (!token) {
-    return { ok: false, status: 401, error: "Sign in on the website.", action: await loginAction() };
+    return { ok: false, status: 401, error: "Sign in on the website.", action: await loginAction(sender) };
   }
 
   const response = await safeFetch(`${baseUrl}/api/account`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!response.ok && response.networkError) {
-    return { ok: false, status: 0, error: API_UNREACHABLE_ERROR, action: await loginAction() };
+    return { ok: false, status: 0, error: API_UNREACHABLE_ERROR, action: await loginAction(sender) };
   }
 
   const payload = await safeJson(response);
   if (!response.ok) {
     if (response.status === 401) {
       await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
-      return { ok: false, status: 401, error: SESSION_EXPIRED_ERROR, action: await loginAction() };
+      return { ok: false, status: 401, error: SESSION_EXPIRED_ERROR, action: await loginAction(sender) };
     }
 
     const action = response.status === 402 ? await pricingAction() : null;
@@ -185,10 +197,10 @@ async function getAccountStatus() {
   return { ok: true, account: payload };
 }
 
-async function postJson(path, body) {
+async function postJson(path, body, sender) {
   const [baseUrl, token] = await Promise.all([getApiBaseUrl(), getExtensionApiToken()]);
   if (!token) {
-    return { ok: false, status: 401, error: "Sign in on the website.", action: await loginAction() };
+    return { ok: false, status: 401, error: "Sign in on the website.", action: await loginAction(sender) };
   }
 
   const url = `${baseUrl}${path}`;
@@ -201,7 +213,7 @@ async function postJson(path, body) {
     body: JSON.stringify(body || {})
   });
   if (!response.ok && response.networkError) {
-    return { ok: false, status: 0, error: API_UNREACHABLE_ERROR, action: await loginAction() };
+    return { ok: false, status: 0, error: API_UNREACHABLE_ERROR, action: await loginAction(sender) };
   }
 
   const payload = await safeJson(response);
@@ -210,7 +222,7 @@ async function postJson(path, body) {
       await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
     }
     const action = response.status === 401
-      ? await loginAction()
+      ? await loginAction(sender)
       : response.status === 402
         ? await pricingAction()
         : null;
@@ -237,11 +249,34 @@ async function getExtensionApiToken() {
   return String(stored.extensionApiToken || "").trim();
 }
 
-async function loginAction() {
+async function loginAction(sender) {
+  const url = new URL(`${await getWebBaseUrl()}/connect-extension`);
+  url.searchParams.set("extensionId", chrome.runtime.id);
+  const returnUrl = safeReturnUrl(sender);
+  if (returnUrl) url.searchParams.set("return", returnUrl);
   return {
     label: "Sign in",
-    url: `${await getWebBaseUrl()}/connect-extension?extensionId=${encodeURIComponent(chrome.runtime.id)}`
+    url: url.toString()
   };
+}
+
+function safeReturnUrl(sender) {
+  const url = sender?.tab?.url || sender?.url || "";
+  if (!url) return "";
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.origin === "https://www.linkedin.com" && parsed.pathname.startsWith("/jobs/")) {
+      return parsed.toString();
+    }
+    if (parsed.protocol === "chrome-extension:") {
+      return parsed.toString();
+    }
+  } catch (_error) {
+    return "";
+  }
+
+  return "";
 }
 
 async function pricingAction() {

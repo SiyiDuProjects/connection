@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
-import { Activity, CreditCard, KeyRound, Menu, Settings, Shield, ShieldCheck } from 'lucide-react';
+import { Activity, CreditCard, Menu, Settings, Shield, ShieldCheck } from 'lucide-react';
 
 export default function DashboardLayout({
   children
@@ -19,7 +19,6 @@ export default function DashboardLayout({
   const navItems = [
     { href: '/dashboard', icon: CreditCard, label: 'Overview' },
     { href: '/dashboard/preferences', icon: Settings, label: 'Preferences' },
-    { href: '/dashboard/extension', icon: KeyRound, label: 'Extension' },
     { href: '/dashboard/activity', icon: Activity, label: 'Activity' },
     { href: '/dashboard/security', icon: Shield, label: 'Security' },
     ...(user?.isAdmin

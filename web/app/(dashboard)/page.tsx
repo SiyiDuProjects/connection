@@ -39,9 +39,6 @@ export default function HomePage() {
               <Button asChild size="lg" variant="outline" className="rounded-md">
                 <Link href="/pricing">View pricing</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="rounded-md">
-                <Link href="/connect-extension">Sign in extension</Link>
-              </Button>
             </div>
             <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-gray-600">
               <span className="inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-gray-950" /> Website-controlled account access</span>

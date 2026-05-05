@@ -12,10 +12,15 @@ export default async function ConnectExtensionPage({
 }) {
   const params = await searchParams;
   const extensionId = clean(params.extensionId) || getAllowedExtensionIds()[0] || '';
+  const returnTo = clean(params.return);
   const user = await getUser();
 
   if (!user) {
-    const redirectTo = `/connect-extension${extensionId ? `?extensionId=${encodeURIComponent(extensionId)}` : ''}`;
+    const redirectParams = new URLSearchParams();
+    if (extensionId) redirectParams.set('extensionId', extensionId);
+    if (returnTo) redirectParams.set('return', returnTo);
+    const query = redirectParams.toString();
+    const redirectTo = `/connect-extension${query ? `?${query}` : ''}`;
     redirect(`/sign-in?redirect=${encodeURIComponent(redirectTo)}`);
   }
 
@@ -33,6 +38,7 @@ export default async function ConnectExtensionPage({
       tokenId={extensionToken?.tokenId || null}
       webBaseUrl={webBaseUrl.replace(/\/+$/, '')}
       apiBaseUrl={apiBaseUrl.replace(/\/+$/, '')}
+      returnTo={safeReturnTo(returnTo)}
       blockedReason={blockedReason}
     />
   );
@@ -67,4 +73,24 @@ function getAllowedExtensionIds() {
     .flatMap((value) => String(value).split(','))
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+function safeReturnTo(value: string) {
+  if (!value) return '';
+
+  try {
+    if (value.startsWith('/')) return value.startsWith('//') ? '' : value;
+
+    const url = new URL(value);
+    if (url.origin === 'https://www.linkedin.com' && url.pathname.startsWith('/jobs/')) {
+      return url.toString();
+    }
+    if (url.protocol === 'chrome-extension:') {
+      return url.toString();
+    }
+  } catch (_error) {
+    return '';
+  }
+
+  return '';
 }

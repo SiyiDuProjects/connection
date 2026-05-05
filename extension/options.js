@@ -38,12 +38,6 @@ document.getElementById("pricing").addEventListener("click", async () => {
 
 document.getElementById("refresh").addEventListener("click", renderStatus);
 
-document.getElementById("clearToken").addEventListener("click", async () => {
-  await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
-  statusEl.textContent = "Signed out locally. You can sign in again from the website.";
-  await renderStatus();
-});
-
 async function saveUrls() {
   const webBaseUrl = normalizeWebBaseUrl(webInput.value);
   const apiBaseUrl = normalizeApiBaseUrl(apiInput.value, webBaseUrl);

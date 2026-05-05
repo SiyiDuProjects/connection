@@ -47,14 +47,12 @@ export default function DashboardPage() {
       href: '/dashboard/preferences'
     },
     {
-      label: 'Browser extension',
-      detail: onboarding?.extension.connected ? `Last used ${formatDate(onboarding.extension.lastUsedAt)}` : 'Sign in once from this browser',
-      complete: Boolean(onboarding?.extension.connected),
-      href: '/dashboard/extension'
-    },
-    {
       label: 'Open LinkedIn',
-      detail: onboarding?.linkedIn.recentSuccessfulSearchAt ? `Search completed ${formatDate(onboarding.linkedIn.recentSuccessfulSearchAt)}` : 'Use the button on a job post',
+      detail: onboarding?.extension.connected
+        ? onboarding?.linkedIn.recentSuccessfulSearchAt
+          ? `Search completed ${formatDate(onboarding.linkedIn.recentSuccessfulSearchAt)}`
+          : 'Use Gaid on a job post'
+        : 'Sign in when Gaid asks on LinkedIn',
       complete: Boolean(onboarding?.linkedIn.recentSuccessfulSearchAt),
       href: 'https://www.linkedin.com/jobs/'
     },
@@ -76,14 +74,14 @@ export default function DashboardPage() {
           </p>
         </div>
         <Button asChild className="rounded-md">
-          <Link href="/dashboard/extension">
+          <Link href="https://www.linkedin.com/jobs/">
             Next step
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>
       </div>
 
-      <div className="mb-8 grid gap-4 md:grid-cols-4">
+      <div className="mb-8 grid gap-4 md:grid-cols-3">
         {steps.map((step) => (
           <Link key={step.label} href={step.href} className="block">
             <Card className="h-full transition-colors hover:bg-gray-50">
@@ -131,7 +129,7 @@ export default function DashboardPage() {
             <Status icon={Plug} label="Extension" value={data?.extension.connected ? 'Signed in' : 'Signed out'} />
             <Status icon={Settings} label="Profile" value={onboarding?.profile.complete ? 'Ready' : 'Needs setup'} />
             <Button asChild variant="outline" className="w-full rounded-md">
-              <Link href="/dashboard/extension">Open extension settings</Link>
+              <Link href="https://www.linkedin.com/jobs/">Open LinkedIn jobs</Link>
             </Button>
           </CardContent>
         </Card>

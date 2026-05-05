@@ -13,6 +13,7 @@ export function ConnectExtensionClient({
   tokenId,
   webBaseUrl,
   apiBaseUrl,
+  returnTo,
   blockedReason
 }: {
   extensionId: string;
@@ -20,6 +21,7 @@ export function ConnectExtensionClient({
   tokenId: number | null;
   webBaseUrl: string;
   apiBaseUrl: string;
+  returnTo: string;
   blockedReason?: string;
 }) {
   const [state, setState] = useState<ConnectState>('sending');
@@ -30,9 +32,10 @@ export function ConnectExtensionClient({
       type: 'CONNECT_EXTENSION_TOKEN',
       token,
       webBaseUrl,
-      apiBaseUrl
+      apiBaseUrl,
+      returnTo
     }),
-    [apiBaseUrl, token, webBaseUrl]
+    [apiBaseUrl, returnTo, token, webBaseUrl]
   );
 
   useEffect(() => {
@@ -63,15 +66,20 @@ export function ConnectExtensionClient({
       const lastError = runtime.lastError;
       if (lastError || !response?.ok) {
         setState('failed');
-      setMessage(response?.error || lastError?.message || 'The extension did not accept the account session.');
+        setMessage(response?.error || lastError?.message || 'The extension did not accept the account session.');
         revokePendingToken(tokenId);
         return;
       }
 
       setState('connected');
-      setMessage('Signed in. Return to LinkedIn and start searching.');
+      setMessage(returnTo ? 'Signed in. Returning you to where you started.' : 'Signed in. Return to LinkedIn and start searching.');
+      if (returnTo) {
+        window.setTimeout(() => {
+          window.location.replace(returnTo);
+        }, 500);
+      }
     });
-  }, [blockedReason, extensionId, payload, tokenId]);
+  }, [blockedReason, extensionId, payload, returnTo, tokenId]);
 
   const Icon = state === 'connected' ? CheckCircle2 : state === 'failed' ? XCircle : Loader2;
 
@@ -87,14 +95,16 @@ export function ConnectExtensionClient({
               : 'Signing in'}
         </h1>
         <p className="mt-3 text-sm leading-6 text-gray-600">{message}</p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Button asChild className="rounded-md">
-            <Link href="/dashboard">Open dashboard</Link>
-          </Button>
-          <Button asChild variant="outline" className="rounded-md">
-            <Link href="/dashboard/extension">Extension settings</Link>
-          </Button>
-        </div>
+        {state === 'failed' ? (
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button asChild className="rounded-md">
+              <Link href="/dashboard">Open dashboard</Link>
+            </Button>
+            <Button asChild variant="outline" className="rounded-md">
+              <Link href="/pricing">Add credits</Link>
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -109,7 +109,7 @@ const signUpSchema = z.object({
   inviteId: z.string().optional()
 });
 
-export const signUp = validatedAction(signUpSchema, async (data) => {
+export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   const { password, inviteId } = data;
   const email = data.email.toLowerCase();
 
@@ -213,6 +213,11 @@ export const signUp = validatedAction(signUpSchema, async (data) => {
     logActivity(teamId, createdUser.id, ActivityType.SIGN_UP),
     setSession(createdUser)
   ]);
+
+  const redirectTo = formData.get('redirect') as string | null;
+  if (isInternalRedirect(redirectTo)) {
+    redirect(redirectTo);
+  }
 
   redirect('/dashboard');
 });
