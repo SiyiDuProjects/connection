@@ -1,4 +1,4 @@
-import { getActiveExtensionTokenInfo, getActiveGmailConnection, getCreditBalance, getOutreachStats, getRecentUsage, getSettings, getTeamForUser, getUser } from '@/lib/db/queries';
+import { getActiveExtensionTokenInfo, getCreditBalance, getRecentUsage, getSettings, getTeamForUser, getUser } from '@/lib/db/queries';
 
 export async function GET() {
   const user = await getUser();
@@ -6,14 +6,12 @@ export async function GET() {
     return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const [balance, usage, settings, team, extensionToken, gmailConnection, outreach] = await Promise.all([
+  const [balance, usage, settings, team, extensionToken] = await Promise.all([
     getCreditBalance(user.id),
     getRecentUsage(user.id),
     getSettings(user.id),
     getTeamForUser(),
-    getActiveExtensionTokenInfo(user.id),
-    getActiveGmailConnection(user.id),
-    getOutreachStats(user.id)
+    getActiveExtensionTokenInfo(user.id)
   ]);
 
   const profileFields = [
@@ -50,13 +48,6 @@ export async function GET() {
       connected: Boolean(extensionToken),
       lastUsedAt: extensionToken?.lastUsedAt || null
     },
-    gmail: {
-      connected: Boolean(gmailConnection),
-      emailAddress: gmailConnection?.emailAddress || null,
-      connectedAt: gmailConnection?.connectedAt || null,
-      lastSyncAt: gmailConnection?.lastSyncAt || null
-    },
-    outreach,
     onboarding: {
       profile: {
         complete: completedProfileFields >= 3,

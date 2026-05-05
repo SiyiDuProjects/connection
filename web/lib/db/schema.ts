@@ -102,39 +102,6 @@ export const userSettings = pgTable('user_settings', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
-export const gmailConnections = pgTable('gmail_connections', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id')
-    .notNull()
-    .references(() => users.id),
-  emailAddress: varchar('email_address', { length: 255 }).notNull(),
-  refreshTokenEncrypted: text('refresh_token_encrypted').notNull(),
-  scope: text('scope').notNull(),
-  connectedAt: timestamp('connected_at').notNull().defaultNow(),
-  disconnectedAt: timestamp('disconnected_at'),
-  lastSyncAt: timestamp('last_sync_at'),
-});
-
-export const outreachEmails = pgTable('outreach_emails', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id')
-    .notNull()
-    .references(() => users.id),
-  gmailConnectionId: integer('gmail_connection_id').references(() => gmailConnections.id),
-  recipientEmail: varchar('recipient_email', { length: 255 }).notNull(),
-  recipientName: text('recipient_name'),
-  recipientTitle: text('recipient_title'),
-  companyName: text('company_name'),
-  jobTitle: text('job_title'),
-  contactLinkedinUrl: text('contact_linkedin_url'),
-  gmailThreadId: text('gmail_thread_id'),
-  gmailMessageId: text('gmail_message_id'),
-  sentAt: timestamp('sent_at').notNull().defaultNow(),
-  repliedAt: timestamp('replied_at'),
-  followUpDueAt: timestamp('follow_up_due_at'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-});
-
 export const extensionApiTokens = pgTable('extension_api_tokens', {
   id: serial('id').primaryKey(),
   userId: integer('user_id')
@@ -240,25 +207,6 @@ export const userSettingsRelations = relations(userSettings, ({ one }) => ({
   }),
 }));
 
-export const gmailConnectionsRelations = relations(gmailConnections, ({ one, many }) => ({
-  user: one(users, {
-    fields: [gmailConnections.userId],
-    references: [users.id],
-  }),
-  outreachEmails: many(outreachEmails),
-}));
-
-export const outreachEmailsRelations = relations(outreachEmails, ({ one }) => ({
-  user: one(users, {
-    fields: [outreachEmails.userId],
-    references: [users.id],
-  }),
-  gmailConnection: one(gmailConnections, {
-    fields: [outreachEmails.gmailConnectionId],
-    references: [gmailConnections.id],
-  }),
-}));
-
 export const extensionApiTokensRelations = relations(
   extensionApiTokens,
   ({ one }) => ({
@@ -296,8 +244,6 @@ export type NewInvitation = typeof invitations.$inferInsert;
 export type EmailVerificationToken =
   typeof emailVerificationTokens.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;
-export type GmailConnection = typeof gmailConnections.$inferSelect;
-export type OutreachEmail = typeof outreachEmails.$inferSelect;
 export type ExtensionApiToken = typeof extensionApiTokens.$inferSelect;
 export type CreditLedger = typeof creditLedger.$inferSelect;
 export type ApiUsage = typeof apiUsage.$inferSelect;

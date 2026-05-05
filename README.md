@@ -36,7 +36,7 @@ MONTHLY_CREDITS=100
 
 For local development, email verification links are printed to the web server log if `EMAIL_FROM` and `RESEND_API_KEY` are not set. Production should configure both values so sign-up and resend flows can deliver verification email.
 
-Gmail tracking uses Google OAuth. Create an OAuth client in Google Cloud Console, add `{WEB_BASE_URL}/api/email/google/callback` as an authorized redirect URI, and set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GMAIL_TOKEN_ENCRYPTION_KEY` in both the web app and contacts API environments. The app requests `gmail.send` and `gmail.metadata` so it can send tracked outreach and calculate reply rate without storing email bodies.
+AI drafts open through `mailto:` or a Gmail compose URL. The app does not require Gmail OAuth for v1 and does not track whether a draft was sent or replied to.
 
 After signing in, open `Dashboard > Extension` and generate an extension API token.
 
