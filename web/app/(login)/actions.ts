@@ -17,7 +17,6 @@ import {
   invitations
 } from '@/lib/db/schema';
 import { comparePasswords, hashPassword, setSession } from '@/lib/auth/session';
-import { issueEmailVerification } from '@/lib/auth/email-verification';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createCheckoutSession } from '@/lib/payments/stripe';
@@ -87,11 +86,6 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
     };
   }
 
-  if (!foundUser.emailVerifiedAt) {
-    await issueEmailVerification(foundUser.id, foundUser.email);
-    redirect(`/verify-email?email=${encodeURIComponent(foundUser.email)}`);
-  }
-
   await Promise.all([
     setSession(foundUser),
     logActivity(foundTeam?.id, foundUser.id, ActivityType.SIGN_IN)
@@ -137,6 +131,7 @@ export const signUp = validatedAction(signUpSchema, async (data) => {
   const newUser: NewUser = {
     email,
     passwordHash,
+    emailVerifiedAt: new Date(),
     role: 'owner' // Default role, will be overridden if there's an invitation
   };
 
@@ -216,10 +211,10 @@ export const signUp = validatedAction(signUpSchema, async (data) => {
   await Promise.all([
     db.insert(teamMembers).values(newTeamMember),
     logActivity(teamId, createdUser.id, ActivityType.SIGN_UP),
-    issueEmailVerification(createdUser.id, createdUser.email)
+    setSession(createdUser)
   ]);
 
-  redirect(`/verify-email?email=${encodeURIComponent(createdUser.email)}`);
+  redirect('/dashboard');
 });
 
 const resendVerificationSchema = z.object({
@@ -236,12 +231,8 @@ export const resendVerification = validatedAction(
       .where(eq(users.email, email))
       .limit(1);
 
-    if (foundUser && !foundUser.emailVerifiedAt && !foundUser.deletedAt) {
-      await issueEmailVerification(foundUser.id, foundUser.email);
-    }
-
     return {
-      success: 'If that account needs verification, a new link has been sent.',
+      success: 'Email verification is currently disabled.',
       email
     };
   }
@@ -395,7 +386,7 @@ export const updateAccount = validatedActionWithUser(
         .set({
           name,
           email,
-          emailVerifiedAt: emailChanged ? null : user.emailVerifiedAt,
+          emailVerifiedAt: emailChanged ? new Date() : user.emailVerifiedAt,
           updatedAt: new Date()
         })
         .where(eq(users.id, user.id)),
@@ -403,9 +394,7 @@ export const updateAccount = validatedActionWithUser(
     ]);
 
     if (emailChanged) {
-      await issueEmailVerification(user.id, email);
-      (await cookies()).delete('session');
-      redirect(`/verify-email?email=${encodeURIComponent(email)}`);
+      await setSession({ ...user, email, emailVerifiedAt: new Date() });
     }
 
     return { name, success: 'Account updated successfully.' };
