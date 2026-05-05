@@ -173,7 +173,7 @@ app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRA
 app.use(errorHandler);
 
 app.listen(port, () => {
-  console.log(`Find Contacts server listening on http://localhost:${port}`);
+  console.log(`Gaid server listening on http://localhost:${port}`);
 });
 
 function createRateLimiter({ windowMs, max }) {

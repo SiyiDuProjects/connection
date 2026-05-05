@@ -1,4 +1,4 @@
-# LinkedIn Find Contacts
+# Gaid
 
 Chrome Extension + Express API + Next.js SaaS app for finding company contacts from LinkedIn job pages.
 
@@ -6,9 +6,9 @@ Chrome Extension + Express API + Next.js SaaS app for finding company contacts f
 
 - `extension/`: Manifest V3 Chrome extension injected only on LinkedIn job pages.
 - `server/`: Express API proxy that keeps contact provider credentials private and charges credits.
-- `web/`: Next.js SaaS app based on `nextjs/saas-starter` with auth, Stripe billing, dashboard, credits, preferences, and extension tokens.
+- `web/`: Gaid web app with auth, Stripe billing, dashboard, credits, preferences, and extension tokens.
 
-The app uses the starter's Postgres + Drizzle + cookie auth stack. It does not use Supabase.
+The app uses a Postgres + Drizzle + cookie auth stack. It does not use Supabase.
 
 ## Web App
 
@@ -29,7 +29,7 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 BASE_URL=http://localhost:3000
 APP_URL=http://localhost:3000
 AUTH_SECRET=generate-a-long-random-secret
-EMAIL_FROM="Find Contacts <noreply@yourdomain.com>"
+EMAIL_FROM="Gaid <noreply@yourdomain.com>"
 RESEND_API_KEY=re_...
 MONTHLY_CREDITS=100
 ```

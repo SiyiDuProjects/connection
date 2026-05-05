@@ -1,8 +1,6 @@
-# Next.js SaaS Starter
+# Gaid
 
-This is a starter template for building a SaaS application using **Next.js** with support for authentication, Stripe integration for payments, and a dashboard for logged-in users.
-
-**Demo: [https://next-saas-start.vercel.app/](https://next-saas-start.vercel.app/)**
+Gaid is a SaaS application for finding company contacts from LinkedIn job pages, with authentication, Stripe billing, a dashboard, credits, preferences, and extension tokens.
 
 ## Features
 
@@ -26,9 +24,9 @@ This is a starter template for building a SaaS application using **Next.js** wit
 
 ## Getting Started
 
+Install dependencies from this repository's `web/` directory:
+
 ```bash
-git clone https://github.com/nextjs/saas-starter
-cd saas-starter
 pnpm install
 ```
 
@@ -84,7 +82,7 @@ To test Stripe payments, use the following test card details:
 
 ## Going to Production
 
-When you're ready to deploy your SaaS application to production, follow these steps:
+When you're ready to deploy Gaid to production, follow these steps:
 
 ### Set up a production Stripe webhook
 
@@ -108,13 +106,3 @@ In your Vercel project settings (or during deployment), add all the necessary en
 4. `POSTGRES_URL`: Set this to your production database URL.
 5. `AUTH_SECRET`: Set this to a random string. `openssl rand -base64 32` will generate one.
 6. `EMAIL_FROM` and `RESEND_API_KEY`: Configure these for production email verification. In local development, verification links are printed to the server log when they are omitted.
-
-## Other Templates
-
-While this template is intentionally minimal and to be used as a learning resource, there are other paid versions in the community which are more full-featured:
-
-- https://achromatic.dev
-- https://shipfa.st
-- https://makerkit.dev
-- https://zerotoshipped.com
-- https://turbostarter.dev
