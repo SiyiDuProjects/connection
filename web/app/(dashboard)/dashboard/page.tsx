@@ -127,9 +127,9 @@ export default function DashboardPage() {
               </form>
             </div>
             <div className="grid gap-3 text-sm sm:grid-cols-3">
-              <Cost icon={Search} label={t('overview.searchContacts')} value={data?.credits.costs.search} creditLabel={t('overview.creditSingular')} />
+              <Cost icon={Search} label={t('overview.searchContacts')} value={data?.credits.costs.search} creditLabel={t('overview.creditSingular')} includedLabel={t('overview.included')} />
               <Cost icon={Wallet} label={t('overview.revealEmail')} value={data?.credits.costs.reveal} creditLabel={t('overview.creditSingular')} />
-              <Cost icon={Mail} label={t('overview.aiMailDraft')} value={data?.credits.costs.draft} creditLabel={t('overview.creditSingular')} />
+              <Cost icon={Mail} label={t('overview.aiMailDraft')} value={data?.credits.costs.draft} creditLabel={t('overview.creditSingular')} includedLabel={t('overview.included')} />
             </div>
           </CardContent>
         </Card>
@@ -214,11 +214,25 @@ export default function DashboardPage() {
   );
 }
 
-function Cost({ icon: Icon, label, value, creditLabel }: { icon: LucideIcon; label: string; value?: number; creditLabel: string }) {
+function Cost({
+  icon: Icon,
+  label,
+  value,
+  creditLabel,
+  includedLabel
+}: {
+  icon: LucideIcon;
+  label: string;
+  value?: number;
+  creditLabel: string;
+  includedLabel?: string;
+}) {
+  const displayValue = value === 0 && includedLabel ? includedLabel : `${value ?? '-'} ${creditLabel}`;
+
   return (
     <div className="border border-gray-200 p-3">
       <Icon className="mb-2 h-4 w-4 text-gray-950" />
-      <p className="font-medium text-gray-950">{value ?? '-'} {creditLabel}</p>
+      <p className="font-medium text-gray-950">{displayValue}</p>
       <p className="text-gray-600">{label}</p>
     </div>
   );

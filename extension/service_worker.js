@@ -224,7 +224,7 @@ async function getAccountStatus(sender) {
 
     const action = response.status === 402 ? await pricingAction() : null;
     const error = response.status === 402
-      ? "Credits are insufficient. Upgrade or wait for your next monthly grant."
+      ? "No Contact Kits left. Upgrade or wait for your next monthly grant."
       : `${payload.error || "Could not load account status."} Try again shortly.`;
     return { ok: false, status: response.status, error, action };
   }
@@ -265,7 +265,7 @@ async function postJson(path, body, sender) {
     const prompt = response.status === 401
       ? SESSION_EXPIRED_ERROR
       : response.status === 402
-        ? "Credits are insufficient. Upgrade or wait for your next monthly grant."
+        ? "No Contact Kits left. Upgrade or wait for your next monthly grant."
         : "Try again shortly.";
     return {
       ok: false,

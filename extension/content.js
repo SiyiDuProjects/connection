@@ -517,7 +517,8 @@
 
   function renderCredits(placement = "header") {
     if (state.creditsRemaining === null || state.creditsRemaining === undefined) return "";
-    return `<div class="fc-credits fc-credits-${placement}">${escapeHtml(`${state.creditsRemaining} credits left`)}</div>`;
+    const label = state.creditsRemaining === 1 ? "Contact Kit left" : "Contact Kits left";
+    return `<div class="fc-credits fc-credits-${placement}">${escapeHtml(`${state.creditsRemaining} ${label}`)}</div>`;
   }
 
   function renderActionButton(action) {
@@ -540,9 +541,9 @@
     const reasons = Array.isArray(contact.reasons) && contact.reasons.length
       ? contact.reasons.join(" - ")
       : contact.provider === "linkedin-profile" ? "Selected LinkedIn profile" : "Ranked by role and company relevance";
-    const name = escapeHtml(contact.name || "Unknown contact");
+    const name = escapeHtml(email ? contact.name || "Unlocked contact" : lockedContactName(contact, index));
     const linkedInUrl = safeHttpUrl(contact.linkedinUrl);
-    const nameContent = linkedInUrl
+    const nameContent = email && linkedInUrl
       ? `<a class="fc-contact-link" href="${escapeAttr(linkedInUrl)}" target="_blank" rel="noopener noreferrer">${name}</a>`
       : name;
 
@@ -551,16 +552,21 @@
         <p class="fc-contact-name">${state.pageContext?.type === PAGE_TYPES.LINKEDIN_PERSON ? "" : `${index + 1}. `}${nameContent}</p>
         <p class="fc-contact-meta">${escapeHtml(contact.title || "Company contact")}${escapeHtml(education)}${escapeHtml(locationText)}</p>
         <div class="fc-reasons">${escapeHtml(reasons)}</div>
-        <div class="fc-email-state">${email ? "Email revealed" : "Email hidden until reveal"}</div>
+        <div class="fc-email-state">${email ? "Contact Kit unlocked" : "Unlock to see email and personalized outreach"}</div>
         ${email ? `<div class="fc-email">${escapeHtml(email)}</div>` : ""}
         <div class="fc-actions">
-          ${linkedInUrl ? `<button class="fc-secondary" type="button" data-action-url="${escapeAttr(linkedInUrl)}">LinkedIn</button>` : ""}
-          ${email ? "" : `<button class="fc-secondary" type="button" data-reveal="${escapeAttr(id)}" ${isRevealing ? "disabled" : ""}>${isRevealing ? "Revealing..." : "Reveal Email"}</button>`}
-          <button class="fc-secondary" type="button" data-draft="${escapeAttr(id)}" ${isDrafting ? "disabled" : ""}>${isDrafting ? "Generating..." : "Generate AI Email"}</button>
+          ${email && linkedInUrl ? `<button class="fc-secondary" type="button" data-action-url="${escapeAttr(linkedInUrl)}">LinkedIn</button>` : ""}
+          ${email ? "" : `<button class="fc-secondary" type="button" data-reveal="${escapeAttr(id)}" ${isRevealing ? "disabled" : ""}>${isRevealing ? "Unlocking..." : "Unlock Contact Kit"}</button>`}
+          ${email ? `<button class="fc-secondary" type="button" data-draft="${escapeAttr(id)}" ${isDrafting ? "disabled" : ""}>${isDrafting ? "Writing..." : draft ? "Regenerate outreach" : "Write outreach"}</button>` : ""}
         </div>
         ${draft ? renderDraftPreview(id, draft) : ""}
       </article>
     `;
+  }
+
+  function lockedContactName(contact) {
+    const title = contact.title || "Relevant contact";
+    return title;
   }
 
   function renderDraftPreview(id, draft) {
@@ -569,7 +575,7 @@
     const warnings = Array.isArray(draft.warnings) ? draft.warnings : [];
     return `
       <div class="fc-draft">
-        <div class="fc-draft-label">AI email preview</div>
+        <div class="fc-draft-label">Personalized outreach included</div>
         <div class="fc-draft-subject">${escapeHtml(draft.subject || "")}</div>
         <pre class="fc-draft-body">${escapeHtml(draft.body || "")}</pre>
         ${notes.length ? `<div class="fc-draft-notes"><strong>Used:</strong> ${escapeHtml(notes.join(" - "))}</div>` : ""}
@@ -658,11 +664,12 @@
         type: "CONTACTS_REVEAL",
         payload: { contact, pageContext: state.pageContext }
       });
-      if (!response?.ok) throw apiError(response, "Could not reveal email.");
+      if (!response?.ok) throw apiError(response, "Could not unlock contact.");
       setCredits(response);
       state.revealed.set(contactId, response.email);
+      await draftEmail(contactId);
     } catch (error) {
-      applyError(error, "Could not reveal email.");
+      applyError(error, "Could not unlock contact.");
     } finally {
       state.revealing.delete(contactId);
       renderPanel();
@@ -675,7 +682,7 @@
 
     const email = state.revealed.get(contactId) || contact.email;
     if (!email) {
-      state.error = "Reveal this contact's email before generating a draft.";
+      state.error = "Unlock this contact before writing outreach.";
       state.prompt = null;
       state.action = null;
       renderPanel();

@@ -114,7 +114,7 @@ async function grantRenewalCredits(invoice: Stripe.Invoice) {
 
   await db.insert(creditLedger).values({
     userId: member.userId,
-    amount: Number(process.env.MONTHLY_CREDITS || 100),
+    amount: Number(process.env.MONTHLY_CREDITS || 20),
     action: 'subscription.monthly_grant',
     metadata: { subscriptionId, invoiceId: invoice.id }
   });

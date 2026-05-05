@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   }
   if (!Number.isInteger(amount) || amount <= 0) {
     return Response.json(
-      { error: 'Credit amount must be a positive integer.' },
+      { error: 'Contact Kit amount must be a positive integer.' },
       { status: 400 }
     );
   }

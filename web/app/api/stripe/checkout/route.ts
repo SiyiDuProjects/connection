@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
     if (existingGrant.length === 0) {
       await db.insert(creditLedger).values({
         userId: user[0].id,
-        amount: Number(process.env.MONTHLY_CREDITS || 100),
+        amount: Number(process.env.MONTHLY_CREDITS || 20),
         action: 'subscription.initial_grant',
         metadata: { subscriptionId, checkoutSessionId: session.id }
       });
