@@ -19,6 +19,8 @@ import {
   ExtensionSessionBridge,
   clearExtensionSessionBeforeSignOut
 } from '@/components/extension-session-bridge';
+import { LanguageSwitcher } from '@/components/language-switcher';
+import { useI18n } from '@/components/language-provider';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -26,6 +28,7 @@ function UserMenu() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { data: user } = useSWR<User>('/api/user', fetcher);
   const router = useRouter();
+  const { t } = useI18n();
 
   async function handleSignOut() {
     await clearExtensionSessionBeforeSignOut();
@@ -38,19 +41,19 @@ function UserMenu() {
     return (
       <>
         <Button asChild className="rounded-md">
-          <Link href="/sign-up">Get started</Link>
+          <Link href="/sign-up">{t('nav.getStarted')}</Link>
         </Button>
         <Link
           href="/pricing"
           className="text-sm font-medium text-gray-700 hover:text-gray-900"
         >
-          Pricing
+          {t('nav.pricing')}
         </Link>
         <Link
           href="/sign-in"
           className="text-sm font-medium text-gray-700 hover:text-gray-900"
         >
-          Sign in
+          {t('nav.signIn')}
         </Link>
       </>
     );
@@ -75,14 +78,14 @@ function UserMenu() {
           <DropdownMenuItem className="cursor-pointer">
             <Link href="/dashboard" className="flex w-full items-center">
               <Home className="mr-2 h-4 w-4" />
-              <span>Dashboard</span>
+              <span>{t('nav.dashboard')}</span>
             </Link>
           </DropdownMenuItem>
           <form action={handleSignOut} className="w-full">
             <button type="submit" className="flex w-full">
               <DropdownMenuItem className="w-full flex-1 cursor-pointer">
                 <LogOut className="mr-2 h-4 w-4" />
-                <span>Sign out</span>
+                <span>{t('nav.signOut')}</span>
               </DropdownMenuItem>
             </button>
           </form>
@@ -101,6 +104,7 @@ function Header() {
           <span className="ml-2 text-xl font-semibold text-gray-900">Connection</span>
         </Link>
         <div className="flex items-center space-x-4">
+          <LanguageSwitcher />
           <Suspense fallback={<div className="h-9" />}>
             <UserMenu />
           </Suspense>

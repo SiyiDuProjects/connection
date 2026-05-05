@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useI18n } from '@/components/language-provider';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -40,6 +41,7 @@ export default function AdminPage() {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
+  const { t, language } = useI18n();
 
   const overviewUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -67,12 +69,12 @@ export default function AdminPage() {
     const payload = await response.json();
 
     if (!response.ok) {
-      setStatus(payload.error || 'Could not grant credits.');
+      setStatus(payload.error || t('admin.grantError'));
       return;
     }
 
     setStatus(
-      `Added credits to ${payload.user.email}. New balance: ${payload.credits.balance}.`
+      t('admin.grantSuccess', { email: payload.user.email, balance: payload.credits.balance })
     );
     event.currentTarget.reset();
     await mutate();
@@ -81,7 +83,7 @@ export default function AdminPage() {
   if (data?.error) {
     return (
       <section className="flex-1 p-4 lg:p-8">
-        <h1 className="text-lg lg:text-2xl font-medium mb-6">Admin</h1>
+        <h1 className="text-lg lg:text-2xl font-medium mb-6">{t('nav.admin')}</h1>
         <Card>
           <CardContent>
             <p className="text-sm text-muted-foreground">{data.error}</p>
@@ -93,38 +95,38 @@ export default function AdminPage() {
 
   return (
     <section className="flex-1 p-4 lg:p-8">
-      <h1 className="text-lg lg:text-2xl font-medium mb-6">Admin</h1>
+      <h1 className="text-lg lg:text-2xl font-medium mb-6">{t('nav.admin')}</h1>
 
       <div className="grid gap-4 md:grid-cols-4 mb-8">
-        <MetricCard label="Users" value={data?.summary.totalUsers} />
-        <MetricCard label="API calls" value={data?.summary.totalApiCalls} />
-        <MetricCard label="Credits granted" value={data?.summary.totalCreditsGranted} />
-        <MetricCard label="Credits spent" value={data?.summary.totalCreditsSpent} />
+        <MetricCard label={t('admin.users')} value={data?.summary.totalUsers} />
+        <MetricCard label={t('admin.apiCalls')} value={data?.summary.totalApiCalls} />
+        <MetricCard label={t('admin.creditsGranted')} value={data?.summary.totalCreditsGranted} />
+        <MetricCard label={t('admin.creditsSpent')} value={data?.summary.totalCreditsSpent} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px] mb-8">
         <Card>
           <CardHeader>
-            <CardTitle>Users</CardTitle>
+            <CardTitle>{t('admin.users')}</CardTitle>
           </CardHeader>
           <CardContent>
             <form className="flex gap-2 mb-4" onSubmit={searchUsers}>
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by email"
+                placeholder={t('admin.searchEmail')}
               />
-              <Button type="submit" variant="outline">Search</Button>
+              <Button type="submit" variant="outline">{t('admin.search')}</Button>
             </form>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left border-b">
-                    <th className="py-2">Email</th>
-                    <th className="py-2">Plan</th>
-                    <th className="py-2">Credits</th>
-                    <th className="py-2">Last used</th>
-                    <th className="py-2">Created</th>
+                    <th className="py-2">{t('admin.email')}</th>
+                    <th className="py-2">{t('admin.plan')}</th>
+                    <th className="py-2">{t('admin.credits')}</th>
+                    <th className="py-2">{t('admin.lastUsed')}</th>
+                    <th className="py-2">{t('admin.created')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -132,20 +134,20 @@ export default function AdminPage() {
                     <tr key={user.id} className="border-b">
                       <td className="py-2 pr-4">{user.email}</td>
                       <td className="py-2 pr-4">
-                        {user.planName || 'Free'}
+                        {user.planName || t('admin.free')}
                         <span className="text-muted-foreground">
-                          {' '}({user.subscriptionStatus || 'inactive'})
+                          {' '}({user.subscriptionStatus || t('admin.inactive')})
                         </span>
                       </td>
                       <td className="py-2 pr-4">{user.creditBalance}</td>
-                      <td className="py-2 pr-4">{formatDate(user.lastUsedAt)}</td>
-                      <td className="py-2">{formatDate(user.createdAt)}</td>
+                      <td className="py-2 pr-4">{formatDate(user.lastUsedAt, language)}</td>
+                      <td className="py-2">{formatDate(user.createdAt, language)}</td>
                     </tr>
                   ))}
                   {!isLoading && !data?.users?.length ? (
                     <tr>
                       <td className="py-6 text-muted-foreground" colSpan={5}>
-                        No users found.
+                        {t('admin.noUsers')}
                       </td>
                     </tr>
                   ) : null}
@@ -157,28 +159,28 @@ export default function AdminPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Grant credits</CardTitle>
+            <CardTitle>{t('admin.grantCredits')}</CardTitle>
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={grantCredits}>
               <div>
-                <Label htmlFor="email">User email</Label>
+                <Label htmlFor="email">{t('admin.userEmail')}</Label>
                 <Input id="email" name="email" type="email" required />
               </div>
               <div>
-                <Label htmlFor="amount">Credits</Label>
+                <Label htmlFor="amount">{t('admin.credits')}</Label>
                 <Input id="amount" name="amount" type="number" min="1" step="1" required />
               </div>
               <div>
-                <Label htmlFor="note">Note</Label>
+                <Label htmlFor="note">{t('admin.note')}</Label>
                 <textarea
                   id="note"
                   name="note"
                   className="border-input min-h-24 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                  placeholder="Reason for this grant"
+                  placeholder={t('admin.notePlaceholder')}
                 />
               </div>
-              <Button type="submit">Grant credits</Button>
+              <Button type="submit">{t('admin.grantCredits')}</Button>
               <p className="text-sm text-muted-foreground">{status}</p>
             </form>
           </CardContent>
@@ -187,18 +189,18 @@ export default function AdminPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent usage</CardTitle>
+          <CardTitle>{t('admin.recentUsage')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left border-b">
-                  <th className="py-2">User</th>
-                  <th className="py-2">Action</th>
-                  <th className="py-2">Credits</th>
-                  <th className="py-2">Status</th>
-                  <th className="py-2">Date</th>
+                  <th className="py-2">{t('admin.user')}</th>
+                  <th className="py-2">{t('admin.action')}</th>
+                  <th className="py-2">{t('admin.credits')}</th>
+                  <th className="py-2">{t('admin.status')}</th>
+                  <th className="py-2">{t('admin.date')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -208,7 +210,7 @@ export default function AdminPage() {
                     <td className="py-2 pr-4">{row.action}</td>
                     <td className="py-2 pr-4">{row.credits}</td>
                     <td className="py-2 pr-4">{row.status}</td>
-                    <td className="py-2">{formatDate(row.createdAt)}</td>
+                    <td className="py-2">{formatDate(row.createdAt, language)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -233,7 +235,7 @@ function MetricCard({ label, value }: { label: string; value?: number }) {
   );
 }
 
-function formatDate(value: string | null) {
-  if (!value) return 'Never';
-  return new Date(value).toLocaleString();
+function formatDate(value: string | null, language = 'en') {
+  if (!value) return language === 'zh' ? '从未' : 'Never';
+  return new Date(value).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US');
 }

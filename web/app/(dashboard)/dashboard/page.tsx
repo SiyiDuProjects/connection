@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import useSWR from 'swr';
-import { ArrowRight, CheckCircle2, Circle, Mail, MailCheck, Plug, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Circle, FileText, Mail, Plug, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { customerPortalAction } from '@/lib/payments/actions';
+import { useI18n } from '@/components/language-provider';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -18,8 +19,6 @@ type AccountData = {
   };
   subscription: { planName: string; status: string };
   extension: { connected: boolean; lastUsedAt: string | null };
-  gmail: { connected: boolean; emailAddress: string | null; lastSyncAt: string | null };
-  outreach: { sent: number; replied: number; replyRate: number; followUps: unknown[] };
   onboarding: {
     profile: { complete: boolean; completedFields: number; totalFields: number };
     extension: { connected: boolean; lastUsedAt: string | null };
@@ -38,31 +37,41 @@ type AccountData = {
 
 export default function DashboardPage() {
   const { data } = useSWR<AccountData>('/api/account', fetcher);
+  const { t, language } = useI18n();
   const onboarding = data?.onboarding;
   const steps = [
     {
-      label: 'Profile',
+      label: t('overview.profile'),
       detail: onboarding?.profile.complete
-        ? 'Preferences ready for drafts'
-        : `${onboarding?.profile.completedFields ?? 0}/${onboarding?.profile.totalFields ?? 4} fields complete`,
+        ? t('overview.profileReady')
+        : t('overview.fieldsComplete', {
+            completed: onboarding?.profile.completedFields ?? 0,
+            total: onboarding?.profile.totalFields ?? 4
+          }),
       complete: Boolean(onboarding?.profile.complete),
-      href: '/dashboard/preferences'
+      href: '/dashboard/profile'
     },
     {
-      label: 'Open LinkedIn',
+      label: t('overview.openLinkedin'),
       detail: onboarding?.extension.connected
         ? onboarding?.linkedIn.recentSuccessfulSearchAt
-          ? `Search completed ${formatDate(onboarding.linkedIn.recentSuccessfulSearchAt)}`
-          : 'Use Gaid on a job post'
-        : 'Sign in when Gaid asks on LinkedIn',
+          ? t('overview.searchCompleted', {
+              date: formatDate(onboarding.linkedIn.recentSuccessfulSearchAt, language)
+            })
+          : t('overview.useGaid')
+        : t('overview.signInExtension'),
       complete: Boolean(onboarding?.linkedIn.recentSuccessfulSearchAt),
       href: 'https://www.linkedin.com/jobs/'
     },
     {
-      label: 'Find contacts',
-      detail: onboarding?.draft.recentSuccessfulDraftAt ? `Draft created ${formatDate(onboarding.draft.recentSuccessfulDraftAt)}` : 'Reveal an email and draft outreach',
+      label: t('overview.findContacts'),
+      detail: onboarding?.draft.recentSuccessfulDraftAt
+        ? t('overview.draftCreated', {
+            date: formatDate(onboarding.draft.recentSuccessfulDraftAt, language)
+          })
+        : t('overview.revealAndDraft'),
       complete: Boolean(onboarding?.draft.recentSuccessfulDraftAt),
-      href: '/dashboard/activity'
+      href: 'https://www.linkedin.com/jobs/'
     }
   ];
 
@@ -70,14 +79,14 @@ export default function DashboardPage() {
     <section className="flex-1 p-4 lg:p-8">
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <h1 className="text-lg font-medium lg:text-2xl">Launch checklist</h1>
+          <h1 className="text-lg font-medium lg:text-2xl">{t('overview.title')}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Complete the path from profile setup to a Gmail draft.
+            {t('overview.subtitle')}
           </p>
         </div>
         <Button asChild className="rounded-md">
           <Link href="https://www.linkedin.com/jobs/">
-            Next step
+            {t('overview.nextStep')}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>
@@ -103,40 +112,41 @@ export default function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Credits and plan</CardTitle>
+            <CardTitle>{t('overview.creditsPlan')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <p className="text-4xl font-semibold">{data?.credits.remaining ?? '...'}</p>
-                <p className="text-sm text-muted-foreground">credits remaining on {data?.subscription.planName || 'Free'}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t('overview.creditsRemaining', { plan: data?.subscription.planName || 'Free' })}
+                </p>
               </div>
               <form action={customerPortalAction}>
-                <Button type="submit" variant="outline" className="rounded-md">Manage subscription</Button>
+                <Button type="submit" variant="outline" className="rounded-md">{t('overview.manageSubscription')}</Button>
               </form>
             </div>
             <div className="grid gap-3 text-sm sm:grid-cols-3">
-              <Cost icon={Search} label="Search contacts" value={data?.credits.costs.search} />
-              <Cost icon={Wallet} label="Reveal email" value={data?.credits.costs.reveal} />
-              <Cost icon={Mail} label="Gmail draft" value={data?.credits.costs.draft} />
+              <Cost icon={Search} label={t('overview.searchContacts')} value={data?.credits.costs.search} creditLabel={t('overview.creditSingular')} />
+              <Cost icon={Wallet} label={t('overview.revealEmail')} value={data?.credits.costs.reveal} creditLabel={t('overview.creditSingular')} />
+              <Cost icon={Mail} label={t('overview.aiMailDraft')} value={data?.credits.costs.draft} creditLabel={t('overview.creditSingular')} />
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Account status</CardTitle>
+            <CardTitle>{t('overview.accountStatus')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Status icon={Plug} label="Extension" value={data?.extension.connected ? 'Signed in' : 'Signed out'} />
-            <Status icon={MailCheck} label="Gmail" value={data?.gmail.connected ? data.gmail.emailAddress || 'Connected' : 'Not connected'} />
-            <Status icon={Settings} label="Profile" value={onboarding?.profile.complete ? 'Ready' : 'Needs setup'} />
+            <Status icon={Plug} label={t('overview.extension')} value={data?.extension.connected ? t('overview.signedIn') : t('overview.signedOut')} />
+            <Status icon={Settings} label={t('overview.profileStatus')} value={onboarding?.profile.complete ? t('overview.ready') : t('overview.needsSetup')} />
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
               <Button asChild variant="outline" className="w-full rounded-md">
-                <Link href="https://www.linkedin.com/jobs/">Open LinkedIn jobs</Link>
+                <Link href="https://www.linkedin.com/jobs/">{t('overview.openLinkedinJobs')}</Link>
               </Button>
               <Button asChild variant="outline" className="w-full rounded-md">
-                <Link href="/dashboard/activity">Track outreach</Link>
+                <Link href="/dashboard/profile">{t('overview.editProfile')}</Link>
               </Button>
             </div>
           </CardContent>
@@ -146,30 +156,30 @@ export default function DashboardPage() {
       <div className="mt-8 grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="p-5">
+            <Search className="mb-3 h-5 w-5 text-gray-700" />
+            <p className="text-2xl font-semibold text-gray-950">{countUsage(data?.usage, 'contacts.search')}</p>
+            <p className="text-sm text-gray-600">{t('overview.contactSearches')}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
             <Mail className="mb-3 h-5 w-5 text-gray-700" />
-            <p className="text-2xl font-semibold text-gray-950">{data?.outreach.sent ?? 0}</p>
-            <p className="text-sm text-gray-600">Tracked emails sent</p>
+            <p className="text-2xl font-semibold text-gray-950">{countUsage(data?.usage, 'contacts.reveal')}</p>
+            <p className="text-sm text-gray-600">{t('overview.emailsRevealed')}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <MailCheck className="mb-3 h-5 w-5 text-gray-700" />
-            <p className="text-2xl font-semibold text-gray-950">{data?.outreach.replyRate ?? 0}%</p>
-            <p className="text-sm text-gray-600">Reply rate</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <ArrowRight className="mb-3 h-5 w-5 text-gray-700" />
-            <p className="text-2xl font-semibold text-gray-950">{data?.outreach.followUps?.length ?? 0}</p>
-            <p className="text-sm text-gray-600">Follow-ups due</p>
+            <FileText className="mb-3 h-5 w-5 text-gray-700" />
+            <p className="text-2xl font-semibold text-gray-950">{countUsage(data?.usage, 'email.draft')}</p>
+            <p className="text-sm text-gray-600">{t('overview.aiDraftsCreated')}</p>
           </CardContent>
         </Card>
       </div>
 
       <Card className="mt-8">
         <CardHeader>
-          <CardTitle>Recent usage</CardTitle>
+          <CardTitle>{t('overview.recentUsage')}</CardTitle>
         </CardHeader>
         <CardContent>
           {(data?.usage || []).length ? (
@@ -177,10 +187,10 @@ export default function DashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left">
-                    <th className="py-2">Action</th>
-                    <th className="py-2">Credits</th>
-                    <th className="py-2">Status</th>
-                    <th className="py-2">Date</th>
+                    <th className="py-2">{t('overview.action')}</th>
+                    <th className="py-2">{t('overview.credits')}</th>
+                    <th className="py-2">{t('overview.status')}</th>
+                    <th className="py-2">{t('overview.date')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -189,14 +199,14 @@ export default function DashboardPage() {
                       <td className="py-2">{formatAction(row.action)}</td>
                       <td className="py-2">{row.credits}</td>
                       <td className="py-2">{row.status}</td>
-                      <td className="py-2">{formatDate(row.createdAt)}</td>
+                      <td className="py-2">{formatDate(row.createdAt, language)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Searches, reveals, and drafts will appear here with credit costs.</p>
+            <p className="text-sm text-muted-foreground">{t('overview.emptyUsage')}</p>
           )}
         </CardContent>
       </Card>
@@ -204,11 +214,11 @@ export default function DashboardPage() {
   );
 }
 
-function Cost({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value?: number }) {
+function Cost({ icon: Icon, label, value, creditLabel }: { icon: LucideIcon; label: string; value?: number; creditLabel: string }) {
   return (
     <div className="border border-gray-200 p-3">
       <Icon className="mb-2 h-4 w-4 text-gray-950" />
-      <p className="font-medium text-gray-950">{value ?? '-'} credit</p>
+      <p className="font-medium text-gray-950">{value ?? '-'} {creditLabel}</p>
       <p className="text-gray-600">{label}</p>
     </div>
   );
@@ -226,8 +236,10 @@ function Status({ icon: Icon, label, value }: { icon: LucideIcon; label: string;
   );
 }
 
-function formatDate(value?: string | null) {
-  return value ? new Date(value).toLocaleString() : 'never';
+function formatDate(value?: string | null, language = 'en') {
+  return value
+    ? new Date(value).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')
+    : language === 'zh' ? '从未' : 'never';
 }
 
 function formatAction(action: string) {
@@ -235,4 +247,8 @@ function formatAction(action: string) {
     .split('.')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function countUsage(usage: AccountData['usage'] | undefined, action: string) {
+  return (usage || []).filter((item) => item.action === action && item.status === 'success').length;
 }

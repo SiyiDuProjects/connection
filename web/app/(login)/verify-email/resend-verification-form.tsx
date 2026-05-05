@@ -7,8 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Send } from 'lucide-react';
 import { resendVerification } from '../actions';
 import { ActionState } from '@/lib/auth/middleware';
+import { useI18n } from '@/components/language-provider';
 
 export function ResendVerificationForm({ email }: { email: string }) {
+  const { t } = useI18n();
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     resendVerification,
     { email }
@@ -21,7 +23,7 @@ export function ResendVerificationForm({ email }: { email: string }) {
           htmlFor="email"
           className="block text-sm font-medium text-gray-700"
         >
-          Email
+          {t('login.email')}
         </Label>
         <div className="mt-1">
           <Input
@@ -33,7 +35,7 @@ export function ResendVerificationForm({ email }: { email: string }) {
             required
             maxLength={255}
             className="relative block w-full appearance-none rounded-md border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-gray-950 focus:outline-none focus:ring-gray-950 sm:text-sm"
-            placeholder="Enter your email"
+            placeholder={t('login.emailPlaceholder')}
           />
         </div>
       </div>
@@ -51,12 +53,12 @@ export function ResendVerificationForm({ email }: { email: string }) {
         {pending ? (
           <>
             <Loader2 className="animate-spin mr-2 h-4 w-4" />
-            Sending...
+            {t('verify.sending')}
           </>
         ) : (
           <>
             <Send className="mr-2 h-4 w-4" />
-            Resend verification link
+            {t('verify.resend')}
           </>
         )}
       </Button>

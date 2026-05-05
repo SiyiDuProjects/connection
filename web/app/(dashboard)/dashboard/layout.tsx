@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
-import { Activity, CreditCard, Menu, Settings, Shield, ShieldCheck } from 'lucide-react';
+import { CreditCard, Menu, Shield, ShieldCheck, UserRound } from 'lucide-react';
+import { useI18n } from '@/components/language-provider';
 
 export default function DashboardLayout({
   children
@@ -15,14 +16,14 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { data: user } = useSWR<{ isAdmin?: boolean } | null>('/api/user', fetcher);
+  const { t } = useI18n();
 
   const navItems = [
-    { href: '/dashboard', icon: CreditCard, label: 'Overview' },
-    { href: '/dashboard/preferences', icon: Settings, label: 'Preferences' },
-    { href: '/dashboard/activity', icon: Activity, label: 'Activity' },
-    { href: '/dashboard/security', icon: Shield, label: 'Security' },
+    { href: '/dashboard', icon: CreditCard, label: t('nav.overview') },
+    { href: '/dashboard/profile', icon: UserRound, label: t('nav.aiProfile') },
+    { href: '/dashboard/security', icon: Shield, label: t('nav.security') },
     ...(user?.isAdmin
-      ? [{ href: '/dashboard/admin', icon: ShieldCheck, label: 'Admin' }]
+      ? [{ href: '/dashboard/admin', icon: ShieldCheck, label: t('nav.admin') }]
       : [])
   ];
 
@@ -31,7 +32,7 @@ export default function DashboardLayout({
       {/* Mobile header */}
       <div className="lg:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4">
         <div className="flex items-center">
-          <span className="font-medium">Settings</span>
+          <span className="font-medium">{t('nav.settings')}</span>
         </div>
         <Button
           className="-mr-3"
@@ -39,7 +40,7 @@ export default function DashboardLayout({
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
         >
           <Menu className="h-6 w-6" />
-          <span className="sr-only">Toggle sidebar</span>
+          <span className="sr-only">{t('nav.toggleSidebar')}</span>
         </Button>
       </div>
 

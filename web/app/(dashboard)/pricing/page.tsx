@@ -3,6 +3,8 @@ import { Check } from 'lucide-react';
 import { getStripePrices, getStripeProducts } from '@/lib/payments/stripe';
 import { SubmitButton } from './submit-button';
 import { Button } from '@/components/ui/button';
+import { cookies } from 'next/headers';
+import { normalizeLanguage, translate, type Language } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,28 +13,31 @@ type StripeProduct = Awaited<ReturnType<typeof getStripeProducts>>[number];
 
 const planCopy = {
   Base: {
-    credits: '100 credits / month',
-    audience: 'For focused job searches and a steady shortlist of companies.',
+    creditsKey: 'pricing.baseCredits',
+    audienceKey: 'pricing.baseAudience',
     features: [
-      'LinkedIn job contact search',
-      'Email reveal and Gmail draft credits',
-      'Website-driven extension login',
-      'Profile and outreach defaults'
+      'pricing.featureLinkedin',
+      'pricing.featureReveal',
+      'pricing.featureLogin',
+      'pricing.featureProfile'
     ]
   },
   Plus: {
-    credits: '300 credits / month',
-    audience: 'For active outreach across more roles, teams, and markets.',
+    creditsKey: 'pricing.plusCredits',
+    audienceKey: 'pricing.plusAudience',
     features: [
-      'Everything in Base',
-      'Higher monthly credit allowance',
-      'More room for email reveals and drafts',
-      'Priority support'
+      'pricing.featureEverythingBase',
+      'pricing.featureHigherAllowance',
+      'pricing.featureMoreRoom',
+      'pricing.featurePriority'
     ]
   }
 };
 
 export default async function PricingPage() {
+  const language = normalizeLanguage((await cookies()).get('language')?.value);
+  const t = (key: Parameters<typeof translate>[1], values?: Record<string, string | number>) =>
+    translate(language, key, values);
   let prices: StripePrice[] = [];
   let products: StripeProduct[] = [];
 
@@ -55,11 +60,10 @@ export default async function PricingPage() {
     <main className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
       <div className="mb-10 max-w-2xl">
         <h1 className="text-4xl font-semibold tracking-tight text-gray-950">
-          Credits for contact search, reveals, and drafts.
+          {t('pricing.title')}
         </h1>
         <p className="mt-4 text-gray-600">
-          Subscribe once on the website. The extension follows your account
-          status and the server deducts credits for every paid action.
+          {t('pricing.subtitle')}
         </p>
       </div>
       <div className="grid gap-6 md:grid-cols-2">
@@ -69,6 +73,7 @@ export default async function PricingPage() {
           interval={basePrice?.interval}
           trialDays={basePrice?.trialPeriodDays}
           priceId={basePrice?.id}
+          language={language}
         />
         <PricingCard
           name={plusPlan?.name || 'Plus'}
@@ -76,6 +81,7 @@ export default async function PricingPage() {
           interval={plusPrice?.interval}
           trialDays={plusPrice?.trialPeriodDays}
           priceId={plusPrice?.id}
+          language={language}
         />
       </div>
     </main>
@@ -87,40 +93,44 @@ function PricingCard({
   price,
   interval,
   trialDays,
-  priceId
+  priceId,
+  language
 }: {
   name: string;
   price?: number | null;
   interval?: string | null;
   trialDays?: number | null;
   priceId?: string;
+  language: Language;
 }) {
   const copy = planCopy[name as keyof typeof planCopy] || planCopy.Base;
   const configured = Boolean(priceId && typeof price === 'number' && interval);
+  const t = (key: Parameters<typeof translate>[1], values?: Record<string, string | number>) =>
+    translate(language, key, values);
 
   return (
     <section className="border border-gray-200 bg-white p-6 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-medium text-gray-950">{name}</h2>
-          <p className="mt-2 text-sm text-gray-600">{copy.audience}</p>
+          <p className="mt-2 text-sm text-gray-600">{t(copy.audienceKey as Parameters<typeof translate>[1])}</p>
         </div>
         <p className="rounded-md bg-gray-950 px-3 py-1.5 text-sm font-medium text-white">
-          {copy.credits}
+          {t(copy.creditsKey as Parameters<typeof translate>[1])}
         </p>
       </div>
       <p className="mt-7 text-4xl font-medium text-gray-950">
-        {configured ? `$${price! / 100}` : 'Configuring'}
+        {configured ? `$${price! / 100}` : t('pricing.configuring')}
         {configured ? <span className="text-base font-normal text-gray-600"> / {interval}</span> : null}
       </p>
       <p className="mt-2 text-sm text-gray-500">
-        {configured && trialDays ? `Includes a ${trialDays} day free trial.` : 'Stripe checkout is not available yet.'}
+        {configured && trialDays ? t('pricing.trial', { days: trialDays }) : t('pricing.unavailable')}
       </p>
       <ul className="mt-7 space-y-3">
         {copy.features.map((feature) => (
           <li key={feature} className="flex items-start gap-2">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-gray-950" />
-            <span className="text-sm text-gray-700">{feature}</span>
+            <span className="text-sm text-gray-700">{t(feature as Parameters<typeof translate>[1])}</span>
           </li>
         ))}
       </ul>
@@ -131,7 +141,7 @@ function PricingCard({
         </form>
       ) : (
         <Button type="button" disabled variant="outline" className="mt-8 w-full rounded-md">
-          Configure Stripe price
+          {t('pricing.configureStripe')}
         </Button>
       )}
     </section>
