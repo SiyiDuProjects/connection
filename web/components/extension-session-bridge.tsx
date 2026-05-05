@@ -18,6 +18,7 @@ type ExtensionTokenResponse = {
 type ExtensionMessageResponse = {
   ok?: boolean;
   hasToken?: boolean;
+  error?: string;
 };
 
 export function ExtensionSessionBridge({ user }: { user: UserState | null | undefined }) {
@@ -27,19 +28,10 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
     if (!user?.id || syncedUserId.current === user.id) return;
     const userId: number = user.id;
 
-    const runtime = window.chrome?.runtime || window.browser?.runtime;
-    if (!runtime?.sendMessage) return;
-
     let cancelled = false;
 
     async function syncExtensionSession() {
-      const configResponse = await fetch('/api/extension-token');
-      if (!configResponse.ok) return;
-
-      const config = (await configResponse.json()) as ExtensionTokenResponse;
-      if (cancelled || !config.extensionId) return;
-
-      const existing = await sendExtensionMessage(runtime, config.extensionId, {
+      const existing = await sendExtensionBridgeMessage({
         type: 'GET_EXTENSION_SESSION_STATUS'
       });
       if (cancelled) return;
@@ -55,13 +47,15 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
         if (!tokenResponse.ok) return;
 
         const payload = (await tokenResponse.json()) as ExtensionTokenResponse;
-        if (cancelled || !payload.token || !payload.extensionId) return;
+        if (cancelled || !payload.token) return;
 
-        const connected = await sendExtensionMessage(runtime, payload.extensionId, {
+        const connected = await sendExtensionBridgeMessage({
           type: 'CONNECT_EXTENSION_TOKEN',
-          token: payload.token,
-          webBaseUrl: window.location.origin,
-          returnTo: ''
+          payload: {
+            token: payload.token,
+            webBaseUrl: window.location.origin,
+            returnTo: ''
+          }
         });
         if (connected?.ok) syncedUserId.current = userId;
       } finally {
@@ -93,33 +87,37 @@ function releaseSyncLock() {
 }
 
 export async function clearExtensionSessionBeforeSignOut() {
-  const runtime = window.chrome?.runtime || window.browser?.runtime;
-  if (!runtime?.sendMessage) return;
-
-  const response = await fetch('/api/extension-token');
-  if (!response.ok) return;
-
-  const payload = (await response.json()) as ExtensionTokenResponse;
-  if (!payload.extensionId) return;
-
-  await new Promise<void>((resolve) => {
-    runtime.sendMessage(payload.extensionId, { type: 'CLEAR_EXTENSION_SESSION' }, () => resolve());
-  });
+  await sendExtensionBridgeMessage({ type: 'CLEAR_EXTENSION_SESSION' });
 }
 
-function sendExtensionMessage(
-  runtime: any,
-  extensionId: string,
-  message: Record<string, unknown>
-) {
+export function sendExtensionBridgeMessage(message: { type: string; payload?: Record<string, unknown> }) {
   return new Promise<ExtensionMessageResponse | undefined>((resolve) => {
-    runtime.sendMessage(extensionId, message, (response: ExtensionMessageResponse | undefined) => {
-      if (runtime.lastError) {
-        resolve(undefined);
-        return;
-      }
-      resolve(response);
-    });
+    const id = `gaid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const timer = window.setTimeout(() => {
+      window.removeEventListener('message', handleResponse);
+      resolve(undefined);
+    }, 1000);
+
+    function handleResponse(event: MessageEvent) {
+      if (event.source !== window) return;
+      const data = event.data || {};
+      if (data.source !== 'gaid-extension-bridge' || data.id !== id) return;
+
+      window.clearTimeout(timer);
+      window.removeEventListener('message', handleResponse);
+      resolve(data.response);
+    }
+
+    window.addEventListener('message', handleResponse);
+    window.postMessage(
+      {
+        source: 'gaid-web',
+        id,
+        type: message.type,
+        payload: message.payload || {}
+      },
+      window.location.origin
+    );
   });
 }
 

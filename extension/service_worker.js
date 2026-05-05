@@ -51,6 +51,12 @@ async function injectIntoTab(tab) {
 
 async function handleMessage(message, sender) {
   switch (message?.type) {
+    case "GET_EXTENSION_SESSION_STATUS":
+      return getLocalSessionStatus(sender);
+    case "CONNECT_EXTENSION_TOKEN":
+      return connectExtensionSession(message.payload || {}, sender);
+    case "CLEAR_EXTENSION_SESSION":
+      return clearExtensionSession(sender);
     case "CONTACTS_SEARCH":
       return postJson("/api/contacts/search", message.payload, sender);
     case "CONTACTS_REVEAL":
@@ -77,6 +83,10 @@ async function handleExternalMessage(message, sender) {
     return { ok: false, error: "Unknown external message type" };
   }
 
+  return connectExtensionSession(message, sender);
+}
+
+async function connectExtensionSession(message, sender) {
   if (!sender.url || !isAllowedWebsite(sender.url)) {
     return { ok: false, error: "Website origin is not allowed." };
   }

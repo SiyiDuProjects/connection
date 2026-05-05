@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { sendExtensionBridgeMessage } from '@/components/extension-session-bridge';
 
 type ConnectState = 'sending' | 'connected' | 'failed';
 
@@ -49,21 +50,13 @@ export function ConnectExtensionClient({
       return;
     }
 
-    const runtime = window.chrome?.runtime || window.browser?.runtime;
-    if (!runtime?.sendMessage) {
-      setState('failed');
-      setMessage(
-        'Could not reach the extension from this browser tab. Reload the extension, then try again in the same browser.'
-      );
-      revokePendingToken(tokenId);
-      return;
-    }
-
-    runtime.sendMessage(extensionId, payload, (response: { ok?: boolean; error?: string } | undefined) => {
-      const lastError = runtime.lastError;
-      if (lastError || !response?.ok) {
+    sendExtensionBridgeMessage({
+      type: 'CONNECT_EXTENSION_TOKEN',
+      payload
+    }).then((response) => {
+      if (!response?.ok) {
         setState('failed');
-        setMessage(response?.error || lastError?.message || 'The extension did not accept the account session.');
+        setMessage(response?.error || 'The extension did not accept the account session.');
         revokePendingToken(tokenId);
         return;
       }

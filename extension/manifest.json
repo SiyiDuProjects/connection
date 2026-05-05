@@ -25,6 +25,16 @@
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://gaid.studio/*",
+        "https://www.gaid.studio/*",
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*"
+      ],
+      "js": ["web_bridge.js"],
+      "run_at": "document_start"
     }
   ],
   "options_page": "options.html",
