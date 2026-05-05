@@ -12,7 +12,11 @@ export async function GET() {
   }
 
   const token = await getActiveExtensionTokenInfo(user.id);
-  return Response.json({ hasToken: Boolean(token), token });
+  return Response.json({
+    hasToken: Boolean(token),
+    token,
+    extensionId: getDefaultExtensionId()
+  });
 }
 
 export async function POST() {
@@ -22,7 +26,7 @@ export async function POST() {
   }
 
   const token = await createExtensionToken(user.id);
-  return Response.json(token);
+  return Response.json({ ...token, extensionId: getDefaultExtensionId() });
 }
 
 export async function DELETE() {
@@ -50,4 +54,16 @@ export async function PATCH(request: Request) {
 
   await revokeExtensionToken(user.id, tokenId);
   return Response.json({ ok: true });
+}
+
+function getDefaultExtensionId() {
+  return [
+    process.env.ALLOWED_EXTENSION_IDS,
+    process.env.CHROME_EXTENSION_ID,
+    process.env.NEXT_PUBLIC_CHROME_EXTENSION_ID
+  ]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(','))
+    .map((value) => value.trim())
+    .filter(Boolean)[0] || '';
 }

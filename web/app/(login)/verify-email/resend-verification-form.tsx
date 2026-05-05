@@ -32,7 +32,7 @@ export function ResendVerificationForm({ email }: { email: string }) {
             defaultValue={state.email || email}
             required
             maxLength={255}
-            className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
+            className="relative block w-full appearance-none rounded-md border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-gray-950 focus:outline-none focus:ring-gray-950 sm:text-sm"
             placeholder="Enter your email"
           />
         </div>
@@ -45,7 +45,7 @@ export function ResendVerificationForm({ email }: { email: string }) {
 
       <Button
         type="submit"
-        className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+        className="flex w-full items-center justify-center rounded-md border border-transparent bg-gray-950 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-950 focus:ring-offset-2"
         disabled={pending}
       >
         {pending ? (

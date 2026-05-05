@@ -65,6 +65,14 @@ async function handleMessage(message, sender) {
 }
 
 async function handleExternalMessage(message, sender) {
+  if (message?.type === "GET_EXTENSION_SESSION_STATUS") {
+    return getLocalSessionStatus(sender);
+  }
+
+  if (message?.type === "CLEAR_EXTENSION_SESSION") {
+    return clearExtensionSession(sender);
+  }
+
   if (message?.type !== "CONNECT_EXTENSION_TOKEN") {
     return { ok: false, error: "Unknown external message type" };
   }
@@ -83,6 +91,25 @@ async function handleExternalMessage(message, sender) {
   await chrome.storage.sync.set({ extensionApiToken: token, apiBaseUrl, webBaseUrl });
   await notifyLinkedInTabsAccountUpdated();
   await returnToSourceTab(message.returnTo, sender);
+  return { ok: true };
+}
+
+async function getLocalSessionStatus(sender) {
+  if (!sender.url || !isAllowedWebsite(sender.url)) {
+    return { ok: false, error: "Website origin is not allowed." };
+  }
+
+  const token = await getExtensionApiToken();
+  return { ok: true, hasToken: Boolean(token) };
+}
+
+async function clearExtensionSession(sender) {
+  if (!sender.url || !isAllowedWebsite(sender.url)) {
+    return { ok: false, error: "Website origin is not allowed." };
+  }
+
+  await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
+  await notifyLinkedInTabsAccountUpdated();
   return { ok: true };
 }
 
@@ -252,8 +279,6 @@ async function getExtensionApiToken() {
 async function loginAction(sender) {
   const url = new URL(`${await getWebBaseUrl()}/connect-extension`);
   url.searchParams.set("extensionId", chrome.runtime.id);
-  const returnUrl = safeReturnUrl(sender);
-  if (returnUrl) url.searchParams.set("return", returnUrl);
   return {
     label: "Sign in",
     url: url.toString()

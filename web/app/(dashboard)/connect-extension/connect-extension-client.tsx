@@ -13,7 +13,6 @@ export function ConnectExtensionClient({
   tokenId,
   webBaseUrl,
   apiBaseUrl,
-  returnTo,
   blockedReason
 }: {
   extensionId: string;
@@ -21,7 +20,6 @@ export function ConnectExtensionClient({
   tokenId: number | null;
   webBaseUrl: string;
   apiBaseUrl: string;
-  returnTo: string;
   blockedReason?: string;
 }) {
   const [state, setState] = useState<ConnectState>('sending');
@@ -32,10 +30,9 @@ export function ConnectExtensionClient({
       type: 'CONNECT_EXTENSION_TOKEN',
       token,
       webBaseUrl,
-      apiBaseUrl,
-      returnTo
+      apiBaseUrl
     }),
-    [apiBaseUrl, returnTo, token, webBaseUrl]
+    [apiBaseUrl, token, webBaseUrl]
   );
 
   useEffect(() => {
@@ -72,14 +69,9 @@ export function ConnectExtensionClient({
       }
 
       setState('connected');
-      setMessage(returnTo ? 'Signed in. Returning you to where you started.' : 'Signed in. Return to LinkedIn and start searching.');
-      if (returnTo) {
-        window.setTimeout(() => {
-          window.location.replace(returnTo);
-        }, 500);
-      }
+      setMessage('Signed in. Return to LinkedIn and start searching.');
     });
-  }, [blockedReason, extensionId, payload, returnTo, tokenId]);
+  }, [blockedReason, extensionId, payload, tokenId]);
 
   const Icon = state === 'connected' ? CheckCircle2 : state === 'failed' ? XCircle : Loader2;
 
@@ -95,13 +87,13 @@ export function ConnectExtensionClient({
               : 'Signing in'}
         </h1>
         <p className="mt-3 text-sm leading-6 text-gray-600">{message}</p>
-        {state === 'failed' ? (
+        {state !== 'sending' ? (
           <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild className="rounded-md">
               <Link href="/dashboard">Open dashboard</Link>
             </Button>
             <Button asChild variant="outline" className="rounded-md">
-              <Link href="/pricing">Add credits</Link>
+              <Link href="https://www.linkedin.com/jobs/">Open LinkedIn jobs</Link>
             </Button>
           </div>
         ) : null}

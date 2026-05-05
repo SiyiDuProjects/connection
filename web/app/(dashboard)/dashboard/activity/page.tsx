@@ -96,8 +96,8 @@ export default async function ActivityPage() {
 
                 return (
                   <li key={log.id} className="flex items-center space-x-4">
-                    <div className="bg-orange-100 rounded-full p-2">
-                      <Icon className="w-5 h-5 text-orange-600" />
+                    <div className="rounded-full bg-gray-100 p-2">
+                      <Icon className="h-5 w-5 text-gray-700" />
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
@@ -114,7 +114,7 @@ export default async function ActivityPage() {
             </ul>
           ) : (
             <div className="flex flex-col items-center justify-center text-center py-12">
-              <AlertCircle className="h-12 w-12 text-orange-500 mb-4" />
+              <AlertCircle className="mb-4 h-12 w-12 text-gray-400" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 No activity yet
               </h3>
@@ -156,7 +156,7 @@ export default async function ActivityPage() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <AlertCircle className="mb-4 h-12 w-12 text-orange-500" />
+              <AlertCircle className="mb-4 h-12 w-12 text-gray-400" />
               <h3 className="mb-2 text-lg font-semibold text-gray-900">
                 No API usage yet
               </h3>

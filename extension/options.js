@@ -26,7 +26,6 @@ document.getElementById("connect").addEventListener("click", async () => {
   const extensionId = chrome.runtime.id;
   const connectUrl = new URL(`${urls.webBaseUrl}/connect-extension`);
   connectUrl.searchParams.set("extensionId", extensionId);
-  connectUrl.searchParams.set("return", chrome.runtime.getURL("options.html"));
   await chrome.tabs.create({ url: connectUrl.toString() });
 });
 

@@ -10,10 +10,10 @@ export default async function VerifyEmailPage({
   const { email = '', error } = await searchParams;
 
   return (
-    <div className="min-h-[100dvh] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
+    <div className="flex min-h-[100dvh] flex-col justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-          <MailCheck className="h-12 w-12 text-orange-500" />
+          <MailCheck className="h-12 w-12 text-gray-950" />
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
           Verify your email
@@ -30,11 +30,13 @@ export default async function VerifyEmailPage({
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <ResendVerificationForm email={email} />
+        <div className="border border-gray-200 bg-white p-6 shadow-sm">
+          <ResendVerificationForm email={email} />
+        </div>
         <div className="mt-6 text-center text-sm">
           <Link
             href="/sign-in"
-            className="font-medium text-orange-600 hover:text-orange-500"
+            className="font-medium text-gray-950 underline-offset-4 hover:underline"
           >
             Back to sign in
           </Link>
