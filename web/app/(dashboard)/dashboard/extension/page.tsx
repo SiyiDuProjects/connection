@@ -26,35 +26,35 @@ export default function ExtensionPage() {
 
   return (
     <section className="flex-1 p-4 lg:p-8">
-      <h1 className="mb-6 text-lg font-medium lg:text-2xl">Extension</h1>
+      <h1 className="mb-6 text-lg font-medium lg:text-2xl">Browser extension</h1>
       <Card>
         <CardHeader>
-          <CardTitle>Connection status</CardTitle>
+          <CardTitle>Account session</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-4 text-sm sm:grid-cols-3">
-            <StatusItem label="Status" value={data?.hasToken ? 'Connected' : 'Not connected'} />
+            <StatusItem label="Status" value={data?.hasToken ? 'Signed in' : 'Signed out'} />
             <StatusItem label="Created" value={formatDate(data?.token?.createdAt)} />
             <StatusItem label="Last used" value={formatDate(data?.token?.lastUsedAt)} />
           </div>
           <div className="border border-gray-200 p-4 text-sm text-gray-700">
-            <p className="font-medium text-gray-950">Connect from the Chrome extension options page.</p>
+            <p className="font-medium text-gray-950">Use the same website account from LinkedIn.</p>
             <p className="mt-2 text-muted-foreground">
-              The website creates a fresh token, revokes older active tokens,
-              and sends the new token directly to the extension. Tokens are not displayed here.
+              Signing in syncs a short-lived account token to the browser extension.
+              Tokens are stored by Chrome and are not displayed here.
             </p>
           </div>
           {!data?.hasToken ? (
             <div className="border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              Open the extension options page and choose "Sign in on website". If the browser blocks the connection, confirm this extension ID is passed in the URL.
+              Sign in here in the same Chrome profile where the extension is installed.
             </div>
           ) : null}
           <div className="flex flex-wrap gap-2">
             <Button asChild type="button" className="rounded-md">
-              <Link href="/connect-extension">Connect extension</Link>
+              <Link href="/connect-extension">Sign in extension</Link>
             </Button>
             <Button type="button" variant="outline" onClick={revokeToken}>
-              Disconnect extension
+              Sign out extension
             </Button>
             <Button asChild type="button" variant="outline" className="rounded-md">
               <Link href="/pricing">Add credits</Link>

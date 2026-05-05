@@ -4,6 +4,7 @@
   const BUTTON_ID = "fc-linkedin-button";
   const DEBUG_ATTR = "data-fc-linkedin-loaded";
   const CLEANUP_KEY = "__fcLinkedInCleanup";
+  const AUTH_LISTENER_KEY = "__fcLinkedInAuthListener";
 
   let state = {
     loading: false,
@@ -18,6 +19,21 @@
     drafts: new Map(),
     drafting: new Set()
   };
+
+  if (window[AUTH_LISTENER_KEY]) {
+    chrome.runtime.onMessage.removeListener(window[AUTH_LISTENER_KEY]);
+  }
+
+  window[AUTH_LISTENER_KEY] = (message) => {
+    if (message?.type !== "ACCOUNT_AUTH_UPDATED") return;
+    state.error = "";
+    state.prompt = null;
+    state.action = null;
+    if (document.getElementById(PANEL_ID)?.classList.contains("fc-open")) {
+      openPanel();
+    }
+  };
+  chrome.runtime.onMessage.addListener(window[AUTH_LISTENER_KEY]);
 
   function isJobPage() {
     if (location.hostname !== "www.linkedin.com") return false;
@@ -127,7 +143,7 @@
     button.className = target ? inlineButtonClass(target) : "fc-button";
     button.id = BUTTON_ID;
     button.type = "button";
-    button.textContent = "Find Contacts";
+    button.textContent = "Find with Gaid";
     button.addEventListener("click", openPanel);
 
     root.appendChild(button);
@@ -243,7 +259,7 @@
     panel.innerHTML = `
       <div class="fc-header">
         <div>
-          <h2 class="fc-title">Find Contacts @ ${escapeHtml(company)}</h2>
+          <h2 class="fc-title">Gaid @ ${escapeHtml(company)}</h2>
           <div class="fc-subtitle">${escapeHtml(subtitle || "LinkedIn job page")}</div>
         </div>
         <div class="fc-header-actions">
@@ -481,7 +497,7 @@
   function applyError(error, fallback) {
     setCredits(error);
     if (error.status === 401) {
-      state.prompt = error.message || "Sign in on the website to connect this extension.";
+      state.prompt = error.message || "Sign in on the website.";
       state.error = "";
     } else {
       state.error = error.message || fallback;
@@ -569,6 +585,10 @@
 
     window[CLEANUP_KEY] = () => {
       observer.disconnect();
+      if (window[AUTH_LISTENER_KEY]) {
+        chrome.runtime.onMessage.removeListener(window[AUTH_LISTENER_KEY]);
+        window[AUTH_LISTENER_KEY] = null;
+      }
       window.removeEventListener("scroll", ensureButton, true);
       window.removeEventListener("resize", ensureButton);
       window.clearInterval(intervalId);

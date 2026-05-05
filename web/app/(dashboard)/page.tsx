@@ -24,7 +24,7 @@ export default function HomePage() {
               Personal cold email assistant for job seekers
             </p>
             <h1 className="text-5xl font-semibold tracking-tight text-gray-950 sm:text-6xl lg:text-7xl">
-              Connection
+              Gaid
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-gray-600">
               Turn a LinkedIn job post into the right company contacts, verified email reveals, and Gmail drafts that use your background, role target, and preferred tone.
@@ -40,7 +40,7 @@ export default function HomePage() {
                 <Link href="/pricing">View pricing</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="rounded-md">
-                <Link href="/connect-extension">Connect extension</Link>
+                <Link href="/connect-extension">Sign in extension</Link>
               </Button>
             </div>
             <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-gray-600">
@@ -63,7 +63,7 @@ export default function HomePage() {
                       <p className="text-gray-600">Figma · San Francisco Bay Area</p>
                     </div>
                     <button className="w-full rounded-md bg-[#0a66c2] px-3 py-2 text-sm font-semibold text-white">
-                      Find Contacts
+                      Find with Gaid
                     </button>
                   </div>
                 </div>

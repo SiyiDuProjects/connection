@@ -47,8 +47,8 @@ export default function DashboardPage() {
       href: '/dashboard/preferences'
     },
     {
-      label: 'Connect extension',
-      detail: onboarding?.extension.connected ? `Last used ${formatDate(onboarding.extension.lastUsedAt)}` : 'Create a website-bound token',
+      label: 'Browser extension',
+      detail: onboarding?.extension.connected ? `Last used ${formatDate(onboarding.extension.lastUsedAt)}` : 'Sign in once from this browser',
       complete: Boolean(onboarding?.extension.connected),
       href: '/dashboard/extension'
     },
@@ -125,10 +125,10 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Connection status</CardTitle>
+            <CardTitle>Account status</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Status icon={Plug} label="Extension" value={data?.extension.connected ? 'Connected' : 'Not connected'} />
+            <Status icon={Plug} label="Extension" value={data?.extension.connected ? 'Signed in' : 'Signed out'} />
             <Status icon={Settings} label="Profile" value={onboarding?.profile.complete ? 'Ready' : 'Needs setup'} />
             <Button asChild variant="outline" className="w-full rounded-md">
               <Link href="/dashboard/extension">Open extension settings</Link>

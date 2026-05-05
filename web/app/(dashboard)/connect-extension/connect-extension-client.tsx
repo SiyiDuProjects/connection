@@ -23,7 +23,7 @@ export function ConnectExtensionClient({
   blockedReason?: string;
 }) {
   const [state, setState] = useState<ConnectState>('sending');
-  const [message, setMessage] = useState('Sending a new account token to the extension.');
+  const [message, setMessage] = useState('Syncing your website account with the browser extension.');
 
   const payload = useMemo(
     () => ({
@@ -44,7 +44,7 @@ export function ConnectExtensionClient({
 
     if (!extensionId) {
       setState('failed');
-      setMessage('Missing extension id. Open this page from the extension options screen.');
+      setMessage('The browser extension was not found. Open this page from Chrome with the extension installed.');
       revokePendingToken(tokenId);
       return;
     }
@@ -53,7 +53,7 @@ export function ConnectExtensionClient({
     if (!runtime?.sendMessage) {
       setState('failed');
       setMessage(
-        'Could not reach the extension from this browser tab. Reload the extension, then open Connect again from the extension options in the same browser.'
+        'Could not reach the extension from this browser tab. Reload the extension, then try again in the same browser.'
       );
       revokePendingToken(tokenId);
       return;
@@ -63,13 +63,13 @@ export function ConnectExtensionClient({
       const lastError = runtime.lastError;
       if (lastError || !response?.ok) {
         setState('failed');
-        setMessage(response?.error || lastError?.message || 'The extension did not accept the token.');
+      setMessage(response?.error || lastError?.message || 'The extension did not accept the account session.');
         revokePendingToken(tokenId);
         return;
       }
 
       setState('connected');
-      setMessage('Extension connected. You can return to LinkedIn and start searching.');
+      setMessage('Signed in. Return to LinkedIn and start searching.');
     });
   }, [blockedReason, extensionId, payload, tokenId]);
 
@@ -81,10 +81,10 @@ export function ConnectExtensionClient({
         <Icon className={`h-8 w-8 ${state === 'sending' ? 'animate-spin' : ''}`} />
         <h1 className="mt-5 text-2xl font-semibold text-gray-950">
           {state === 'connected'
-            ? 'Extension connected'
+            ? 'Signed in'
             : state === 'failed'
-              ? 'Could not connect extension'
-              : 'Connecting extension'}
+              ? 'Could not sync account'
+              : 'Signing in'}
         </h1>
         <p className="mt-3 text-sm leading-6 text-gray-600">{message}</p>
         <div className="mt-6 flex flex-wrap gap-3">
@@ -92,7 +92,7 @@ export function ConnectExtensionClient({
             <Link href="/dashboard">Open dashboard</Link>
           </Button>
           <Button asChild variant="outline" className="rounded-md">
-            <Link href="/dashboard/extension">Connection settings</Link>
+            <Link href="/dashboard/extension">Extension settings</Link>
           </Button>
         </div>
       </div>

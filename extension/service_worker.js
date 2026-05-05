@@ -2,7 +2,7 @@ const DEFAULT_API_BASE_URL = "https://contacts.gaid.studio";
 const DEFAULT_WEB_BASE_URL = "https://gaid.studio";
 const LINKEDIN_JOBS_URL = "https://www.linkedin.com/jobs/*";
 const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connection settings.";
-const SESSION_EXPIRED_ERROR = "Session expired. Sign in again to reconnect the extension.";
+const SESSION_EXPIRED_ERROR = "Session expired. Sign in again.";
 
 chrome.runtime.onInstalled.addListener(() => {
   refreshLinkedInTabs();
@@ -81,7 +81,24 @@ async function handleExternalMessage(message, sender) {
   const webBaseUrl = normalizeWebBaseUrl(message.webBaseUrl);
   const apiBaseUrl = normalizeApiBaseUrl(message.apiBaseUrl, webBaseUrl);
   await chrome.storage.sync.set({ extensionApiToken: token, apiBaseUrl, webBaseUrl });
+  await notifyLinkedInTabsAccountUpdated();
   return { ok: true };
+}
+
+async function notifyLinkedInTabsAccountUpdated() {
+  try {
+    const tabs = await chrome.tabs.query({ url: LINKEDIN_JOBS_URL });
+    await Promise.allSettled(tabs.map(async (tab) => {
+      if (!tab.id) return;
+      try {
+        await chrome.tabs.sendMessage(tab.id, { type: "ACCOUNT_AUTH_UPDATED" });
+      } catch (_error) {
+        await injectIntoTab(tab);
+      }
+    }));
+  } catch (error) {
+    console.warn("Could not notify LinkedIn tabs after sign in", error);
+  }
 }
 
 function isAllowedWebsite(url) {
@@ -140,7 +157,7 @@ function normalizeApiBaseUrl(value, webBaseUrl) {
 async function getAccountStatus() {
   const [baseUrl, token] = await Promise.all([getApiBaseUrl(), getExtensionApiToken()]);
   if (!token) {
-    return { ok: false, status: 401, error: "Sign in on the website to connect this extension.", action: await loginAction() };
+    return { ok: false, status: 401, error: "Sign in on the website.", action: await loginAction() };
   }
 
   const response = await safeFetch(`${baseUrl}/api/account`, {
@@ -171,7 +188,7 @@ async function getAccountStatus() {
 async function postJson(path, body) {
   const [baseUrl, token] = await Promise.all([getApiBaseUrl(), getExtensionApiToken()]);
   if (!token) {
-    return { ok: false, status: 401, error: "Sign in on the website to connect this extension.", action: await loginAction() };
+    return { ok: false, status: 401, error: "Sign in on the website.", action: await loginAction() };
   }
 
   const url = `${baseUrl}${path}`;
@@ -222,7 +239,7 @@ async function getExtensionApiToken() {
 
 async function loginAction() {
   return {
-    label: "Sign in on website",
+    label: "Sign in",
     url: `${await getWebBaseUrl()}/connect-extension?extensionId=${encodeURIComponent(chrome.runtime.id)}`
   };
 }

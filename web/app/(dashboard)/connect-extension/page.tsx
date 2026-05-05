@@ -11,7 +11,7 @@ export default async function ConnectExtensionPage({
   searchParams: Promise<{ extensionId?: string; return?: string }> | { extensionId?: string; return?: string };
 }) {
   const params = await searchParams;
-  const extensionId = clean(params.extensionId);
+  const extensionId = clean(params.extensionId) || getAllowedExtensionIds()[0] || '';
   const user = await getUser();
 
   if (!user) {

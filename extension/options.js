@@ -40,7 +40,7 @@ document.getElementById("refresh").addEventListener("click", renderStatus);
 
 document.getElementById("clearToken").addEventListener("click", async () => {
   await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
-  statusEl.textContent = "Disconnected locally. Revoke the website connection from Dashboard > Extension if needed.";
+  statusEl.textContent = "Signed out locally. You can sign in again from the website.";
   await renderStatus();
 });
 
@@ -73,15 +73,15 @@ async function renderStatus() {
 
   const response = await chrome.runtime.sendMessage({ type: "GET_ACCOUNT_STATUS" });
   if (!response?.ok) {
-    stateEl.textContent = response?.status === 0 ? "API unreachable" : "Not connected";
-    detailsEl.textContent = response?.error || "Sign in on the website to connect this extension.";
+    stateEl.textContent = response?.status === 0 ? "API unreachable" : "Signed out";
+    detailsEl.textContent = response?.error || "Sign in on the website.";
     return;
   }
 
   const plan = response.account?.subscription?.planName || "Free";
   const credits = response.account?.credits?.balance ?? 0;
-  const email = response.account?.user?.email || "Connected account";
-  stateEl.textContent = "Connected";
+  const email = response.account?.user?.email || "Signed in account";
+  stateEl.textContent = "Signed in";
   detailsEl.textContent = `${email} · ${plan} · ${credits} credits remaining`;
 }
 
