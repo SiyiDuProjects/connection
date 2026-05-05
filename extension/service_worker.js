@@ -184,7 +184,6 @@ function normalizeWebBaseUrl(value) {
   const url = cleanUrl(value);
   if (!url) return DEFAULT_WEB_BASE_URL;
   if (url === DEFAULT_API_BASE_URL) return DEFAULT_WEB_BASE_URL;
-  if (url.includes("connection-lemon.vercel.app")) return DEFAULT_WEB_BASE_URL;
   if (url.includes("contacts.gaid.studio")) return DEFAULT_WEB_BASE_URL;
   return url;
 }

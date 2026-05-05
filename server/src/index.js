@@ -312,7 +312,7 @@ function getWebRedirectBaseUrl() {
       "127.0.0.1"
     ]);
 
-    if (allowedHosts.has(url.hostname) && !url.hostname.toLowerCase().includes("lemon")) {
+    if (allowedHosts.has(url.hostname)) {
       return url.origin;
     }
   } catch (_error) {

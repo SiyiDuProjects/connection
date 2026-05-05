@@ -100,7 +100,7 @@ EMAIL_DRAFT_CREDITS=1
 
 `POSTGRES_URL` must point to the same Neon database used by the `web/` app. Extension API tokens, credits, settings, and usage logs live in that database.
 
-`WEB_BASE_URL` must point to the deployed Next.js web app, not the contacts API service. Production should be `https://gaid.studio`; do not set this to Lemon Squeezy, Stripe, or any other billing/provider domain. The API service redirects `/connect-extension` and `/pricing` there so older or default extension links do not show `Cannot GET`.
+`WEB_BASE_URL` must point to the deployed Next.js web app, not the contacts API service. Production should be `https://gaid.studio`; do not set this to Stripe or any other billing/provider domain. The API service redirects `/connect-extension` and `/pricing` there so older or default extension links do not show `Cannot GET`.
 
 ## Web App Deployment
 
