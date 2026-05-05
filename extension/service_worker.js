@@ -1,6 +1,6 @@
 const DEFAULT_API_BASE_URL = "https://contacts.gaid.studio";
 const DEFAULT_WEB_BASE_URL = "https://gaid.studio";
-const LINKEDIN_JOBS_URL = "https://www.linkedin.com/jobs/*";
+const LINKEDIN_JOBS_URL = "https://www.linkedin.com/*";
 const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connection settings.";
 const SESSION_EXPIRED_ERROR = "Session expired. Sign in again.";
 
@@ -63,6 +63,8 @@ async function handleMessage(message, sender) {
       return postJson("/api/contacts/reveal", message.payload, sender);
     case "EMAIL_DRAFT":
       return postJson("/api/email/draft", message.payload, sender);
+    case "EMAIL_SEND":
+      return postJson("/api/email/send", message.payload, sender);
     case "GET_ACCOUNT_STATUS":
       return getAccountStatus(sender);
     default:

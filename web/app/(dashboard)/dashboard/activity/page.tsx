@@ -1,174 +1,126 @@
+import { AlertCircle, MailCheck, MailPlus, MessageSquareReply, Wallet, type LucideIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Settings,
-  LogOut,
-  UserPlus,
-  Lock,
-  UserCog,
-  AlertCircle,
-  UserMinus,
-  Mail,
-  CheckCircle,
-  type LucideIcon,
-} from 'lucide-react';
-import { ActivityType } from '@/lib/db/schema';
-import { getActivityLogs, getRecentUsage, getUser } from '@/lib/db/queries';
-
-const iconMap: Record<ActivityType, LucideIcon> = {
-  [ActivityType.SIGN_UP]: UserPlus,
-  [ActivityType.SIGN_IN]: UserCog,
-  [ActivityType.SIGN_OUT]: LogOut,
-  [ActivityType.UPDATE_PASSWORD]: Lock,
-  [ActivityType.DELETE_ACCOUNT]: UserMinus,
-  [ActivityType.UPDATE_ACCOUNT]: Settings,
-  [ActivityType.CREATE_TEAM]: UserPlus,
-  [ActivityType.REMOVE_TEAM_MEMBER]: UserMinus,
-  [ActivityType.INVITE_TEAM_MEMBER]: Mail,
-  [ActivityType.ACCEPT_INVITATION]: CheckCircle,
-};
-
-function getRelativeTime(date: Date) {
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (diffInSeconds < 60) return 'just now';
-  if (diffInSeconds < 3600)
-    return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-  if (diffInSeconds < 86400)
-    return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-  if (diffInSeconds < 604800)
-    return `${Math.floor(diffInSeconds / 86400)} days ago`;
-  return date.toLocaleDateString();
-}
-
-function formatAction(action: ActivityType): string {
-  switch (action) {
-    case ActivityType.SIGN_UP:
-      return 'You signed up';
-    case ActivityType.SIGN_IN:
-      return 'You signed in';
-    case ActivityType.SIGN_OUT:
-      return 'You signed out';
-    case ActivityType.UPDATE_PASSWORD:
-      return 'You changed your password';
-    case ActivityType.DELETE_ACCOUNT:
-      return 'You deleted your account';
-    case ActivityType.UPDATE_ACCOUNT:
-      return 'You updated your account';
-    case ActivityType.CREATE_TEAM:
-      return 'You created a new team';
-    case ActivityType.REMOVE_TEAM_MEMBER:
-      return 'You removed a team member';
-    case ActivityType.INVITE_TEAM_MEMBER:
-      return 'You invited a team member';
-    case ActivityType.ACCEPT_INVITATION:
-      return 'You accepted an invitation';
-    default:
-      return 'Unknown action occurred';
-  }
-}
+import { getActiveGmailConnection, getOutreachStats, getRecentUsage, getUser } from '@/lib/db/queries';
+import { EmailActions } from './email-actions';
 
 export default async function ActivityPage() {
   const user = await getUser();
-  const [logs, usage] = await Promise.all([
-    getActivityLogs(),
-    user ? getRecentUsage(user.id) : []
-  ]);
+  const usage = user ? await getRecentUsage(user.id) : [];
+  const gmail = user ? await getActiveGmailConnection(user.id) : null;
+  const outreach = user
+    ? await getOutreachStats(user.id)
+    : { sent: 0, replied: 0, replyRate: 0, followUps: [] };
 
   return (
     <section className="flex-1 p-4 lg:p-8">
-      <h1 className="text-lg lg:text-2xl font-medium text-gray-900 mb-6">
-        Activity Log
-      </h1>
-      <div className="grid gap-6 xl:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {logs.length > 0 ? (
-            <ul className="space-y-4">
-              {logs.map((log) => {
-                const Icon = iconMap[log.action as ActivityType] || Settings;
-                const formattedAction = formatAction(
-                  log.action as ActivityType
-                );
+      <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <h1 className="text-lg font-medium text-gray-900 lg:text-2xl">Outreach activity</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Track credits, sent emails, reply rate, and follow-ups without storing email content.
+          </p>
+        </div>
+        <EmailActions connected={Boolean(gmail)} />
+      </div>
 
-                return (
-                  <li key={log.id} className="flex items-center space-x-4">
-                    <div className="rounded-full bg-gray-100 p-2">
-                      <Icon className="h-5 w-5 text-gray-700" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">
-                        {formattedAction}
-                        {log.ipAddress && ` from IP ${log.ipAddress}`}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {getRelativeTime(new Date(log.timestamp))}
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <div className="flex flex-col items-center justify-center text-center py-12">
-              <AlertCircle className="mb-4 h-12 w-12 text-gray-400" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                No activity yet
-              </h3>
-              <p className="text-sm text-gray-500 max-w-sm">
-                When you perform actions like signing in or updating your
-                account, they'll appear here.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>API usage and credits</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {usage.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="py-2">Action</th>
-                    <th className="py-2">Credits</th>
-                    <th className="py-2">Status</th>
-                    <th className="py-2">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usage.map((row) => (
-                    <tr key={row.id} className="border-b">
-                      <td className="py-2">{formatUsageAction(row.action)}</td>
-                      <td className="py-2">{row.credits}</td>
-                      <td className="py-2">{row.status}</td>
-                      <td className="py-2">{new Date(row.createdAt).toLocaleString()}</td>
+      <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <Metric icon={Wallet} label="Credits used recently" value={usage.reduce((sum, row) => sum + Math.max(0, row.credits), 0)} />
+        <Metric icon={MailPlus} label="Tracked sends" value={outreach.sent} />
+        <Metric icon={MessageSquareReply} label="Replies" value={outreach.replied} />
+        <Metric icon={MailCheck} label="Reply rate" value={`${outreach.replyRate}%`} />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>API usage and credits</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {usage.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="py-2">Action</th>
+                      <th className="py-2">Credits</th>
+                      <th className="py-2">Status</th>
+                      <th className="py-2">Date</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <AlertCircle className="mb-4 h-12 w-12 text-gray-400" />
-              <h3 className="mb-2 text-lg font-semibold text-gray-900">
-                No API usage yet
-              </h3>
-              <p className="max-w-sm text-sm text-gray-500">
-                Contact searches, email reveals, and draft creation will appear here with credit costs.
+                  </thead>
+                  <tbody>
+                    {usage.map((row) => (
+                      <tr key={row.id} className="border-b">
+                        <td className="py-2">{formatUsageAction(row.action)}</td>
+                        <td className="py-2">{row.credits}</td>
+                        <td className="py-2">{row.status}</td>
+                        <td className="py-2">{new Date(row.createdAt).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState title="No credit usage yet" body="Contact searches, email reveals, and AI drafts will appear here." />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Gmail tracking</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="border border-gray-200 p-4">
+              <p className="text-sm font-medium text-gray-950">{gmail ? gmail.emailAddress : 'Gmail not connected'}</p>
+              <p className="mt-1 text-sm text-gray-600">
+                {gmail
+                  ? `Last metadata sync: ${gmail.lastSyncAt ? new Date(gmail.lastSyncAt).toLocaleString() : 'never'}`
+                  : 'Connect Gmail to send tracked outreach and calculate reply rate.'}
               </p>
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {outreach.followUps.length ? (
+              <div>
+                <p className="mb-3 text-sm font-medium text-gray-950">Follow-up due</p>
+                <ul className="space-y-3">
+                  {outreach.followUps.map((item) => (
+                    <li key={item.id} className="border border-gray-200 p-3 text-sm">
+                      <p className="font-medium text-gray-950">{item.recipientName || item.recipientEmail}</p>
+                      <p className="text-gray-600">{[item.companyName, item.jobTitle].filter(Boolean).join(' - ') || 'Tracked outreach'}</p>
+                      <p className="text-xs text-gray-500">Sent {new Date(item.sentAt).toLocaleDateString()}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <EmptyState title="No follow-ups due" body="Unreplied emails will appear here after five business days." />
+            )}
+          </CardContent>
+        </Card>
       </div>
     </section>
+  );
+}
+
+function Metric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number | string }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <Icon className="mb-3 h-5 w-5 text-gray-700" />
+        <p className="text-2xl font-semibold text-gray-950">{value}</p>
+        <p className="text-sm text-gray-600">{label}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmptyState({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <AlertCircle className="mb-4 h-10 w-10 text-gray-400" />
+      <h3 className="mb-2 text-base font-semibold text-gray-900">{title}</h3>
+      <p className="max-w-sm text-sm text-gray-500">{body}</p>
+    </div>
   );
 }
 

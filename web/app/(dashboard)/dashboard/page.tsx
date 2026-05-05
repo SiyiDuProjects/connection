@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import useSWR from 'swr';
-import { ArrowRight, CheckCircle2, Circle, Mail, Plug, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Circle, Mail, MailCheck, Plug, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { customerPortalAction } from '@/lib/payments/actions';
@@ -18,6 +18,8 @@ type AccountData = {
   };
   subscription: { planName: string; status: string };
   extension: { connected: boolean; lastUsedAt: string | null };
+  gmail: { connected: boolean; emailAddress: string | null; lastSyncAt: string | null };
+  outreach: { sent: number; replied: number; replyRate: number; followUps: unknown[] };
   onboarding: {
     profile: { complete: boolean; completedFields: number; totalFields: number };
     extension: { connected: boolean; lastUsedAt: string | null };
@@ -127,10 +129,40 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Status icon={Plug} label="Extension" value={data?.extension.connected ? 'Signed in' : 'Signed out'} />
+            <Status icon={MailCheck} label="Gmail" value={data?.gmail.connected ? data.gmail.emailAddress || 'Connected' : 'Not connected'} />
             <Status icon={Settings} label="Profile" value={onboarding?.profile.complete ? 'Ready' : 'Needs setup'} />
-            <Button asChild variant="outline" className="w-full rounded-md">
-              <Link href="https://www.linkedin.com/jobs/">Open LinkedIn jobs</Link>
-            </Button>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+              <Button asChild variant="outline" className="w-full rounded-md">
+                <Link href="https://www.linkedin.com/jobs/">Open LinkedIn jobs</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full rounded-md">
+                <Link href="/dashboard/activity">Track outreach</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardContent className="p-5">
+            <Mail className="mb-3 h-5 w-5 text-gray-700" />
+            <p className="text-2xl font-semibold text-gray-950">{data?.outreach.sent ?? 0}</p>
+            <p className="text-sm text-gray-600">Tracked emails sent</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <MailCheck className="mb-3 h-5 w-5 text-gray-700" />
+            <p className="text-2xl font-semibold text-gray-950">{data?.outreach.replyRate ?? 0}%</p>
+            <p className="text-sm text-gray-600">Reply rate</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <ArrowRight className="mb-3 h-5 w-5 text-gray-700" />
+            <p className="text-2xl font-semibold text-gray-950">{data?.outreach.followUps?.length ?? 0}</p>
+            <p className="text-sm text-gray-600">Follow-ups due</p>
           </CardContent>
         </Card>
       </div>

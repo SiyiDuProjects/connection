@@ -5,6 +5,8 @@ import {
   apiUsage,
   creditLedger,
   extensionApiTokens,
+  gmailConnections,
+  outreachEmails,
   teamMembers,
   teams,
   userSettings,
@@ -154,6 +156,55 @@ export async function getRecentUsage(userId: number) {
     .where(eq(apiUsage.userId, userId))
     .orderBy(desc(apiUsage.createdAt))
     .limit(10);
+}
+
+export async function getActiveGmailConnection(userId: number) {
+  const result = await db
+    .select()
+    .from(gmailConnections)
+    .where(
+      and(
+        eq(gmailConnections.userId, userId),
+        isNull(gmailConnections.disconnectedAt)
+      )
+    )
+    .limit(1);
+
+  return result[0] || null;
+}
+
+export async function getOutreachStats(userId: number) {
+  const [totals, followUps] = await Promise.all([
+    db
+      .select({
+        sent: sql<number>`count(*)::int`,
+        replied: sql<number>`count(${outreachEmails.repliedAt})::int`
+      })
+      .from(outreachEmails)
+      .where(eq(outreachEmails.userId, userId)),
+    db
+      .select()
+      .from(outreachEmails)
+      .where(
+        and(
+          eq(outreachEmails.userId, userId),
+          isNull(outreachEmails.repliedAt),
+          sql`${outreachEmails.followUpDueAt} is not null`,
+          sql`${outreachEmails.followUpDueAt} <= now()`
+        )
+      )
+      .orderBy(desc(outreachEmails.followUpDueAt))
+      .limit(10)
+  ]);
+
+  const sent = Number(totals[0]?.sent || 0);
+  const replied = Number(totals[0]?.replied || 0);
+  return {
+    sent,
+    replied,
+    replyRate: sent ? Math.round((replied / sent) * 100) : 0,
+    followUps
+  };
 }
 
 export async function getSettings(userId: number) {

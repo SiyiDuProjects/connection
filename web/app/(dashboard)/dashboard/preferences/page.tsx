@@ -7,15 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 type Settings = {
-  targetRole?: string | null;
+  senderName?: string | null;
+  school?: string | null;
+  emailSignature?: string | null;
+  introStyle?: 'student' | 'career-switcher' | 'experienced' | 'founder';
   emailTone?: 'warm' | 'concise' | 'confident' | 'formal';
   senderProfile?: string | null;
   resumeContext?: string | null;
-  defaultSearchPreferences?: {
-    location?: string;
-    seniority?: string;
-    contactRole?: string;
-  } | null;
 };
 
 export default function PreferencesPage() {
@@ -58,19 +56,23 @@ export default function PreferencesPage() {
       <div className="mb-6">
         <h1 className="text-lg font-medium lg:text-2xl">AI Profile</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Paste your resume or background once. Connection uses it with each
-          LinkedIn job and selected contact when generating Gmail drafts.
+          Save stable personal context once. Company, job title, JD, and contact details stay in the LinkedIn plugin context.
         </p>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Resume context and outreach defaults</CardTitle>
+          <CardTitle>Personal context for AI drafts</CardTitle>
         </CardHeader>
         <CardContent>
           <form key={`${loading}-${formVersion}`} className="max-w-2xl space-y-5" onSubmit={submit}>
-            <Field label="Target role" id="targetRole">
-              <Input id="targetRole" name="targetRole" defaultValue={settings.targetRole || ''} placeholder="Software Engineer Intern" disabled={loading || saving} />
-            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Sender name" id="senderName">
+                <Input id="senderName" name="senderName" defaultValue={settings.senderName || ''} placeholder="Alex Chen" disabled={loading || saving} />
+              </Field>
+              <Field label="School or affiliation" id="school">
+                <Input id="school" name="school" defaultValue={settings.school || ''} placeholder="UC Berkeley" disabled={loading || saving} />
+              </Field>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Email tone" id="emailTone">
                 <select id="emailTone" name="emailTone" defaultValue={settings.emailTone || 'warm'} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
@@ -80,31 +82,20 @@ export default function PreferencesPage() {
                   <option value="formal">Formal</option>
                 </select>
               </Field>
-              <Field label="Target contact" id="contactRole">
-                <select id="contactRole" name="contactRole" defaultValue={settings.defaultSearchPreferences?.contactRole || 'recruiter'} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="recruiter">Recruiter</option>
-                  <option value="hiring-manager">Hiring manager</option>
-                  <option value="team-lead">Team lead</option>
-                  <option value="alumni">Alumni</option>
-                </select>
-              </Field>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Default location" id="location">
-                <Input id="location" name="location" defaultValue={settings.defaultSearchPreferences?.location || ''} placeholder="San Francisco Bay Area" disabled={loading || saving} />
-              </Field>
-              <Field label="Preferred seniority" id="seniority">
-                <select id="seniority" name="seniority" defaultValue={settings.defaultSearchPreferences?.seniority || 'recruiter'} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="recruiter">Recruiter</option>
-                  <option value="hiring-manager">Hiring manager</option>
-                  <option value="team-lead">Team lead</option>
-                  <option value="alumni">Alumni</option>
-                  <option value="executive">Executive</option>
+              <Field label="Default intro style" id="introStyle">
+                <select id="introStyle" name="introStyle" defaultValue={settings.introStyle || 'student'} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="student">Student</option>
+                  <option value="career-switcher">Career switcher</option>
+                  <option value="experienced">Experienced professional</option>
+                  <option value="founder">Founder / builder</option>
                 </select>
               </Field>
             </div>
             <Field label="Personal background" id="senderProfile">
               <textarea id="senderProfile" name="senderProfile" defaultValue={settings.senderProfile || ''} placeholder="I am a Berkeley student focused on full-stack engineering..." disabled={loading || saving} className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            </Field>
+            <Field label="Email signature" id="emailSignature">
+              <textarea id="emailSignature" name="emailSignature" defaultValue={settings.emailSignature || ''} placeholder="Best,\nAlex" disabled={loading || saving} className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
             </Field>
             <Field label="Resume context" id="resumeContext">
               <textarea id="resumeContext" name="resumeContext" defaultValue={settings.resumeContext || ''} placeholder="Paste your resume, projects, internships, education, skills, links, and truthful background context." disabled={loading || saving} className="min-h-56 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />

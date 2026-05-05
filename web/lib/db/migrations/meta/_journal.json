@@ -29,6 +29,13 @@
       "when": 1777832000000,
       "tag": "0003_email_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777920000000,
+      "tag": "0004_gmail_outreach",
+      "breakpoints": true
     }
   ]
 }

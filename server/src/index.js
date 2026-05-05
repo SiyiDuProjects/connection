@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { searchContacts, revealEmail } from "./lib/contacts-provider.js";
 import { rankContacts } from "./lib/ranking.js";
 import { createDraft, createGmailUrl } from "./lib/email.js";
+import { getGmailStatus, sendTrackedGmail } from "./lib/gmail.js";
 import { errorHandler, fail, logRequest, ok, publicError, requestContext, writeLog } from "./lib/http.js";
 import {
   getBearerToken,
@@ -163,9 +164,38 @@ app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRA
       hasSettings: Boolean(Object.keys(settings).length),
       ai: draft.ai
     });
-    ok(res, { ...draft, gmailUrl: createGmailUrl(contact.email, draft), credits: { remaining: await getCreditBalance(req.user.id) } });
+    const gmail = await getGmailStatus(req.user.id).catch(() => null);
+    ok(res, { ...draft, gmailUrl: createGmailUrl(contact.email, draft), gmail: { connected: Boolean(gmail), emailAddress: gmail?.email_address || null }, credits: { remaining: await getCreditBalance(req.user.id) } });
   } catch (error) {
     await recordUsage(req, "email.draft", 0, "error", { error: error.message }).catch(() => {});
+    next(error);
+  }
+});
+
+app.post("/api/email/send", async (req, res, next) => {
+  try {
+    const contact = req.body?.contact || {};
+    const job = normalizeJob(req.body?.job || {});
+    const to = clean(req.body?.to || contact.email);
+    const subject = clean(req.body?.subject);
+    const body = cleanMultiline(req.body?.body);
+
+    if (!to || !subject || !body) {
+      return fail(res, 400, "Email recipient, subject, and body are required.");
+    }
+
+    const sent = await sendTrackedGmail({
+      userId: req.user.id,
+      to,
+      subject,
+      body,
+      contact,
+      job
+    });
+    await recordUsage(req, "email.send", 0, "success", { threadId: sent.threadId, messageId: sent.messageId });
+    ok(res, { sent, credits: { remaining: await getCreditBalance(req.user.id) } });
+  } catch (error) {
+    await recordUsage(req, "email.send", 0, "error", { error: error.message }).catch(() => {});
     next(error);
   }
 });

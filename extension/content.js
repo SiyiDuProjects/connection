@@ -14,10 +14,13 @@
     creditsRemaining: null,
     contacts: [],
     job: null,
+    manualJobTitle: "",
     revealed: new Map(),
     revealing: new Set(),
     drafts: new Map(),
-    drafting: new Set()
+    drafting: new Set(),
+    sending: new Set(),
+    sent: new Map()
   };
 
   if (window[AUTH_LISTENER_KEY]) {
@@ -35,8 +38,9 @@
   };
   chrome.runtime.onMessage.addListener(window[AUTH_LISTENER_KEY]);
 
-  function isJobPage() {
+  function isSupportedPage() {
     if (location.hostname !== "www.linkedin.com") return false;
+    if (location.pathname.startsWith("/company/")) return true;
     if (location.pathname.startsWith("/jobs/view/")) return true;
     if (location.pathname.startsWith("/jobs/collections/")) return true;
     if (location.pathname.startsWith("/jobs/search-results/")) {
@@ -68,6 +72,9 @@
     ]);
 
     const companyName = textFrom([
+      ".org-top-card-summary__title",
+      ".org-top-card-primary-content__title",
+      "h1.org-top-card-summary__title",
       ".job-details-jobs-unified-top-card__company-name a",
       ".job-details-jobs-unified-top-card__company-name",
       ".jobs-unified-top-card__company-name a",
@@ -111,7 +118,7 @@
   }
 
   function ensureButton() {
-    if (!isJobPage()) {
+    if (!isSupportedPage()) {
       document.getElementById(ROOT_ID)?.remove();
       return;
     }
@@ -274,12 +281,23 @@
       panel.classList.remove("fc-open");
     });
 
+    const manualJobTitle = panel.querySelector("[data-manual-job-title]");
+    if (manualJobTitle) {
+      manualJobTitle.addEventListener("input", (event) => {
+        state.manualJobTitle = event.target.value;
+      });
+    }
+
     panel.querySelectorAll("[data-reveal]").forEach((button) => {
       button.addEventListener("click", () => revealEmail(button.dataset.reveal));
     });
 
     panel.querySelectorAll("[data-draft]").forEach((button) => {
       button.addEventListener("click", () => draftEmail(button.dataset.draft));
+    });
+
+    panel.querySelectorAll("[data-send-email]").forEach((button) => {
+      button.addEventListener("click", () => sendEmail(button.dataset.sendEmail));
     });
 
     panel.querySelectorAll("[data-open-gmail]").forEach((button) => {
@@ -318,8 +336,19 @@
     }
 
     return `
+      ${renderMissingJobTitleInput()}
       <div class="fc-section-title">Top Matches</div>
       ${state.contacts.map(renderContact).join("")}
+    `;
+  }
+
+  function renderMissingJobTitleInput() {
+    if (state.job?.jobTitle) return "";
+    return `
+      <label class="fc-draft-missing">
+        Optional role or ask
+        <input data-manual-job-title type="text" value="${escapeAttr(state.manualJobTitle)}" placeholder="Software Engineer Intern, product team, or leave blank" />
+      </label>
     `;
   }
 
@@ -342,7 +371,9 @@
     const email = state.revealed.get(id) || contact.email;
     const isRevealing = state.revealing.has(id);
     const isDrafting = state.drafting.has(id);
+    const isSending = state.sending.has(id);
     const draft = state.drafts.get(id);
+    const sent = state.sent.get(id);
     const education = contact.education ? ` - ${contact.education}` : "";
     const locationText = contact.location ? ` - ${contact.location}` : "";
     const reasons = Array.isArray(contact.reasons) && contact.reasons.length
@@ -367,6 +398,7 @@
           <button class="fc-secondary" type="button" data-draft="${escapeAttr(id)}" ${isDrafting ? "disabled" : ""}>${isDrafting ? "Generating..." : "Generate AI Email"}</button>
         </div>
         ${draft ? renderDraftPreview(id, draft) : ""}
+        ${sent ? `<div class="fc-draft-notes"><strong>Sent:</strong> tracked in Gmail. Follow-up due ${escapeHtml(formatDate(sent.followUpDueAt))} if there is no reply.</div>` : ""}
       </article>
     `;
   }
@@ -374,6 +406,9 @@
   function renderDraftPreview(id, draft) {
     const notes = Array.isArray(draft.personalizationNotes) ? draft.personalizationNotes : [];
     const missing = Array.isArray(draft.missingContext) ? draft.missingContext : [];
+    const warnings = Array.isArray(draft.warnings) ? draft.warnings : [];
+    const canSend = draft.gmail?.connected;
+    const isSending = state.sending.has(id);
     return `
       <div class="fc-draft">
         <div class="fc-draft-label">AI email preview</div>
@@ -381,7 +416,9 @@
         <pre class="fc-draft-body">${escapeHtml(draft.body || "")}</pre>
         ${notes.length ? `<div class="fc-draft-notes"><strong>Used:</strong> ${escapeHtml(notes.join(" - "))}</div>` : ""}
         ${missing.length ? `<div class="fc-draft-missing"><strong>Missing:</strong> ${escapeHtml(missing.join(" - "))}</div>` : ""}
+        ${warnings.length ? `<div class="fc-draft-missing"><strong>Review:</strong> ${escapeHtml(warnings.join(" - "))}</div>` : ""}
         ${draft.ai?.provider === "template" ? `<div class="fc-draft-missing">AI was unavailable, so a safe template was used.</div>` : ""}
+        ${canSend ? `<button class="fc-secondary" type="button" data-send-email="${escapeAttr(id)}" ${isSending ? "disabled" : ""}>${isSending ? "Sending..." : "Send with Gmail tracking"}</button>` : `<div class="fc-draft-missing">Connect Gmail in the dashboard to send and track replies.</div>`}
         <button class="fc-secondary" type="button" data-open-gmail="${escapeAttr(id)}">Open Gmail draft</button>
       </div>
     `;
@@ -389,6 +426,7 @@
 
   async function openPanel() {
     state.job = getJobContext();
+    state.manualJobTitle = "";
     const panel = ensurePanel();
     panel.classList.add("fc-open");
     state.loading = true;
@@ -397,6 +435,7 @@
     state.action = null;
     state.contacts = [];
     state.drafts.clear();
+    state.sent.clear();
     renderPanel();
 
     try {
@@ -473,7 +512,7 @@
     try {
       const response = await sendRuntimeMessage({
         type: "EMAIL_DRAFT",
-        payload: { contact: { ...contact, email }, job: state.job }
+        payload: { contact: { ...contact, email }, job: effectiveJobContext() }
       });
       if (!response?.ok) throw apiError(response, "Could not draft email.");
       setCredits(response);
@@ -484,6 +523,47 @@
       state.drafting.delete(contactId);
       renderPanel();
     }
+  }
+
+  async function sendEmail(contactId) {
+    const contact = findContact(contactId);
+    const draft = state.drafts.get(contactId);
+    const email = state.revealed.get(contactId) || contact?.email;
+    if (!contact || !draft || !email || state.sending.has(contactId)) return;
+
+    state.sending.add(contactId);
+    state.error = "";
+    state.prompt = null;
+    state.action = null;
+    renderPanel();
+
+    try {
+      const response = await sendRuntimeMessage({
+        type: "EMAIL_SEND",
+        payload: {
+          to: email,
+          subject: draft.subject,
+          body: draft.body,
+          contact: { ...contact, email },
+          job: effectiveJobContext()
+        }
+      });
+      if (!response?.ok) throw apiError(response, "Could not send email.");
+      setCredits(response);
+      state.sent.set(contactId, response.sent || {});
+    } catch (error) {
+      applyError(error, "Could not send email.");
+    } finally {
+      state.sending.delete(contactId);
+      renderPanel();
+    }
+  }
+
+  function effectiveJobContext() {
+    return {
+      ...(state.job || {}),
+      jobTitle: state.job?.jobTitle || state.manualJobTitle.trim()
+    };
   }
 
   function apiError(response, fallback) {
@@ -511,6 +591,12 @@
     if (Number.isFinite(Number(remaining))) {
       state.creditsRemaining = Number(remaining);
     }
+  }
+
+  function formatDate(value) {
+    if (!value) return "later";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "later" : date.toLocaleDateString();
   }
 
   function findContact(contactId) {

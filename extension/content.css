@@ -326,6 +326,18 @@
   color: #9a6700;
 }
 
+.fc-draft-missing input {
+  margin-top: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+  color: #24292f;
+  background: #ffffff;
+}
+
 @media (max-width: 520px) {
   .fc-panel {
     bottom: 8px;

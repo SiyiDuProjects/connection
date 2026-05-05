@@ -8,6 +8,7 @@ export async function createDraft(contact, job, settings = {}) {
       ...fallback,
       personalizationNotes: fallbackNotes(contact, job, settings),
       missingContext: missingContext(job, settings),
+      warnings: [],
       ai: { used: false, provider: "template" }
     };
   }
@@ -28,6 +29,7 @@ export async function createDraft(contact, job, settings = {}) {
       ...fallback,
       personalizationNotes: fallbackNotes(contact, job, settings),
       missingContext: missingContext(job, settings),
+      warnings: ["AI generation was unavailable; review the template before sending."],
       ai: {
         used: false,
         provider: "template",
@@ -44,11 +46,12 @@ function createTemplateDraft(contact, job, settings = {}) {
   const firstName = String(contact.name || "").split(" ")[0] || "there";
   const titleLine = contact.title ? `I saw your work as ${articleFor(contact.title)} ${contact.title} at ${company}.` : `I came across your profile at ${company}.`;
   const preferences = settings.default_search_preferences || settings.defaultSearchPreferences || {};
-  const targetRole = settings.target_role || settings.targetRole || job.jobTitle;
+  const targetRole = job.jobTitle;
   const jobLine = targetRole ? `I'm interested in the ${targetRole} role` : `I'm interested in opportunities`;
-  const senderProfile = settings.sender_profile || settings.senderProfile || "I'm a Berkeley student";
+  const senderProfile = settings.sender_profile || settings.senderProfile || introProfile(settings);
   const toneLine = toneSentence(settings.email_tone || settings.emailTone);
   const contactPerspective = contactRoleLabel(preferences.contactRole || preferences.contact_role || preferences.seniority);
+  const signature = settings.email_signature || settings.emailSignature || settings.sender_name || settings.senderName || "";
 
   const body = [
     `Hi ${firstName},`,
@@ -58,7 +61,7 @@ function createTemplateDraft(contact, job, settings = {}) {
     `${senderProfile}${toneLine} and would really appreciate any advice on the team, the role, or the application process.`,
     "",
     "Thanks,",
-    ""
+    signature
   ].join("\n");
 
   return { subject, body };
@@ -150,6 +153,9 @@ function aiInstructions() {
     "Use only the resume/background, job description, and contact details provided.",
     "Do not invent work experience, degrees, referrals, prior conversations, or personal relationships.",
     "Do not claim the contact can refer the sender. Ask for advice, a brief chat, or the right recruiting contact.",
+    "Treat saved sender profile data as stable personal context. Treat company, job title, job description, and contact data as page-specific context.",
+    "If job title or job description is missing, still write a usable email and list the missing fields in missingContext.",
+    "Add warnings for weak personalization, missing role context, or anything the sender should verify before sending.",
     "Keep the email between 120 and 180 words. Use a natural human tone, not a sales pitch.",
     "Return only valid JSON matching the schema."
   ].join("\n");
@@ -158,9 +164,11 @@ function aiInstructions() {
 function buildAiInput(contact, job, settings) {
   return JSON.stringify({
     sender: {
-      targetRole: settings.target_role || settings.targetRole || job.jobTitle || "",
+      name: settings.sender_name || settings.senderName || "",
+      school: settings.school || "",
+      emailSignature: settings.email_signature || settings.emailSignature || "",
+      introStyle: settings.intro_style || settings.introStyle || "student",
       emailTone: settings.email_tone || settings.emailTone || "warm",
-      contactRole: (settings.default_search_preferences || settings.defaultSearchPreferences || {}).contactRole || "",
       shortProfile: settings.sender_profile || settings.senderProfile || "",
       resumeContext: truncate(settings.resume_context || settings.resumeContext, Number(process.env.AI_DRAFT_MAX_RESUME_CHARS || 20_000))
     },
@@ -197,9 +205,13 @@ function draftSchema() {
       missingContext: {
         type: "array",
         items: { type: "string" }
+      },
+      warnings: {
+        type: "array",
+        items: { type: "string" }
       }
     },
-    required: ["subject", "body", "personalizationNotes", "missingContext"]
+    required: ["subject", "body", "personalizationNotes", "missingContext", "warnings"]
   };
 }
 
@@ -229,7 +241,8 @@ function normalizeAiDraft(value, job, settings) {
     missingContext: Array.from(new Set([
       ...missingContext(job, settings),
       ...normalizeStringArray(value.missingContext)
-    ])).slice(0, 5)
+    ])).slice(0, 5),
+    warnings: normalizeStringArray(value.warnings).slice(0, 5)
   };
 }
 
@@ -244,8 +257,18 @@ function fallbackNotes(contact, job, settings) {
 function missingContext(job, settings) {
   const missing = [];
   if (!settings.resume_context && !settings.sender_profile && !settings.resumeContext && !settings.senderProfile) missing.push("Add your resume or personal background for stronger personalization.");
+  if (!job.jobTitle) missing.push("Job title was not available.");
   if (!job.jobDescription) missing.push("LinkedIn job description was not available.");
   return missing;
+}
+
+function introProfile(settings = {}) {
+  const school = settings.school ? ` at ${settings.school}` : "";
+  const style = String(settings.intro_style || settings.introStyle || "student");
+  if (style === "experienced") return "I'm an experienced professional";
+  if (style === "career-switcher") return "I'm exploring a career transition";
+  if (style === "founder") return "I'm a builder";
+  return `I'm a student${school}`;
 }
 
 function normalizeStringArray(value) {
