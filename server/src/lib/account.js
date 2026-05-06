@@ -54,15 +54,7 @@ export async function getAccountSummary(userId) {
       teams.subscription_status,
       extension_api_tokens.id as extension_token_id,
       extension_api_tokens.last_used_at,
-      user_settings.sender_name,
-      user_settings.school,
-      user_settings.email_signature,
-      user_settings.intro_style,
-      user_settings.target_role,
-      user_settings.email_tone,
-      user_settings.sender_profile,
-      user_settings.resume_context,
-      user_settings.default_search_preferences
+      to_jsonb(user_settings) as settings
     from users
     left join team_members on team_members.user_id = users.id
     left join teams on teams.id = team_members.team_id
@@ -76,13 +68,14 @@ export async function getAccountSummary(userId) {
   `;
 
   const account = rows[0] || {};
-  const preferences = account.default_search_preferences || {};
+  const settings = account.settings || {};
+  const preferences = settings.default_search_preferences || {};
   const profileFields = [
-    account.sender_name,
-    account.school,
-    account.email_tone,
-    account.sender_profile,
-    account.resume_context
+    settings.sender_name,
+    settings.school,
+    settings.email_tone,
+    settings.sender_profile,
+    settings.resume_context
   ];
   const completedProfileFields = profileFields.filter(Boolean).length;
   const usageRows = await sql`
@@ -134,13 +127,13 @@ export async function getUserSettings(userId) {
   ensureConfigured();
 
   const rows = await sql`
-    select sender_name, school, email_signature, intro_style, target_role, email_tone, default_search_preferences, sender_profile, resume_context
+    select to_jsonb(user_settings) as settings
     from user_settings
     where user_id = ${userId}
     limit 1
   `;
 
-  return rows[0] || {};
+  return rows[0]?.settings || {};
 }
 
 export async function getCreditBalance(userId) {

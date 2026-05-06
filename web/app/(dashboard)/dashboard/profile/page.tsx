@@ -15,6 +15,7 @@ type Settings = {
   emailTone?: 'warm' | 'concise' | 'confident' | 'formal';
   senderProfile?: string | null;
   resumeContext?: string | null;
+  resumeFileName?: string | null;
 };
 
 export default function ProfilePage() {
@@ -49,7 +50,28 @@ export default function ProfilePage() {
   }
 
   function clearResumeContext() {
-    setSettings((current) => ({ ...current, resumeContext: '' }));
+    setSettings((current) => ({ ...current, resumeContext: '', resumeFileName: '' }));
+    setFormVersion((value) => value + 1);
+  }
+
+  async function importResumeFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!['txt', 'md'].includes(extension || '')) {
+      setStatus(t('profile.resumeFileUnsupported'));
+      event.target.value = '';
+      return;
+    }
+
+    const text = await file.text();
+    setSettings((current) => ({
+      ...current,
+      resumeContext: text.slice(0, 40000),
+      resumeFileName: file.name
+    }));
+    setStatus(t('profile.resumeFileImported'));
     setFormVersion((value) => value + 1);
   }
 
@@ -100,6 +122,15 @@ export default function ProfilePage() {
               <textarea id="emailSignature" name="emailSignature" defaultValue={settings.emailSignature || ''} placeholder={t('profile.emailSignaturePlaceholder')} disabled={loading || saving} className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
             </Field>
             <Field label={t('profile.resumeContext')} id="resumeContext">
+              <div className="flex flex-wrap items-center gap-3">
+                <Input id="resumeFile" type="file" accept=".txt,.md,.pdf,.doc,.docx" disabled={loading || saving} onChange={importResumeFile} className="max-w-sm" />
+                <input type="hidden" name="resumeFileName" value={settings.resumeFileName || ''} />
+                {settings.resumeFileName ? (
+                  <span className="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                    {settings.resumeFileName}
+                  </span>
+                ) : null}
+              </div>
               <textarea id="resumeContext" name="resumeContext" defaultValue={settings.resumeContext || ''} placeholder={t('profile.resumeContextPlaceholder')} disabled={loading || saving} className="min-h-56 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">

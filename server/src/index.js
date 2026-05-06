@@ -4,7 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { searchContacts, revealEmail } from "./lib/contacts-provider.js";
 import { rankContacts } from "./lib/ranking.js";
-import { createDraft, createGmailUrl, createMailtoUrl } from "./lib/email.js";
+import { createDraft, createMailtoUrl } from "./lib/email.js";
 import { errorHandler, fail, logRequest, ok, publicError, requestContext, writeLog } from "./lib/http.js";
 import {
   getBearerToken,
@@ -167,7 +167,6 @@ app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRA
     ok(res, {
       ...draft,
       mailtoUrl: createMailtoUrl(contact.email, draft),
-      gmailUrl: createGmailUrl(contact.email, draft),
       credits: { remaining: await getCreditBalance(req.user.id) }
     });
   } catch (error) {

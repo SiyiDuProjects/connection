@@ -98,6 +98,7 @@ export const userSettings = pgTable('user_settings', {
     .default({}),
   senderProfile: text('sender_profile'),
   resumeContext: text('resume_context'),
+  resumeFileName: text('resume_file_name'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });

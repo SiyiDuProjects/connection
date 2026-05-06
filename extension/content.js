@@ -436,13 +436,6 @@
       button.addEventListener("click", () => draftEmail(button.dataset.draft));
     });
 
-    panel.querySelectorAll("[data-open-gmail]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const draft = state.drafts.get(button.dataset.openGmail);
-        if (draft?.gmailUrl) window.open(draft.gmailUrl, "_blank", "noopener,noreferrer");
-      });
-    });
-
     panel.querySelectorAll("[data-open-mailto]").forEach((button) => {
       button.addEventListener("click", () => {
         const draft = state.drafts.get(button.dataset.openMailto);
@@ -583,7 +576,6 @@
         ${warnings.length ? `<div class="fc-draft-missing"><strong>Review:</strong> ${escapeHtml(warnings.join(" - "))}</div>` : ""}
         ${draft.ai?.provider === "template" ? `<div class="fc-draft-missing">AI was unavailable, so a safe template was used.</div>` : ""}
         <button class="fc-secondary" type="button" data-open-mailto="${escapeAttr(id)}">Open email app</button>
-        <button class="fc-secondary" type="button" data-open-gmail="${escapeAttr(id)}">Open Gmail draft</button>
       </div>
     `;
   }

@@ -12,7 +12,8 @@ const settingsSchema = z.object({
   emailTone: z.enum(['warm', 'concise', 'confident', 'formal']).default('warm'),
   targetRole: z.string().max(200).optional(),
   senderProfile: z.string().max(2000).optional(),
-  resumeContext: z.string().max(40000).optional()
+  resumeContext: z.string().max(40000).optional(),
+  resumeFileName: z.string().max(260).optional()
 });
 
 export async function GET() {
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
     emailTone: payload.emailTone,
     senderProfile: clean(payload.senderProfile),
     resumeContext: cleanMultiline(payload.resumeContext),
+    resumeFileName: clean(payload.resumeFileName),
     defaultSearchPreferences: {},
     updatedAt: new Date()
   };

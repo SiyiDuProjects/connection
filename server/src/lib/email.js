@@ -67,17 +67,6 @@ function createTemplateDraft(contact, job, settings = {}) {
   return { subject, body };
 }
 
-export function createGmailUrl(to, draft) {
-  const params = new URLSearchParams({
-    view: "cm",
-    fs: "1",
-    to,
-    su: draft.subject,
-    body: draft.body
-  });
-  return `https://mail.google.com/mail/?${params.toString()}`;
-}
-
 export function createMailtoUrl(to, draft) {
   const params = new URLSearchParams({
     subject: draft.subject,
@@ -315,7 +304,7 @@ function truncate(value, maxLength) {
 }
 
 function openAiModel() {
-  return process.env.OPENAI_MODEL || "gpt-5-mini";
+  return process.env.OPENAI_MODEL || "gpt-5.4-mini";
 }
 
 function openAiResponsesUrl() {
