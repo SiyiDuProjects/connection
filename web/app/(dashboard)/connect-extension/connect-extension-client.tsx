@@ -56,6 +56,8 @@ export function ConnectExtensionClient({
     sendExtensionBridgeMessage({
       type: 'CONNECT_EXTENSION_TOKEN',
       payload
+    }, {
+      extensionId
     }).then((response) => {
       if (!response?.ok) {
         setState('failed');
@@ -106,11 +108,4 @@ function revokePendingToken(tokenId: number | null) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tokenId })
   }).catch(() => {});
-}
-
-declare global {
-  interface Window {
-    chrome?: any;
-    browser?: any;
-  }
 }

@@ -23,6 +23,11 @@ type ExtensionMessageResponse = {
   error?: string;
 };
 
+type ExtensionBridgeOptions = {
+  extensionId?: string;
+  timeoutMs?: number;
+};
+
 export function ExtensionSessionBridge({ user }: { user: UserState | null | undefined }) {
   const syncedUserId = useRef<number | null>(null);
 
@@ -59,6 +64,8 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
             language: readWebsiteLanguage(),
             returnTo: ''
           }
+        }, {
+          extensionId: payload.extensionId
         });
         if (connected?.ok) syncedUserId.current = userId;
       } finally {
@@ -102,13 +109,27 @@ export async function clearExtensionSessionBeforeSignOut() {
   await sendExtensionBridgeMessage({ type: 'CLEAR_EXTENSION_SESSION' });
 }
 
-export function sendExtensionBridgeMessage(message: { type: string; payload?: Record<string, unknown> }) {
+export async function sendExtensionBridgeMessage(
+  message: { type: string; payload?: Record<string, unknown> },
+  options: ExtensionBridgeOptions = {}
+) {
+  const bridgeResponse = await sendWindowBridgeMessage(message, options.timeoutMs);
+  if (bridgeResponse?.ok || !options.extensionId) return bridgeResponse;
+
+  const directResponse = await sendDirectExtensionMessage(options.extensionId, message, options.timeoutMs);
+  return directResponse || bridgeResponse;
+}
+
+function sendWindowBridgeMessage(
+  message: { type: string; payload?: Record<string, unknown> },
+  timeoutMs = 4000
+) {
   return new Promise<ExtensionMessageResponse | undefined>((resolve) => {
     const id = `gaid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const timer = window.setTimeout(() => {
       window.removeEventListener('message', handleResponse);
       resolve(undefined);
-    }, 1000);
+    }, timeoutMs);
 
     function handleResponse(event: MessageEvent) {
       if (event.source !== window) return;
@@ -133,9 +154,57 @@ export function sendExtensionBridgeMessage(message: { type: string; payload?: Re
   });
 }
 
+function sendDirectExtensionMessage(
+  extensionId: string,
+  message: { type: string; payload?: Record<string, unknown> },
+  timeoutMs = 4000
+) {
+  return new Promise<ExtensionMessageResponse | undefined>((resolve) => {
+    const runtime = window.chrome?.runtime;
+    if (!runtime?.sendMessage) {
+      resolve(undefined);
+      return;
+    }
+
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve(undefined);
+    }, timeoutMs);
+
+    try {
+      runtime.sendMessage(extensionId, message, (response: ExtensionMessageResponse | undefined) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        const error = runtime.lastError?.message;
+        resolve(response || (error ? { ok: false, error } : undefined));
+      });
+    } catch (error) {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      resolve({
+        ok: false,
+        error: error instanceof Error ? error.message : 'Could not reach the extension.'
+      });
+    }
+  });
+}
+
 declare global {
   interface Window {
-    chrome?: any;
+    chrome?: {
+      runtime?: {
+        lastError?: { message?: string };
+        sendMessage?: (
+          extensionId: string,
+          message: { type: string; payload?: Record<string, unknown> },
+          callback: (response?: ExtensionMessageResponse) => void
+        ) => void;
+      };
+    };
     browser?: any;
   }
 }
