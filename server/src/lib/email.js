@@ -1,4 +1,4 @@
-const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+const DEFAULT_OPENAI_BASE_URL = "https://sub2api.gaid.studio";
 
 export async function createDraft(contact, job, settings = {}) {
   const fallback = createTemplateDraft(contact, job, settings);
@@ -117,7 +117,7 @@ async function createAiDraft(contact, job, settings) {
   );
 
   try {
-    const response = await fetch(OPENAI_RESPONSES_URL, {
+    const response = await fetch(openAiResponsesUrl(), {
       method: "POST",
       signal: controller.signal,
       headers: {
@@ -318,3 +318,7 @@ function openAiModel() {
   return process.env.OPENAI_MODEL || "gpt-5-mini";
 }
 
+function openAiResponsesUrl() {
+  const baseUrl = String(process.env.OPENAI_BASE_URL || DEFAULT_OPENAI_BASE_URL).replace(/\/+$/, "");
+  return `${baseUrl}/v1/responses`;
+}

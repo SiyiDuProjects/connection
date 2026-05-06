@@ -33,9 +33,9 @@ export async function GET() {
       remaining: balance,
       status: balance > 0 ? 'available' : 'empty',
       costs: {
-        search: Number(process.env.CONTACT_SEARCH_CREDITS || 1),
+        search: Number(process.env.CONTACT_SEARCH_CREDITS || 0),
         reveal: Number(process.env.CONTACT_REVEAL_CREDITS || 1),
-        draft: Number(process.env.EMAIL_DRAFT_CREDITS || 1)
+        draft: Number(process.env.EMAIL_DRAFT_CREDITS || 0)
       }
     },
     usage,

@@ -72,10 +72,10 @@ async function renderStatus() {
   }
 
   const plan = response.account?.subscription?.planName || "Free";
-  const credits = response.account?.credits?.balance ?? 0;
+  const contactKits = response.account?.credits?.balance ?? 0;
   const email = response.account?.user?.email || "Signed in account";
   stateEl.textContent = "Signed in";
-  detailsEl.textContent = `${email} · ${plan} · ${credits} credits remaining`;
+  detailsEl.textContent = `${email} - ${plan} - ${contactKits} Contact Kits remaining`;
 }
 
 function cleanUrl(value) {

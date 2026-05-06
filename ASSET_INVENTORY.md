@@ -53,7 +53,7 @@ Chrome Extension on LinkedIn
 | `NEXT_PUBLIC_API_BASE_URL` | Yes | Vercel project env | Expected `https://contacts.gaid.studio`. |
 | `ALLOWED_EXTENSION_IDS` | Yes for production extension connect flow | Vercel project env | Stable unpacked dev ID is `ojajfgpfdkmaiccoeffhbdbccefpbala`; use comma-separated values if a Chrome Web Store ID is added later. |
 | `AUTH_SECRET` | Yes | Vercel project env | Long random secret. Rotate if exposed. |
-| `MONTHLY_CREDITS` | Yes | Vercel project env | Current example: `100`. |
+| `MONTHLY_CREDITS` | Yes | Vercel project env | Current example: `20` Contact Kits. |
 | `ADMIN_EMAILS` | Optional | Vercel project env | Local example includes an admin email. |
 
 ### Contacts API, likely VPS `/opt/connection/server/.env`
@@ -72,9 +72,9 @@ Chrome Extension on LinkedIn
 | `EXTENSION_ORIGIN` | Optional | VPS env file | Real value should be `chrome-extension://<extension-id>` if enforced. |
 | `RATE_LIMIT_WINDOW_MS` | Optional | VPS env file | Example value: `60000`. |
 | `RATE_LIMIT_MAX` | Optional | VPS env file | Example value: `60`. |
-| `CONTACT_SEARCH_CREDITS` | Optional | VPS env file | Example value: `1`. |
+| `CONTACT_SEARCH_CREDITS` | Optional | VPS env file | Example value: `0`. |
 | `CONTACT_REVEAL_CREDITS` | Optional | VPS env file | Example value: `1`. |
-| `EMAIL_DRAFT_CREDITS` | Optional | VPS env file | Example value: `1`. |
+| `EMAIL_DRAFT_CREDITS` | Optional | VPS env file | Example value: `0`. |
 
 ### GitHub Actions secrets
 

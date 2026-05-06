@@ -92,7 +92,7 @@ app.get("/api/account", async (req, res, next) => {
   }
 });
 
-app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("CONTACT_SEARCH_CREDITS", 1)), async (req, res, next) => {
+app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("CONTACT_SEARCH_CREDITS", 0)), async (req, res, next) => {
   try {
     const settings = await getUserSettings(req.user.id);
     const context = normalizeContext(req.body?.pageContext || req.body, settings);
@@ -147,14 +147,14 @@ app.post("/api/contacts/reveal", requireCredits("contacts.reveal", creditCost("C
   }
 });
 
-app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRAFT_CREDITS", 1)), async (req, res, next) => {
+app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRAFT_CREDITS", 0)), async (req, res, next) => {
   try {
     const contact = req.body?.contact;
     const settings = await getUserSettings(req.user.id);
     const context = normalizeContext(req.body?.pageContext || req.body?.job || {}, settings);
 
     if (!contact?.email) {
-      return fail(res, 400, "Reveal an email before drafting.", {
+      return fail(res, 400, "Unlock this contact before drafting outreach.", {
         credits: { remaining: await getCreditBalance(req.user.id) }
       });
     }
@@ -225,7 +225,7 @@ function requireCredits(action, amount) {
     try {
       const balance = await getCreditBalance(req.user.id);
       if (balance < amount) {
-        return fail(res, 402, "Insufficient credits", {
+        return fail(res, 402, "No Contact Kits left", {
           action: { label: "Open pricing", url: `${getWebRedirectBaseUrl()}/pricing` },
           credits: { remaining: balance, required: amount }
         });
@@ -249,7 +249,7 @@ async function chargeAndRecord(req, action, response) {
   });
 
   if (!result?.ok) {
-    throw publicError("Insufficient credits", 402, {
+    throw publicError("No Contact Kits left", 402, {
       action: { label: "Open pricing", url: `${getWebRedirectBaseUrl()}/pricing` },
       credits: { remaining: result?.balance ?? 0, required: charge.amount }
     });

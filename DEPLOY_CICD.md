@@ -93,12 +93,12 @@ EXTENSION_ORIGIN=
 GMAIL_SUBJECT_PREFIX=Quick question from a Berkeley student
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX=60
-CONTACT_SEARCH_CREDITS=1
+CONTACT_SEARCH_CREDITS=0
 CONTACT_REVEAL_CREDITS=1
-EMAIL_DRAFT_CREDITS=1
+EMAIL_DRAFT_CREDITS=0
 ```
 
-`POSTGRES_URL` must point to the same Neon database used by the `web/` app. Extension API tokens, credits, settings, and usage logs live in that database.
+`POSTGRES_URL` must point to the same Neon database used by the `web/` app. Extension API tokens, Contact Kit ledger entries, settings, and usage logs live in that database.
 
 `WEB_BASE_URL` must point to the deployed Next.js web app, not the contacts API service. Production should be `https://gaid.studio`; do not set this to Stripe or any other billing/provider domain. The API service redirects `/connect-extension` and `/pricing` there so older or default extension links do not show `Cannot GET`.
 
@@ -126,7 +126,7 @@ NEXT_PUBLIC_WEB_BASE_URL=https://gaid.studio
 NEXT_PUBLIC_API_BASE_URL=https://contacts.gaid.studio
 ALLOWED_EXTENSION_IDS=ojajfgpfdkmaiccoeffhbdbccefpbala
 AUTH_SECRET=long-random-secret
-MONTHLY_CREDITS=100
+MONTHLY_CREDITS=20
 ```
 
 `ALLOWED_EXTENSION_IDS` is comma-separated. The checked-in unpacked development extension has stable ID `ojajfgpfdkmaiccoeffhbdbccefpbala`; add a Chrome Web Store ID later only if you publish a separate signed build.

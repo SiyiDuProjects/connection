@@ -5,8 +5,8 @@ Chrome Extension + Express API + Next.js SaaS app for finding company contacts f
 ## Structure
 
 - `extension/`: Manifest V3 Chrome extension injected only on LinkedIn job pages.
-- `server/`: Express API proxy that keeps contact provider credentials private and charges credits.
-- `web/`: Gaid web app with auth, Stripe billing, dashboard, credits, preferences, and extension tokens.
+- `server/`: Express API proxy that keeps contact provider credentials private and charges Contact Kit unlocks.
+- `web/`: Gaid web app with auth, Stripe billing, dashboard, Contact Kits, preferences, and extension tokens.
 
 The app uses a Postgres + Drizzle + cookie auth stack. It does not use Supabase.
 
@@ -31,7 +31,7 @@ APP_URL=http://localhost:3000
 AUTH_SECRET=generate-a-long-random-secret
 EMAIL_FROM="Gaid <noreply@yourdomain.com>"
 RESEND_API_KEY=re_...
-MONTHLY_CREDITS=100
+MONTHLY_CREDITS=20
 ```
 
 For local development, email verification links are printed to the web server log if `EMAIL_FROM` and `RESEND_API_KEY` are not set. Production should configure both values so sign-up and resend flows can deliver verification email.
@@ -59,7 +59,7 @@ EXPLORIUM_SEARCH_MODE=preview
 EXPLORIUM_SEARCH_LIMIT=5
 ```
 
-`EXPLORIUM_SEARCH_MODE=preview` and `EXPLORIUM_SEARCH_LIMIT=5` keep the initial contact search cheap. Use `full` or a higher limit only when you intentionally want more returned prospect detail or more candidates.
+`EXPLORIUM_SEARCH_MODE=preview` and `EXPLORIUM_SEARCH_LIMIT=5` keep the initial contact search cheap. User-facing Contact Kits are consumed when a contact is unlocked, not when search preview or the included outreach draft runs.
 
 ## Chrome Extension
 

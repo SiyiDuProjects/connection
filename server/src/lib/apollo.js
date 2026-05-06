@@ -1,34 +1,21 @@
+import { buildPeopleSearchPlan } from "./contact-intelligence.js";
+import { cleanDomain, locationTerms, normalizeCompanyName } from "./contact-taxonomy.js";
+
 const APOLLO_BASE_URL = "https://api.apollo.io/api/v1";
 
 export async function searchApolloContacts(job) {
   requireApolloKey();
 
   const organization = await findOrganization(job);
-  const locationFilters = locationTerms(job.jobLocation);
-  const payload = {
-    person_titles: [
-      "Recruiter",
-      "Technical Recruiter",
-      "Talent Acquisition",
-      "University Recruiter",
-      "People Partner",
-      "Hiring Manager",
-      inferFunctionalTitle(job.jobTitle)
-    ].filter(Boolean),
-    include_similar_titles: true,
-    contact_email_status: ["verified", "likely to engage", "unverified"],
-    person_seniorities: ["manager", "senior", "director", "head", "vp"],
-    q_organization_job_titles: job.jobTitle ? [job.jobTitle] : undefined,
-    organization_job_locations: locationFilters,
-    person_locations: locationFilters,
-    page: 1,
-    per_page: 25
-  };
+  const payload = { ...buildPeopleSearchPlan(job).apollo };
 
   if (organization?.id) {
     payload.organization_ids = [organization.id];
+    delete payload.q_organization_domains_list;
+    delete payload.q_keywords;
   } else if (organization?.domain || job.companyDomain) {
     payload.q_organization_domains_list = [organization?.domain || job.companyDomain];
+    delete payload.q_keywords;
   } else {
     payload.q_keywords = job.companyName;
   }
@@ -110,6 +97,7 @@ function normalizeApolloPerson(person, organizationFallback = {}) {
 
   return {
     id: person.id || linkedinUrl || person.email,
+    provider: "apollo",
     apolloId: person.person_id || person.id,
     name: person.name || [person.first_name, person.last_name].filter(Boolean).join(" "),
     title: person.title || "",
@@ -156,29 +144,6 @@ function normalizeEducation(person) {
     .join(", ");
 }
 
-function inferFunctionalTitle(jobTitle) {
-  const title = String(jobTitle || "").toLowerCase();
-  if (!title) return "";
-  if (title.includes("data")) return "Data";
-  if (title.includes("software") || title.includes("engineer")) return "Engineering";
-  if (title.includes("product")) return "Product";
-  if (title.includes("design")) return "Design";
-  if (title.includes("marketing")) return "Marketing";
-  return "";
-}
-
-function locationTerms(jobLocation) {
-  const value = String(jobLocation || "")
-    .replace(/\b\d+\s+applicants\b/gi, "")
-    .replace(/\bpromoted by hirer\b/gi, "")
-    .replace(/\bactively reviewing applicants\b/gi, "")
-    .split(/[·|,]/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  return Array.from(new Set(value)).slice(0, 3);
-}
-
 function appendQueryParams(params, payload) {
   for (const [key, value] of Object.entries(payload || {})) {
     if (Array.isArray(value)) {
@@ -196,24 +161,6 @@ function compactPayload(payload) {
       return value !== undefined && value !== null && value !== "";
     })
   );
-}
-
-function cleanDomain(value) {
-  return String(value || "")
-    .replace(/^https?:\/\//i, "")
-    .replace(/^www\./i, "")
-    .split("/")[0]
-    .trim()
-    .toLowerCase();
-}
-
-function normalizeCompanyName(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/\b(inc|llc|ltd|corp|corporation|company|co)\b/g, "")
-    .replace(/[^a-z0-9]+/g, "")
-    .trim();
 }
 
 function requireApolloKey() {
