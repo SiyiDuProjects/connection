@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "node src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test:intelligence": "node src/lib/contact-intelligence.test-fixtures.js",
+    "test:intelligence:large": "node src/lib/contact-intelligence.large-fixtures.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
