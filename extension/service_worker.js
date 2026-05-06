@@ -1,5 +1,5 @@
-const DEFAULT_API_BASE_URL = "https://contacts.gaid.studio";
-const DEFAULT_WEB_BASE_URL = "https://gaid.studio";
+const DEFAULT_API_BASE_URL = "https://contacts.reachard.co";
+const DEFAULT_WEB_BASE_URL = "https://reachard.co";
 const DEFAULT_LANGUAGE = "en";
 const SUPPORTED_URLS = ["https://*/*", "http://*/*"];
 const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connection settings.";
@@ -97,7 +97,7 @@ async function handleExternalMessage(message, sender) {
     return { ok: false, error: "Unknown external message type" };
   }
 
-  return connectExtensionSession(message, sender);
+  return connectExtensionSession(message.payload || message, sender);
 }
 
 async function connectExtensionSession(message, sender) {
@@ -168,6 +168,9 @@ async function notifySupportedTabsAccountUpdated() {
 function isAllowedWebsite(url) {
   const origin = new URL(url).origin;
   return [
+    "https://reachard.co",
+    "https://www.reachard.co",
+    "https://contacts.reachard.co",
     "https://gaid.studio",
     "https://www.gaid.studio",
     "https://contacts.gaid.studio",
@@ -182,7 +185,9 @@ function isGaidWebsiteUrl(value) {
   try {
     const url = new URL(value);
     const host = url.hostname.replace(/^www\./i, "").toLowerCase();
-    return host === "gaid.studio"
+    return host === "reachard.co"
+      || host === "contacts.reachard.co"
+      || host === "gaid.studio"
       || host === "contacts.gaid.studio"
       || ((host === "localhost" || host === "127.0.0.1") && url.port === "3000");
   } catch (_error) {
@@ -213,6 +218,7 @@ function normalizeWebBaseUrl(value) {
   const url = cleanUrl(value);
   if (!url) return DEFAULT_WEB_BASE_URL;
   if (url === DEFAULT_API_BASE_URL) return DEFAULT_WEB_BASE_URL;
+  if (url.includes("contacts.reachard.co")) return DEFAULT_WEB_BASE_URL;
   if (url.includes("contacts.gaid.studio")) return DEFAULT_WEB_BASE_URL;
   return url;
 }
@@ -223,6 +229,9 @@ function normalizeApiBaseUrl(value, webBaseUrl) {
   const isLocalWeb = webUrl.includes("localhost") || webUrl.includes("127.0.0.1");
   if (!url) return DEFAULT_API_BASE_URL;
   if (!isLocalWeb && (url.includes("localhost") || url.includes("127.0.0.1"))) {
+    return DEFAULT_API_BASE_URL;
+  }
+  if (url.includes("reachard.co") && !url.includes("contacts.reachard.co")) {
     return DEFAULT_API_BASE_URL;
   }
   if (url.includes("gaid.studio") && !url.includes("contacts.gaid.studio")) {

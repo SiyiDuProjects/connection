@@ -7,7 +7,7 @@ export function Terminal() {
   const [terminalStep, setTerminalStep] = useState(0);
   const [copied, setCopied] = useState(false);
   const terminalSteps = [
-    'open https://gaid.studio',
+    'open https://reachard.co',
     'pnpm install',
     'pnpm db:setup',
     'pnpm db:migrate',

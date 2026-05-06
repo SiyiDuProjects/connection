@@ -663,7 +663,7 @@
           <span>Credits left</span>
           <strong>${escapeHtml(String(state.creditsRemaining))}</strong>
         </div>
-        <button class="fc-manage" type="button" data-action-url="https://gaid.studio/pricing">Manage</button>
+        <button class="fc-manage" type="button" data-action-url="https://reachard.co/pricing">Manage</button>
       </div>
     `;
   }
@@ -959,7 +959,9 @@
     const host = hostname.replace(/^www\./i, "").toLowerCase();
     return [
       "gaid.studio",
+      "reachard.co",
       "contacts.gaid.studio",
+      "contacts.reachard.co",
       "localhost",
       "127.0.0.1",
       "google.com",
@@ -981,7 +983,9 @@
 
   function isGaidWebsite() {
     const host = location.hostname.replace(/^www\./i, "").toLowerCase();
-    return host === "gaid.studio"
+    return host === "reachard.co"
+      || host === "contacts.reachard.co"
+      || host === "gaid.studio"
       || host === "contacts.gaid.studio"
       || ((host === "localhost" || host === "127.0.0.1") && location.port === "3000");
   }

@@ -331,12 +331,14 @@ function cleanDomain(value) {
 }
 
 function getWebRedirectBaseUrl() {
-  const fallback = "https://gaid.studio";
+  const fallback = "https://reachard.co";
   const value = String(process.env.WEB_BASE_URL || process.env.BASE_URL || fallback).replace(/\/+$/, "");
 
   try {
     const url = new URL(value);
     const allowedHosts = new Set([
+      "reachard.co",
+      "www.reachard.co",
       "gaid.studio",
       "www.gaid.studio",
       "localhost",

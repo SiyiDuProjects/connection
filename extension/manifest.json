@@ -9,6 +9,9 @@
     "https://*/*",
     "http://*/*",
     "https://www.linkedin.com/*",
+    "https://reachard.co/*",
+    "https://www.reachard.co/*",
+    "https://contacts.reachard.co/*",
     "https://gaid.studio/*",
     "https://www.gaid.studio/*",
     "https://contacts.gaid.studio/*",
@@ -32,6 +35,8 @@
       "matches": [
         "https://gaid.studio/*",
         "https://www.gaid.studio/*",
+        "https://reachard.co/*",
+        "https://www.reachard.co/*",
         "http://localhost:3000/*",
         "http://127.0.0.1:3000/*"
       ],
@@ -42,6 +47,9 @@
   "options_page": "options.html",
   "externally_connectable": {
     "matches": [
+      "https://reachard.co/*",
+      "https://www.reachard.co/*",
+      "https://contacts.reachard.co/*",
       "https://gaid.studio/*",
       "https://www.gaid.studio/*",
       "https://contacts.gaid.studio/*",

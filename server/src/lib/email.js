@@ -1,4 +1,4 @@
-const DEFAULT_OPENAI_BASE_URL = "https://sub2api.gaid.studio";
+const DEFAULT_OPENAI_BASE_URL = "https://gaid.studio";
 
 export async function createDraft(contact, job, settings = {}) {
   const fallback = createTemplateDraft(contact, job, settings);
