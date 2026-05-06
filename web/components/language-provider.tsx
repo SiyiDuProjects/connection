@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { sendExtensionBridgeMessage } from '@/components/extension-session-bridge';
 import {
   defaultLanguage,
   normalizeLanguage,
@@ -28,10 +29,18 @@ export function LanguageProvider({
     normalizeLanguage(initialLanguage)
   );
 
+  useEffect(() => {
+    sendExtensionBridgeMessage({
+      type: 'SET_EXTENSION_LANGUAGE',
+      payload: { language }
+    }).catch(() => {});
+  }, [language]);
+
   const value = useMemo<LanguageContextValue>(() => {
     function setLanguage(nextLanguage: Language) {
-      setLanguageState(nextLanguage);
-      document.cookie = `language=${nextLanguage}; path=/; max-age=31536000; samesite=lax`;
+      const normalizedLanguage = normalizeLanguage(nextLanguage);
+      setLanguageState(normalizedLanguage);
+      document.cookie = `language=${normalizedLanguage}; path=/; max-age=31536000; samesite=lax`;
     }
 
     return {

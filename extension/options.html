@@ -11,27 +11,27 @@
       <h1>Gaid</h1>
       <section class="status-card">
         <div>
-          <p class="eyebrow">Account</p>
-          <h2 id="connectionState">Checking...</h2>
+          <p class="eyebrow" data-i18n="account">Account</p>
+          <h2 id="connectionState"></h2>
         </div>
-        <p id="accountDetails">Sign in with your website account to unlock Contact Kits from LinkedIn jobs.</p>
+        <p id="accountDetails"></p>
       </section>
 
       <div class="grid">
         <div>
-          <label for="webBaseUrl">Website URL</label>
+          <label for="webBaseUrl" data-i18n="websiteUrl">Website URL</label>
           <input id="webBaseUrl" type="url" placeholder="https://gaid.studio">
         </div>
         <div>
-          <label for="apiBaseUrl">API URL</label>
+          <label for="apiBaseUrl" data-i18n="apiUrl">API URL</label>
           <input id="apiBaseUrl" type="url" placeholder="https://contacts.gaid.studio">
         </div>
       </div>
 
       <div class="actions">
-        <button id="connect" type="button">Sign in</button>
-        <button id="pricing" type="button" class="secondary">Upgrade</button>
-        <button id="refresh" type="button" class="secondary">Refresh status</button>
+        <button id="connect" type="button" data-i18n="signIn">Sign in</button>
+        <button id="pricing" type="button" class="secondary" data-i18n="upgrade">Upgrade</button>
+        <button id="refresh" type="button" class="secondary" data-i18n="refreshStatus">Refresh status</button>
       </div>
       <p id="status" role="status"></p>
     </main>

@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { use, useState, Suspense } from 'react';
+import { useState, Suspense } from 'react';
+import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { CircleIcon, Home, LogOut } from 'lucide-react';
+import { Chrome, Home, LogOut } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,21 +41,18 @@ function UserMenu() {
   if (!user) {
     return (
       <>
-        <Button asChild className="rounded-md">
-          <Link href="/sign-up">{t('nav.getStarted')}</Link>
-        </Button>
-        <Link
-          href="/pricing"
-          className="text-sm font-medium text-gray-700 hover:text-gray-900"
-        >
-          {t('nav.pricing')}
-        </Link>
         <Link
           href="/sign-in"
-          className="text-sm font-medium text-gray-700 hover:text-gray-900"
+          className="hidden text-sm font-medium text-slate-500 hover:text-slate-950 sm:inline-flex"
         >
-          {t('nav.signIn')}
+          Log in
         </Link>
+        <Button asChild className="h-9 rounded-[8px] bg-slate-950 px-4 text-sm font-medium text-white shadow-none hover:bg-slate-800">
+          <Link href="/sign-up">
+            <Chrome className="mr-2 h-4 w-4" />
+            Add to Chrome
+          </Link>
+        </Button>
       </>
     );
   }
@@ -96,14 +94,37 @@ function UserMenu() {
 }
 
 function Header() {
+  const pathname = usePathname();
+  const navItems = [
+    { label: 'Product', href: '/#product' },
+    { label: 'Workflow', href: '/#workflow' },
+    { label: 'Pricing', href: '/pricing' },
+    { label: 'Docs', href: '/#docs' }
+  ];
+
+  if (pathname.startsWith('/dashboard')) return null;
+
   return (
-    <header className="border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-        <Link href="/" className="flex items-center">
-          <CircleIcon className="h-6 w-6 text-gray-950" />
-          <span className="ml-2 text-xl font-semibold text-gray-900">Connection</span>
+    <header className="sticky top-0 z-40 border-b border-slate-200/50 bg-[#f8fafc]/82 backdrop-blur-xl">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+        <Link href="/" className="flex items-center gap-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-xs font-semibold text-white">
+            G
+          </span>
+          <span className="text-base font-semibold text-slate-950">Gaid</span>
         </Link>
-        <div className="flex items-center space-x-4">
+        <nav className="hidden items-center gap-7 lg:flex">
+          {navItems.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="text-sm font-medium text-slate-500 transition-colors hover:text-slate-950"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="flex items-center gap-3">
           <LanguageSwitcher />
           <Suspense fallback={<div className="h-9" />}>
             <UserMenu />

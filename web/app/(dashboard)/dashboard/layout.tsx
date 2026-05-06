@@ -1,81 +1,125 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import useSWR from 'swr';
-import { Button } from '@/components/ui/button';
-import { CreditCard, Menu, Shield, ShieldCheck, UserRound } from 'lucide-react';
-import { useI18n } from '@/components/language-provider';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import useSWR, { mutate } from 'swr';
+import { Bolt, Home, LogOut, Settings } from 'lucide-react';
+import { signOut } from '@/app/(login)/actions';
+import { clearExtensionSessionBeforeSignOut } from '@/components/extension-session-bridge';
+
+type AccountSummary = {
+  user?: {
+    name: string | null;
+    email: string;
+  };
+  credits?: {
+    remaining: number;
+  };
+};
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function DashboardLayout({
   children
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { data: user } = useSWR<{ isAdmin?: boolean } | null>('/api/user', fetcher);
-  const { t } = useI18n();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const { data } = useSWR<AccountSummary>('/api/account', fetcher);
 
-  const navItems = [
-    { href: '/dashboard', icon: CreditCard, label: t('nav.overview') },
-    { href: '/dashboard/profile', icon: UserRound, label: t('nav.aiProfile') },
-    { href: '/dashboard/security', icon: Shield, label: t('nav.security') },
-    ...(user?.isAdmin
-      ? [{ href: '/dashboard/admin', icon: ShieldCheck, label: t('nav.admin') }]
-      : [])
-  ];
+  async function handleSignOut() {
+    await clearExtensionSessionBeforeSignOut();
+    await signOut();
+    mutate('/api/user');
+    router.push('/');
+  }
 
   return (
-    <div className="flex flex-col min-h-[calc(100dvh-68px)] max-w-7xl mx-auto w-full">
-      {/* Mobile header */}
-      <div className="lg:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4">
-        <div className="flex items-center">
-          <span className="font-medium">{t('nav.settings')}</span>
+    <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.10),transparent_40%),#F8FAFC] text-slate-950">
+      <header className="h-16 border-b border-slate-200/70 bg-white/72 backdrop-blur-xl">
+        <div className="mx-auto flex h-full max-w-[1240px] items-center justify-between gap-5 px-6">
+          <Link
+            href="/"
+            className="flex items-center gap-3 rounded-[8px] transition-shadow hover:shadow-[0_14px_32px_rgba(15,23,42,0.10)]"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-slate-950 text-lg font-semibold text-white">
+              G
+            </span>
+            <span className="text-xl font-semibold text-slate-950">Gaid</span>
+          </Link>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="/pricing"
+              className="inline-flex h-10 items-center rounded-[8px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 transition-all hover:shadow-[0_14px_34px_rgba(15,23,42,0.12)]"
+            >
+              <Bolt className="mr-2 h-4 w-4 text-amber-500" />
+              {formatNumber(data?.credits?.remaining)} credits
+            </Link>
+            <Link
+              href="/dashboard/security"
+              aria-label="Settings"
+              className="hidden h-10 w-10 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-600 transition-all hover:text-slate-950 hover:shadow-[0_14px_34px_rgba(15,23,42,0.12)] sm:inline-flex"
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpen((value) => !value)}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700 transition-all hover:shadow-[0_14px_34px_rgba(15,23,42,0.12)]"
+                aria-label="Account menu"
+              >
+                {initials(data?.user)}
+              </button>
+              {open && (
+                <div className="absolute right-0 top-12 z-50 w-44 rounded-[8px] border border-slate-200 bg-white p-2 shadow-[0_18px_50px_rgba(15,23,42,0.14)]">
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setOpen(false)}
+                    className="flex h-10 items-center rounded-[8px] px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-950"
+                  >
+                    <Home className="mr-3 h-4 w-4" />
+                    Dashboard
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="flex h-10 w-full items-center rounded-[8px] px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-950"
+                  >
+                    <LogOut className="mr-3 h-4 w-4" />
+                    Log out
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        <Button
-          className="-mr-3"
-          variant="ghost"
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        >
-          <Menu className="h-6 w-6" />
-          <span className="sr-only">{t('nav.toggleSidebar')}</span>
-        </Button>
-      </div>
+      </header>
 
-      <div className="flex flex-1 overflow-hidden h-full">
-        {/* Sidebar */}
-        <aside
-          className={`w-64 bg-white lg:bg-gray-50 border-r border-gray-200 lg:block ${
-            isSidebarOpen ? 'block' : 'hidden'
-          } lg:relative absolute inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-            isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          <nav className="h-full overflow-y-auto p-4">
-            {navItems.map((item) => (
-              <Link key={item.href} href={item.href} passHref>
-                <Button
-                  variant={pathname === item.href ? 'secondary' : 'ghost'}
-                  className={`shadow-none my-1 w-full justify-start ${
-                    pathname === item.href ? 'bg-gray-100' : ''
-                  }`}
-                  onClick={() => setIsSidebarOpen(false)}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Button>
-              </Link>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-0 lg:p-4">{children}</main>
-      </div>
+      {children}
     </div>
   );
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+function displayName(user?: AccountSummary['user']) {
+  if (!user) return '';
+  return user.name || user.email.split('@')[0];
+}
+
+function initials(user?: AccountSummary['user']) {
+  const value = displayName(user);
+  if (!value) return 'G';
+  return value
+    .split(/[ @.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+}
+
+function formatNumber(value?: number) {
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US') : '...';
+}

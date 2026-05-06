@@ -1,5 +1,6 @@
 const DEFAULT_API_BASE_URL = "https://contacts.gaid.studio";
 const DEFAULT_WEB_BASE_URL = "https://gaid.studio";
+const DEFAULT_LANGUAGE = "en";
 const SUPPORTED_URLS = ["https://*/*", "http://*/*"];
 const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connection settings.";
 const SESSION_EXPIRED_ERROR = "Session expired. Sign in again.";
@@ -37,6 +38,7 @@ async function refreshSupportedTabs() {
 
 async function injectIntoTab(tab) {
   if (!tab.id) return;
+  if (isGaidWebsiteUrl(tab.url)) return;
 
   await chrome.scripting.insertCSS({
     target: { tabId: tab.id },
@@ -65,12 +67,24 @@ async function handleMessage(message, sender) {
       return postJson("/api/email/draft", message.payload, sender);
     case "GET_ACCOUNT_STATUS":
       return getAccountStatus(sender);
+    case "GET_EXTENSION_LANGUAGE":
+      return getExtensionLanguage();
+    case "SET_EXTENSION_LANGUAGE":
+      return setExtensionLanguage(message.payload || {});
     default:
       return { ok: false, error: "Unknown message type" };
   }
 }
 
 async function handleExternalMessage(message, sender) {
+  if (message?.type === "SET_EXTENSION_LANGUAGE") {
+    return setExtensionLanguage(message.payload || message);
+  }
+
+  if (message?.type === "GET_EXTENSION_LANGUAGE") {
+    return getExtensionLanguage();
+  }
+
   if (message?.type === "GET_EXTENSION_SESSION_STATUS") {
     return getLocalSessionStatus(sender);
   }
@@ -98,7 +112,8 @@ async function connectExtensionSession(message, sender) {
 
   const webBaseUrl = normalizeWebBaseUrl(message.webBaseUrl);
   const apiBaseUrl = normalizeApiBaseUrl(message.apiBaseUrl, webBaseUrl);
-  await chrome.storage.sync.set({ extensionApiToken: token, apiBaseUrl, webBaseUrl });
+  const extensionLanguage = normalizeLanguage(message.language);
+  await chrome.storage.sync.set({ extensionApiToken: token, apiBaseUrl, webBaseUrl, extensionLanguage });
   await notifySupportedTabsAccountUpdated();
   await returnToSourceTab(message.returnTo, sender);
   return { ok: true };
@@ -159,6 +174,20 @@ function isAllowedWebsite(url) {
     "http://localhost:3000",
     "http://127.0.0.1:3000"
   ].includes(origin);
+}
+
+function isGaidWebsiteUrl(value) {
+  if (!value) return false;
+
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./i, "").toLowerCase();
+    return host === "gaid.studio"
+      || host === "contacts.gaid.studio"
+      || ((host === "localhost" || host === "127.0.0.1") && url.port === "3000");
+  } catch (_error) {
+    return false;
+  }
 }
 
 async function getApiBaseUrl() {
@@ -285,11 +314,40 @@ async function getExtensionApiToken() {
   return String(stored.extensionApiToken || "").trim();
 }
 
+async function getExtensionLanguage() {
+  const stored = await chrome.storage.sync.get(["extensionLanguage"]);
+  return { ok: true, language: normalizeLanguage(stored.extensionLanguage) };
+}
+
+async function setExtensionLanguage(message) {
+  const extensionLanguage = normalizeLanguage(message.language);
+  await chrome.storage.sync.set({ extensionLanguage });
+  await notifySupportedTabsLanguageUpdated(extensionLanguage);
+  return { ok: true, language: extensionLanguage };
+}
+
+async function notifySupportedTabsLanguageUpdated(language) {
+  try {
+    const tabs = await chrome.tabs.query({ url: SUPPORTED_URLS });
+    await Promise.allSettled(tabs.map(async (tab) => {
+      if (!tab.id) return;
+      try {
+        await chrome.tabs.sendMessage(tab.id, { type: "LANGUAGE_UPDATED", language });
+      } catch (_error) {
+        await injectIntoTab(tab);
+      }
+    }));
+  } catch (error) {
+    console.warn("Could not notify supported tabs after language update", error);
+  }
+}
+
 async function loginAction(sender) {
+  const language = (await getExtensionLanguage()).language;
   const url = new URL(`${await getWebBaseUrl()}/connect-extension`);
   url.searchParams.set("extensionId", chrome.runtime.id);
   return {
-    label: "Sign in",
+    label: t(language, "signIn"),
     url: url.toString()
   };
 }
@@ -314,8 +372,9 @@ function safeReturnUrl(sender) {
 }
 
 async function pricingAction() {
+  const language = (await getExtensionLanguage()).language;
   return {
-    label: "Open pricing",
+    label: t(language, "openPricing"),
     url: `${await getWebBaseUrl()}/pricing`
   };
 }
@@ -340,4 +399,22 @@ async function safeJson(response) {
 
 function cleanUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function normalizeLanguage(value) {
+  return value === "zh" ? "zh" : DEFAULT_LANGUAGE;
+}
+
+function t(language, key) {
+  const labels = {
+    en: {
+      signIn: "Sign in",
+      openPricing: "Open pricing"
+    },
+    zh: {
+      signIn: "登录",
+      openPricing: "打开价格页"
+    }
+  };
+  return labels[normalizeLanguage(language)][key] || labels.en[key] || key;
 }

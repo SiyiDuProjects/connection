@@ -6,13 +6,19 @@ export async function GET() {
     return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const [balance, usage, settings, team, extensionToken] = await Promise.all([
+  const [balanceResult, usageResult, settingsResult, teamResult, extensionTokenResult] = await Promise.allSettled([
     getCreditBalance(user.id),
     getRecentUsage(user.id),
     getSettings(user.id),
     getTeamForUser(),
     getActiveExtensionTokenInfo(user.id)
   ]);
+
+  const balance = balanceResult.status === 'fulfilled' ? balanceResult.value : 0;
+  const usage = usageResult.status === 'fulfilled' ? usageResult.value : [];
+  const settings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
+  const team = teamResult.status === 'fulfilled' ? teamResult.value : null;
+  const extensionToken = extensionTokenResult.status === 'fulfilled' ? extensionTokenResult.value : null;
 
   const profileFields = [
     settings?.senderName,

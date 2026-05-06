@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { normalizeLanguage } from '@/lib/i18n';
 
 const SYNC_LOCK_KEY = 'gaid:extension-sync-lock';
 const SYNC_LOCK_TTL_MS = 5000;
@@ -18,6 +19,7 @@ type ExtensionTokenResponse = {
 type ExtensionMessageResponse = {
   ok?: boolean;
   hasToken?: boolean;
+  language?: string;
   error?: string;
 };
 
@@ -54,6 +56,7 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
           payload: {
             token: payload.token,
             webBaseUrl: window.location.origin,
+            language: readWebsiteLanguage(),
             returnTo: ''
           }
         });
@@ -71,6 +74,15 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
   }, [user?.id]);
 
   return null;
+}
+
+function readWebsiteLanguage() {
+  const languageCookie = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith('language='))
+    ?.split('=')[1];
+
+  return normalizeLanguage(languageCookie);
 }
 
 function claimSyncLock() {

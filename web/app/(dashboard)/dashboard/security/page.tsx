@@ -4,10 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Lock, Trash2, Loader2 } from 'lucide-react';
+import { Lock, Trash2, Loader2, LogOut } from 'lucide-react';
 import { useActionState } from 'react';
-import { updatePassword, deleteAccount } from '@/app/(login)/actions';
+import { updatePassword, deleteAccount, signOut } from '@/app/(login)/actions';
 import { useI18n } from '@/components/language-provider';
+import { useRouter } from 'next/navigation';
+import { mutate } from 'swr';
+import { clearExtensionSessionBeforeSignOut } from '@/components/extension-session-bridge';
 
 type PasswordState = {
   currentPassword?: string;
@@ -25,6 +28,7 @@ type DeleteState = {
 
 export default function SecurityPage() {
   const { t } = useI18n();
+  const router = useRouter();
   const [passwordState, passwordAction, isPasswordPending] = useActionState<
     PasswordState,
     FormData
@@ -35,8 +39,15 @@ export default function SecurityPage() {
     FormData
   >(deleteAccount, {});
 
+  async function handleSignOut() {
+    await clearExtensionSessionBeforeSignOut();
+    await signOut();
+    mutate('/api/user');
+    router.push('/');
+  }
+
   return (
-    <section className="flex-1 p-4 lg:p-8">
+    <section className="h-[calc(100dvh-64px)] overflow-y-auto p-4 lg:p-8">
       <h1 className="text-lg lg:text-2xl font-medium bold text-gray-900 mb-6">
         {t('security.title')}
       </h1>
@@ -114,6 +125,26 @@ export default function SecurityPage() {
               )}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Log out</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-500 mb-4">
+            End this session and return to the homepage.
+          </p>
+          <Button
+            type="button"
+            onClick={handleSignOut}
+            variant="outline"
+            className="border-gray-200 bg-white text-gray-950 hover:bg-gray-50"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Log out
+          </Button>
         </CardContent>
       </Card>
 

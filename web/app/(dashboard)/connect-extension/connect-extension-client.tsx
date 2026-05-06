@@ -25,7 +25,7 @@ export function ConnectExtensionClient({
   blockedReason?: string;
 }) {
   const [state, setState] = useState<ConnectState>('sending');
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const [message, setMessage] = useState(t('connect.syncing'));
 
   const payload = useMemo(
@@ -33,9 +33,10 @@ export function ConnectExtensionClient({
       type: 'CONNECT_EXTENSION_TOKEN',
       token,
       webBaseUrl,
-      apiBaseUrl
+      apiBaseUrl,
+      language
     }),
-    [apiBaseUrl, token, webBaseUrl]
+    [apiBaseUrl, language, token, webBaseUrl]
   );
 
   useEffect(() => {
