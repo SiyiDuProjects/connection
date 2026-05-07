@@ -43,11 +43,11 @@ function UserMenu() {
       <>
         <Link
           href="/sign-in"
-          className="hidden text-sm font-medium text-slate-500 hover:text-slate-950 sm:inline-flex"
+          className="hidden text-sm font-medium text-white/72 hover:text-white sm:inline-flex"
         >
           Log in
         </Link>
-        <Button asChild className="h-9 rounded-[8px] bg-slate-950 px-4 text-sm font-medium text-white shadow-none hover:bg-slate-800">
+        <Button asChild className="h-9 rounded-[8px] bg-white px-4 text-sm font-medium text-[#0b3d37] shadow-none hover:bg-[#ecfdf5]">
           <Link href="/sign-up">
             <Chrome className="mr-2 h-4 w-4" />
             Add to Chrome
@@ -105,20 +105,20 @@ function Header() {
   if (pathname.startsWith('/dashboard')) return null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/50 bg-[#f8fafc]/82 backdrop-blur-xl">
+    <header className="absolute inset-x-0 top-0 z-40 bg-transparent">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-3">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-xs font-semibold text-white">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-semibold text-[#0b3d37] shadow-[0_10px_30px_rgba(2,44,34,0.22)]">
             G
           </span>
-          <span className="text-base font-semibold text-slate-950">Reachard</span>
+          <span className="text-base font-semibold text-white">Reachard</span>
         </Link>
         <nav className="hidden items-center gap-7 lg:flex">
           {navItems.map((item) => (
             <Link
               key={item.label}
               href={item.href}
-              className="text-sm font-medium text-slate-500 transition-colors hover:text-slate-950"
+              className="text-sm font-medium text-white/66 transition-colors hover:text-white"
             >
               {item.label}
             </Link>
