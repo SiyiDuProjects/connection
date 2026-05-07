@@ -2,19 +2,6 @@
 
 import Link from 'next/link';
 import useSWR from 'swr';
-import {
-  ArrowRight,
-  Bolt,
-  ChevronRight,
-  Edit3,
-  FileText,
-  Mail,
-  MessageCircle,
-  Sparkles,
-  Target,
-  Users,
-  Zap
-} from 'lucide-react';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 const buttonShadow = 'transition-all hover:shadow-[0_14px_34px_rgba(15,23,42,0.12)]';
@@ -34,11 +21,15 @@ type UsageRow = {
 
 type Settings = {
   senderName?: string | null;
+  region?: string | null;
   school?: string | null;
   emailSignature?: string | null;
   introStyle?: 'student' | 'career-switcher' | 'experienced' | 'founder' | null;
   emailTone?: 'warm' | 'concise' | 'confident' | 'formal' | null;
   targetRole?: string | null;
+  outreachLength?: 'short' | 'concise' | 'detailed' | null;
+  outreachGoal?: 'advice' | 'referral' | 'intro' | null;
+  outreachStyleNotes?: string | null;
   senderProfile?: string | null;
   resumeContext?: string | null;
   resumeFileName?: string | null;
@@ -87,6 +78,9 @@ export default function DashboardPage() {
             <p className="mt-1 text-sm font-medium text-slate-500">
               {settings?.school || 'Add school or affiliation'}
             </p>
+            <p className="mt-1 text-sm font-medium text-slate-500">
+              {settings?.region || 'Add region'}
+            </p>
             <p className="mx-auto mt-2 max-w-[210px] text-sm font-medium leading-5 text-slate-500">
               Interested in <span className="font-semibold text-indigo-600">{targetRoles}</span>
             </p>
@@ -95,22 +89,21 @@ export default function DashboardPage() {
               className={`mt-3 inline-flex h-9 items-center rounded-[8px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 ${buttonShadow}`}
             >
               Edit profile
-              <Edit3 className="ml-2 h-4 w-4 text-slate-500" />
             </Link>
           </div>
 
           <div className="mt-4 border-t border-slate-200 pt-3">
             <p className="text-sm font-semibold text-slate-950">Outreach style</p>
-            <StatusItem icon={Sparkles} label={toneLabel(settings?.emailTone)} detail="Tone" />
-            <StatusItem icon={MessageCircle} label="Short and clear" detail="Length" />
-            <StatusItem icon={Zap} label={introStyleLabel(settings?.introStyle)} detail="Intro style" />
+            <StatusItem label={toneLabel(settings?.emailTone)} detail="Tone" />
+            <StatusItem label={lengthLabel(settings?.outreachLength)} detail="Length" />
+            <StatusItem label={introStyleLabel(settings?.introStyle)} detail="Intro style" />
           </div>
 
           <div className="mt-3 border-t border-slate-200 pt-3">
             <p className="text-sm font-semibold text-slate-950">Prioritizing</p>
-            <StatusItem icon={Users} label="Alumni" />
-            <StatusItem icon={Target} label="Hiring managers" />
-            <StatusItem icon={Users} label="Recent hires" />
+            <StatusItem label="Alumni" />
+            <StatusItem label="Hiring managers" />
+            <StatusItem label="Recent hires" />
           </div>
 
           <div className="mt-auto rounded-[8px] border border-slate-200 bg-slate-50/80 p-3">
@@ -128,13 +121,11 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-3 flex items-center justify-between text-sm font-medium">
-            <span className="inline-flex items-center text-slate-500">
-              <Bolt className="mr-2 h-4 w-4 text-amber-500" />
+            <span className="text-slate-500">
               {formatNumber(data?.credits?.remaining)} credits
             </span>
-            <Link href="/pricing" className="inline-flex items-center font-semibold text-indigo-600">
+            <Link href="/pricing" className="font-semibold text-indigo-600">
               View plans
-              <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
         </aside>
@@ -160,10 +151,10 @@ export default function DashboardPage() {
                   Edit
                 </Link>
               </div>
-              <PreferenceRow icon={MessageCircle} label="Tone" value={toneDescription(settings?.emailTone)} />
-              <PreferenceRow icon={Target} label="Target roles" value={targetRoles} />
-              <PreferenceRow icon={Users} label="Prioritize" value="Alumni, hiring managers, recent hires" />
-              <PreferenceRow icon={Mail} label="Email length" value="Short and clear" last />
+              <PreferenceRow label="Tone" value={toneDescription(settings?.emailTone)} />
+              <PreferenceRow label="Target roles" value={targetRoles} />
+              <PreferenceRow label="Prioritize" value="Alumni, hiring managers, recent hires" />
+              <PreferenceRow label="Email length" value={lengthLabel(settings?.outreachLength)} last />
             </section>
 
             <section className="rounded-[8px] border border-slate-200 bg-white/80 p-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
@@ -176,10 +167,7 @@ export default function DashboardPage() {
                   Replace
                 </Link>
               </div>
-              <div className="flex items-center gap-4 rounded-[8px] bg-slate-50/80 p-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-white text-indigo-500 shadow-sm">
-                  <FileText className="h-5 w-5" />
-                </span>
+              <div className="rounded-[8px] bg-slate-50/80 p-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-950">
                     {settings?.resumeFileName || 'No resume added'}
@@ -197,15 +185,11 @@ export default function DashboardPage() {
             >
               <div className="mb-2 flex items-center justify-between gap-4">
                 <h2 className="text-base font-semibold text-slate-950">Recent outreach</h2>
-                <Mail className="h-5 w-5 text-slate-500" />
               </div>
               {outreach.length > 0 ? (
                 <div className="divide-y divide-slate-200">
                   {outreach.map((item) => (
-                    <article key={item.id} className="grid grid-cols-[48px_1fr_auto_20px] items-center gap-4 py-3">
-                      <span className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-indigo-50 text-sm font-semibold text-indigo-600">
-                        {initialsFromName(item.title)}
-                      </span>
+                    <article key={item.id} className="grid grid-cols-[1fr_auto] items-center gap-4 py-3">
                       <div>
                         <p className="text-sm font-semibold text-slate-950">{item.title}</p>
                         <p className="mt-1 text-sm font-medium text-slate-500">{item.detail}</p>
@@ -213,7 +197,6 @@ export default function DashboardPage() {
                       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                         {item.time}
                       </span>
-                      <ChevronRight className="h-4 w-4 text-slate-400" />
                     </article>
                   ))}
                 </div>
@@ -234,12 +217,10 @@ export default function DashboardPage() {
 }
 
 function PreferenceRow({
-  icon: Icon,
   label,
   value,
   last
 }: {
-  icon: typeof MessageCircle;
   label: string;
   value: string;
   last?: boolean;
@@ -247,34 +228,25 @@ function PreferenceRow({
   return (
     <Link
       href="/dashboard/profile"
-      className={`grid grid-cols-[36px_180px_1fr_20px] items-center gap-3 py-2 transition-colors hover:bg-slate-50 ${
+      className={`grid grid-cols-[180px_1fr] items-center gap-3 rounded-[6px] px-2 py-2 transition-colors hover:bg-slate-50 ${
         last ? '' : 'border-b border-slate-200'
       }`}
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-indigo-50 text-indigo-500">
-        <Icon className="h-4 w-4" />
-      </span>
       <p className="text-sm font-semibold text-slate-950">{label}</p>
       <p className="text-sm font-medium text-slate-500">{value}</p>
-      <ChevronRight className="h-4 w-4 text-slate-400" />
     </Link>
   );
 }
 
 function StatusItem({
-  icon: Icon,
   label,
   detail
 }: {
-  icon: typeof Sparkles;
   label: string;
   detail?: string;
 }) {
   return (
-    <div className="mt-2.5 flex items-center gap-3">
-      <span className="flex h-7 w-7 items-center justify-center rounded-[8px] bg-indigo-50 text-indigo-500">
-        <Icon className="h-4 w-4" />
-      </span>
+    <div className="mt-2.5">
       <div>
         <p className="text-sm font-semibold text-slate-950">{label}</p>
         {detail ? <p className="text-xs font-medium text-slate-500">{detail}</p> : null}
@@ -315,6 +287,12 @@ function toneDescription(value?: Settings['emailTone']) {
   if (value === 'confident') return 'Confident, thoughtful, casual';
   if (value === 'formal') return 'Formal, thoughtful, polished';
   return 'Concise, thoughtful, casual';
+}
+
+function lengthLabel(value?: Settings['outreachLength']) {
+  if (value === 'short') return 'Short';
+  if (value === 'detailed') return 'Detailed';
+  return 'Concise';
 }
 
 function introStyleLabel(value?: Settings['introStyle']) {

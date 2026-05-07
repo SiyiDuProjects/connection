@@ -50,6 +50,7 @@ export async function getAccountSummary(userId) {
     select
       users.id,
       users.email,
+      users.name,
       teams.plan_name,
       teams.subscription_status,
       extension_api_tokens.id as extension_token_id,
@@ -70,14 +71,7 @@ export async function getAccountSummary(userId) {
   const account = rows[0] || {};
   const settings = account.settings || {};
   const preferences = settings.default_search_preferences || {};
-  const profileFields = [
-    settings.sender_name,
-    settings.school,
-    settings.email_tone,
-    settings.sender_profile,
-    settings.resume_context
-  ];
-  const completedProfileFields = profileFields.filter(Boolean).length;
+  const onboardingProfile = getOnboardingStatus(account, settings);
   const usageRows = await sql`
     select action, status, created_at
     from api_usage
@@ -101,9 +95,10 @@ export async function getAccountSummary(userId) {
     },
     onboarding: {
       profile: {
-        complete: completedProfileFields >= 3,
-        completedFields: completedProfileFields,
-        totalFields: profileFields.length
+        complete: onboardingProfile.complete,
+        completedFields: onboardingProfile.completedFields,
+        totalFields: onboardingProfile.totalFields,
+        missingFields: onboardingProfile.missingFields
       },
       extension: {
         connected: Boolean(account.extension_token_id),
@@ -134,6 +129,21 @@ export async function getUserSettings(userId) {
   `;
 
   return rows[0]?.settings || {};
+}
+
+export async function getOnboardingForUser(userId) {
+  ensureConfigured();
+
+  const rows = await sql`
+    select users.name, to_jsonb(user_settings) as settings
+    from users
+    left join user_settings on user_settings.user_id = users.id
+    where users.id = ${userId}
+      and users.deleted_at is null
+    limit 1
+  `;
+  const row = rows[0] || {};
+  return getOnboardingStatus(row, row.settings || {});
 }
 
 export async function getCreditBalance(userId) {
@@ -195,4 +205,28 @@ function ensureConfigured() {
     error.publicMessage = "Server account database is not configured.";
     throw error;
   }
+}
+
+function getOnboardingStatus(user = {}, settings = {}) {
+  const fields = [
+    ["name", user.name],
+    ["region", settings.region],
+    ["school", settings.school],
+    ["targetRole", settings.target_role],
+    ["emailTone", settings.email_tone],
+    ["outreachGoal", settings.outreach_goal]
+  ];
+  const hasBackground = Boolean(clean(settings.sender_profile) || clean(settings.resume_context));
+  const missingFields = fields.filter(([, value]) => !clean(value)).map(([key]) => key);
+  if (!hasBackground) missingFields.push("background");
+  return {
+    complete: missingFields.length === 0,
+    missingFields,
+    completedFields: fields.length + 1 - missingFields.length,
+    totalFields: fields.length + 1
+  };
+}
+
+function clean(value) {
+  return String(value || "").trim();
 }

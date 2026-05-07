@@ -8,11 +8,17 @@ import { Label } from '@/components/ui/label';
 import { useI18n } from '@/components/language-provider';
 
 type Settings = {
+  name?: string | null;
   senderName?: string | null;
+  region?: string | null;
   school?: string | null;
   emailSignature?: string | null;
   introStyle?: 'student' | 'career-switcher' | 'experienced' | 'founder';
   emailTone?: 'warm' | 'concise' | 'confident' | 'formal';
+  outreachLength?: 'short' | 'concise' | 'detailed';
+  outreachGoal?: 'advice' | 'referral' | 'intro';
+  outreachStyleNotes?: string | null;
+  targetRole?: string | null;
   senderProfile?: string | null;
   resumeContext?: string | null;
   resumeFileName?: string | null;
@@ -90,13 +96,24 @@ export default function ProfilePage() {
         <CardContent>
           <form key={`${loading}-${formVersion}`} className="max-w-2xl space-y-5" onSubmit={submit}>
             <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={t('general.name')} id="name">
+                <Input id="name" name="name" defaultValue={settings.name || ''} placeholder={t('general.namePlaceholder')} disabled={loading || saving} />
+              </Field>
               <Field label={t('profile.senderName')} id="senderName">
                 <Input id="senderName" name="senderName" defaultValue={settings.senderName || ''} placeholder={t('profile.senderNamePlaceholder')} disabled={loading || saving} />
+              </Field>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Region" id="region">
+                <Input id="region" name="region" defaultValue={settings.region || ''} placeholder="San Francisco Bay Area" disabled={loading || saving} />
               </Field>
               <Field label={t('profile.school')} id="school">
                 <Input id="school" name="school" defaultValue={settings.school || ''} placeholder={t('profile.schoolPlaceholder')} disabled={loading || saving} />
               </Field>
             </div>
+            <Field label="Target roles" id="targetRole">
+              <Input id="targetRole" name="targetRole" defaultValue={settings.targetRole || ''} placeholder="Software Engineer Intern, Product Manager, Data Analyst" disabled={loading || saving} />
+            </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t('profile.emailTone')} id="emailTone">
                 <select id="emailTone" name="emailTone" defaultValue={settings.emailTone || 'warm'} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
@@ -115,6 +132,25 @@ export default function ProfilePage() {
                 </select>
               </Field>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Outreach length" id="outreachLength">
+                <select id="outreachLength" name="outreachLength" defaultValue={settings.outreachLength || 'concise'} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="short">Short</option>
+                  <option value="concise">Concise</option>
+                  <option value="detailed">Detailed</option>
+                </select>
+              </Field>
+              <Field label="Outreach goal" id="outreachGoal">
+                <select id="outreachGoal" name="outreachGoal" defaultValue={settings.outreachGoal || 'advice'} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="advice">Ask advice</option>
+                  <option value="referral">Explore referral</option>
+                  <option value="intro">Request intro</option>
+                </select>
+              </Field>
+            </div>
+            <Field label="Extra style notes" id="outreachStyleNotes">
+              <textarea id="outreachStyleNotes" name="outreachStyleNotes" defaultValue={settings.outreachStyleNotes || ''} placeholder="Example: sound less formal, mention curiosity about product work." disabled={loading || saving} className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            </Field>
             <Field label={t('profile.personalBackground')} id="senderProfile">
               <textarea id="senderProfile" name="senderProfile" defaultValue={settings.senderProfile || ''} placeholder={t('profile.personalBackgroundPlaceholder')} disabled={loading || saving} className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
             </Field>

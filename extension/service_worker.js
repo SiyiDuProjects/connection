@@ -5,7 +5,10 @@ const SUPPORTED_URLS = ["https://*/*", "http://*/*"];
 const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connection settings.";
 const SESSION_EXPIRED_ERROR = "Session expired. Sign in again.";
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details?.reason === "install") {
+    openInstallConnectPage();
+  }
   refreshSupportedTabs();
 });
 
@@ -58,7 +61,7 @@ async function handleMessage(message, sender) {
     case "CONNECT_EXTENSION_TOKEN":
       return connectExtensionSession(message.payload || {}, sender);
     case "CLEAR_EXTENSION_SESSION":
-      return clearExtensionSession(sender);
+      return clearExtensionSession(sender, { requireAllowedWebsite: false });
     case "CONTACTS_SEARCH":
       return postJson("/api/contacts/search", message.payload, sender);
     case "CONTACTS_REVEAL":
@@ -71,8 +74,22 @@ async function handleMessage(message, sender) {
       return getExtensionLanguage();
     case "SET_EXTENSION_LANGUAGE":
       return setExtensionLanguage(message.payload || {});
+    case "GET_EMAIL_CUSTOMIZE":
+      return getEmailCustomize(sender);
+    case "SET_EMAIL_CUSTOMIZE":
+      return setEmailCustomize(message.payload || {}, sender);
     default:
       return { ok: false, error: "Unknown message type" };
+  }
+}
+
+async function openInstallConnectPage() {
+  try {
+    const url = new URL(`${await getWebBaseUrl()}/connect-extension`);
+    url.searchParams.set("extensionId", chrome.runtime.id);
+    await chrome.tabs.create({ url: url.toString() });
+  } catch (error) {
+    console.warn("Could not open Reachard setup after install", error);
   }
 }
 
@@ -90,7 +107,7 @@ async function handleExternalMessage(message, sender) {
   }
 
   if (message?.type === "CLEAR_EXTENSION_SESSION") {
-    return clearExtensionSession(sender);
+    return clearExtensionSession(sender, { requireAllowedWebsite: true });
   }
 
   if (message?.type !== "CONNECT_EXTENSION_TOKEN") {
@@ -128,8 +145,8 @@ async function getLocalSessionStatus(sender) {
   return { ok: true, hasToken: Boolean(token) };
 }
 
-async function clearExtensionSession(sender) {
-  if (!sender.url || !isAllowedWebsite(sender.url)) {
+async function clearExtensionSession(sender, options = {}) {
+  if (options.requireAllowedWebsite && (!sender.url || !isAllowedWebsite(sender.url))) {
     return { ok: false, error: "Website origin is not allowed." };
   }
 
@@ -260,7 +277,7 @@ async function getAccountStatus(sender) {
       return { ok: false, status: 401, error: SESSION_EXPIRED_ERROR, action: await loginAction(sender) };
     }
 
-    const action = response.status === 402 ? await pricingAction() : null;
+    const action = payload.action || (response.status === 402 ? await pricingAction() : null);
     const error = response.status === 402
       ? "No Contact Kits left. Upgrade or wait for your next monthly grant."
       : `${payload.error || "Could not load account status."} Try again shortly.`;
@@ -295,11 +312,11 @@ async function postJson(path, body, sender) {
     if (response.status === 401) {
       await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
     }
-    const action = response.status === 401
+    const action = payload.action || (response.status === 401
       ? await loginAction(sender)
       : response.status === 402
         ? await pricingAction()
-        : null;
+        : null);
     const prompt = response.status === 401
       ? SESSION_EXPIRED_ERROR
       : response.status === 402
@@ -321,6 +338,63 @@ async function postJson(path, body, sender) {
 async function getExtensionApiToken() {
   const stored = await chrome.storage.sync.get(["extensionApiToken"]);
   return String(stored.extensionApiToken || "").trim();
+}
+
+async function getEmailCustomize(sender) {
+  const response = await webJson("/api/settings/custom", {
+    method: "GET"
+  }, sender);
+  if (!response.ok) return response;
+  return {
+    ok: true,
+    custom: normalizeCustomize(response.custom)
+  };
+}
+
+async function setEmailCustomize(payload, sender) {
+  const custom = normalizeCustomize(payload);
+  const response = await webJson("/api/settings/custom", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(custom)
+  }, sender);
+  if (!response.ok) return response;
+  return {
+    ok: true,
+    custom: normalizeCustomize(response.custom)
+  };
+}
+
+async function webJson(path, options, sender) {
+  const [baseUrl, token] = await Promise.all([getWebBaseUrl(), getExtensionApiToken()]);
+  if (!token) {
+    return { ok: false, status: 401, error: "Sign in on the website.", action: await loginAction(sender) };
+  }
+
+  const response = await safeFetch(`${baseUrl}${path}`, {
+    ...options,
+    headers: {
+      ...(options?.headers || {}),
+      Authorization: `Bearer ${token}`
+    }
+  });
+  if (!response.ok && response.networkError) {
+    return { ok: false, status: 0, error: "Could not reach the website. Check connection settings.", action: await loginAction(sender) };
+  }
+
+  const payload = await safeJson(response);
+  if (!response.ok) {
+    if (response.status === 401) {
+      await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
+    }
+    return {
+      ok: false,
+      status: response.status,
+      error: payload.error || `Request failed with ${response.status}`,
+      action: response.status === 401 ? await loginAction(sender) : null
+    };
+  }
+  return payload;
 }
 
 async function getExtensionLanguage() {
@@ -412,6 +486,21 @@ function cleanUrl(value) {
 
 function normalizeLanguage(value) {
   return value === "zh" ? "zh" : DEFAULT_LANGUAGE;
+}
+
+function normalizeCustomize(value) {
+  const input = value && typeof value === "object" ? value : {};
+  const allowed = {
+    tone: new Set(["warm", "direct", "formal", "confident"]),
+    length: new Set(["short", "concise", "detailed"]),
+    goal: new Set(["advice", "referral", "intro"])
+  };
+  return {
+    tone: allowed.tone.has(input.tone) ? input.tone : "warm",
+    length: allowed.length.has(input.length) ? input.length : "concise",
+    goal: allowed.goal.has(input.goal) ? input.goal : "advice",
+    notes: String(input.notes || "").trim().slice(0, 500)
+  };
 }
 
 function t(language, key) {

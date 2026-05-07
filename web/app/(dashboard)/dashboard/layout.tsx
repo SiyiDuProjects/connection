@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { Bolt, Home, LogOut, Settings } from 'lucide-react';
 import { signOut } from '@/app/(login)/actions';
@@ -16,6 +16,11 @@ type AccountSummary = {
   credits?: {
     remaining: number;
   };
+  onboarding?: {
+    profile?: {
+      complete: boolean;
+    };
+  };
 };
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -26,8 +31,15 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const { data } = useSWR<AccountSummary>('/api/account', fetcher);
+
+  useEffect(() => {
+    if (data && data.onboarding && !data.onboarding.profile?.complete) {
+      router.replace(`/onboarding?redirect=${encodeURIComponent(pathname || '/dashboard')}`);
+    }
+  }, [data, pathname, router]);
 
   async function handleSignOut() {
     await clearExtensionSessionBeforeSignOut();

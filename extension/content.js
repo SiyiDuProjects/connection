@@ -7,8 +7,15 @@
   const DEFAULT_LANGUAGE = "en";
   const BUTTON_REFRESH_DELAY_MS = 250;
   const SIDEBAR_POSITION_KEY = "fcSidebarCenterY";
+  const PREVIOUS_FINDS_KEY = "reachardPreviousFinds";
   const SIDEBAR_DRAG_MARGIN_PX = 18;
   const SIDEBAR_DRAG_THRESHOLD_PX = 5;
+  const DEFAULT_EMAIL_CUSTOMIZE = {
+    tone: "warm",
+    length: "concise",
+    goal: "advice",
+    notes: ""
+  };
   const I18N = {
     en: {
       emailWithReachard: "Email with Reachard",
@@ -114,10 +121,16 @@
 
   let state = {
     loading: false,
+    activeTab: "home",
     error: "",
     prompt: null,
     action: null,
     creditsRemaining: null,
+    account: null,
+    accountLoading: false,
+    accountError: "",
+    emailCustomize: { ...DEFAULT_EMAIL_CUSTOMIZE },
+    previousFinds: [],
     contacts: [],
     pageContext: null,
     manualJobTitle: "",
@@ -531,13 +544,7 @@
           <button class="fc-close" type="button" aria-label="${escapeAttr(t("close"))}">×</button>
         </div>
       </div>
-      <section class="fc-context-card">
-        <div>
-          <h2 class="fc-title">${escapeHtml(title)}</h2>
-          <div class="fc-subtitle">${escapeHtml(subtitle)}</div>
-        </div>
-        ${renderSourceAction(context)}
-      </section>
+      ${renderTabs()}
       <div class="fc-body">${renderBody()}</div>
     `;
 
@@ -572,6 +579,45 @@
         window.open(button.dataset.actionUrl, "_blank", "noopener,noreferrer");
       });
     });
+
+    panel.querySelectorAll("[data-tab]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.activeTab = button.dataset.tab;
+        state.error = "";
+        state.prompt = null;
+        state.action = null;
+        renderPanel();
+        if (state.activeTab === "settings") loadAccountStatus();
+      });
+    });
+
+    panel.querySelector("[data-start-search]")?.addEventListener("click", runSearch);
+    panel.querySelector("[data-view-more-finds]")?.addEventListener("click", () => {
+      state.activeTab = "home";
+      renderPanel();
+    });
+    panel.querySelector("[data-save-customize]")?.addEventListener("click", saveCustomizeFromPanel);
+    panel.querySelector("[data-reset-customize]")?.addEventListener("click", resetCustomize);
+    panel.querySelector("[data-sign-out]")?.addEventListener("click", signOut);
+    panel.querySelector("[data-refresh-account]")?.addEventListener("click", loadAccountStatus);
+  }
+
+  function renderTabs() {
+    const tabs = [
+      ["home", "Home"],
+      ["customize", "Customize"],
+      ["settings", "Settings"]
+    ];
+    return `
+      <nav class="fc-tabs" aria-label="Reachard sections">
+        ${tabs.map(([id, label]) => `
+          <button class="fc-tab ${state.activeTab === id ? "fc-tab-active" : ""}" type="button" data-tab="${id}">
+            <span class="fc-tab-icon">${id === "home" ? "H" : id === "customize" ? "C" : "S"}</span>
+            <span>${label}</span>
+          </button>
+        `).join("")}
+      </nav>
+    `;
   }
 
   function panelTitle(context) {
@@ -595,6 +641,48 @@
   }
 
   function renderBody() {
+    if (state.activeTab === "customize") return renderCustomize();
+    if (state.activeTab === "settings") return renderSettings();
+    return renderHome();
+  }
+
+  function renderHome() {
+    const context = state.pageContext || {};
+    if (state.account?.onboarding?.profile && !state.account.onboarding.profile.complete) {
+      return `
+        <section class="fc-context-card">
+          <h2 class="fc-title">Complete your profile</h2>
+          <div class="fc-subtitle">Reachard needs your personal context before searching contacts or drafting outreach.</div>
+          <button class="fc-primary-wide" type="button" data-action-url="https://reachard.co/onboarding">Finish setup</button>
+        </section>
+      `;
+    }
+    const title = panelTitle(context);
+    const subtitle = panelSubtitle(context);
+    const hasContext = Boolean(state.pageContext);
+    const canSearch = hasContext && !state.loading;
+
+    return `
+      <section class="fc-context-card">
+        <div class="fc-search-status">
+          <span class="fc-ready-dot"></span>
+          <span>${hasContext ? "Ready to search" : "Unsupported page"}</span>
+        </div>
+        <h2 class="fc-title">${escapeHtml(hasContext ? "Job page detected!" : t("unsupportedPage"))}</h2>
+        <div class="fc-subtitle">${escapeHtml(hasContext ? subtitle || title : "Open a job, company, or LinkedIn profile page to search.")}</div>
+        ${renderMissingJobTitleInput()}
+        <button class="fc-primary-wide" type="button" data-start-search ${canSearch ? "" : "disabled"}>
+          ${state.loading ? escapeHtml(loadingLabel()) : "Start search"}
+        </button>
+        ${renderSourceAction(context)}
+      </section>
+      ${renderCreditsCard()}
+      ${renderSearchResults()}
+      ${renderPreviousFinds()}
+    `;
+  }
+
+  function renderSearchResults() {
     if (state.loading) {
       return `
         <div class="fc-status fc-loading">
@@ -616,20 +704,137 @@
       `;
     }
     if (!state.contacts.length) {
-      return `
-        <div class="fc-empty">
-          <div class="fc-empty-icon">G</div>
-          <p>${escapeHtml(t("noContacts"))}</p>
-          <span>Open a supported job or company page and run a search.</span>
-        </div>
-      `;
+      return "";
     }
 
     const sectionTitle = state.pageContext?.type === PAGE_TYPES.LINKEDIN_PERSON ? t("contact") : "Best match";
     return `
-      ${renderMissingJobTitleInput()}
       <div class="fc-section-title">${escapeHtml(sectionTitle)}</div>
       ${state.contacts.map(renderContact).join("")}
+    `;
+  }
+
+  function renderCreditsCard() {
+    const plan = state.account?.subscription?.planName || "Plan";
+    const remaining = state.creditsRemaining ?? state.account?.credits?.balance ?? 0;
+    const capped = Math.max(0, Math.min(100, Number(remaining) * 10));
+    return `
+      <section class="fc-plan-card">
+        <div class="fc-plan-row">
+          <span class="fc-plan-label">Plan</span>
+          <span class="fc-plan-pill">${escapeHtml(plan)}</span>
+          <button class="fc-link-button fc-plan-manage" type="button" data-action-url="https://reachard.co/pricing">Manage</button>
+        </div>
+        <div class="fc-credit-count"><strong>${escapeHtml(String(remaining))}</strong> credits remaining</div>
+        <div class="fc-credit-bar"><span style="width: ${capped}%"></span></div>
+        <button class="fc-upgrade-link" type="button" data-action-url="https://reachard.co/pricing">Upgrade Plan</button>
+      </section>
+    `;
+  }
+
+  function renderPreviousFinds() {
+    const items = state.previousFinds.slice(0, 4);
+    return `
+      <section class="fc-previous">
+        <div class="fc-section-heading">
+          <span>Previous finds</span>
+          ${state.previousFinds.length > 4 ? `<button type="button" data-view-more-finds>View more</button>` : ""}
+        </div>
+        ${items.length ? items.map(renderPreviousFind).join("") : `<div class="fc-empty-card">No previous finds yet.</div>`}
+      </section>
+    `;
+  }
+
+  function renderPreviousFind(item) {
+    const title = item.jobTitle || item.companyName || item.personName || "Previous search";
+    const meta = [item.companyName, item.source].filter(Boolean).join(" at ") || item.sourceUrl || "";
+    return `
+      <article class="fc-previous-item">
+        <span class="fc-previous-logo">${escapeHtml((title || "R").slice(0, 1).toUpperCase())}</span>
+        <div>
+          <strong>${escapeHtml(title)}</strong>
+          <span>${escapeHtml(meta)}</span>
+        </div>
+        <time>${escapeHtml(relativeTime(item.createdAt))}</time>
+      </article>
+    `;
+  }
+
+  function renderCustomize() {
+    const values = { ...DEFAULT_EMAIL_CUSTOMIZE, ...state.emailCustomize };
+    return `
+      <section class="fc-customize">
+        <h2 class="fc-page-title">Customize</h2>
+        <p class="fc-page-copy">Set the email style Reachard uses when drafting outreach. Personal information stays fixed in your account profile.</p>
+        ${state.accountError ? `<div class="fc-status fc-error">${escapeHtml(state.accountError)}</div>` : ""}
+        ${renderSegmentedField("Tone", "tone", values.tone, [
+          ["warm", "Warm"],
+          ["direct", "Direct"],
+          ["formal", "Formal"],
+          ["confident", "Confident"]
+        ])}
+        ${renderSegmentedField("Length", "length", values.length, [
+          ["short", "Short"],
+          ["concise", "Concise"],
+          ["detailed", "Detailed"]
+        ])}
+        ${renderSegmentedField("Goal", "goal", values.goal, [
+          ["advice", "Ask advice"],
+          ["referral", "Explore referral"],
+          ["intro", "Request intro"]
+        ])}
+        <label class="fc-field">
+          Extra style notes
+          <textarea data-customize-field="notes" rows="4" placeholder="Example: sound less formal, mention curiosity about product work.">${escapeHtml(values.notes)}</textarea>
+        </label>
+        <div class="fc-form-actions">
+          <button class="fc-primary-action" type="button" data-save-customize>Save style</button>
+          <button class="fc-secondary" type="button" data-reset-customize>Reset</button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderSegmentedField(label, name, value, options) {
+    return `
+      <fieldset class="fc-field">
+        <legend>${escapeHtml(label)}</legend>
+        <div class="fc-segments">
+          ${options.map(([optionValue, optionLabel]) => `
+            <label class="fc-segment ${value === optionValue ? "fc-segment-active" : ""}">
+              <input type="radio" name="${escapeAttr(name)}" data-customize-field="${escapeAttr(name)}" value="${escapeAttr(optionValue)}" ${value === optionValue ? "checked" : ""}>
+              <span>${escapeHtml(optionLabel)}</span>
+            </label>
+          `).join("")}
+        </div>
+      </fieldset>
+    `;
+  }
+
+  function renderSettings() {
+    const account = state.account;
+    const email = account?.user?.email || "Not signed in";
+    const plan = account?.subscription?.planName || "Free";
+    const status = account?.subscription?.status || "inactive";
+    const credits = state.creditsRemaining ?? account?.credits?.balance ?? 0;
+    return `
+      <section class="fc-settings">
+        <h2 class="fc-page-title">Settings</h2>
+        ${state.accountLoading ? `<div class="fc-status"><span class="fc-spinner"></span><span>Loading account...</span></div>` : ""}
+        ${state.accountError ? `<div class="fc-status fc-error">${escapeHtml(state.accountError)}</div>` : ""}
+        <div class="fc-account-card">
+          <span class="fc-account-avatar">${escapeHtml(email.slice(0, 1).toUpperCase())}</span>
+          <div>
+            <strong>${escapeHtml(email)}</strong>
+            <span>${escapeHtml(plan)} · ${escapeHtml(status)} · ${escapeHtml(String(credits))} credits</span>
+          </div>
+        </div>
+        <div class="fc-settings-actions">
+          <button class="fc-secondary" type="button" data-refresh-account>Refresh account</button>
+          <button class="fc-secondary" type="button" data-action-url="https://reachard.co/dashboard/profile">Account profile</button>
+          <button class="fc-danger" type="button" data-sign-out>Sign out</button>
+        </div>
+      </section>
     `;
   }
 
@@ -744,6 +949,17 @@
     state.manualJobTitle = "";
     const panel = ensurePanel();
     panel.classList.add("fc-open");
+    state.error = "";
+    state.prompt = null;
+    state.action = null;
+    state.activeTab = "home";
+    await loadPanelData();
+    renderPanel();
+    loadAccountStatus();
+  }
+
+  async function runSearch() {
+    state.pageContext = getPageContext();
     state.loading = true;
     state.error = "";
     state.prompt = null;
@@ -759,6 +975,7 @@
 
       if (state.pageContext.type === PAGE_TYPES.LINKEDIN_PERSON) {
         state.contacts = [contactFromPersonContext(state.pageContext)];
+        await rememberFind(state.pageContext);
         return;
       }
 
@@ -777,10 +994,60 @@
       if (!response?.ok) throw apiError(response, t("couldNotFindContacts"));
       setCredits(response);
       state.contacts = response.contacts || [];
+      await rememberFind(state.pageContext);
     } catch (error) {
       applyError(error, t("couldNotFindContacts"));
     } finally {
       state.loading = false;
+      renderPanel();
+    }
+  }
+
+  async function loadPanelData() {
+    try {
+      const stored = await chrome.storage.local.get([PREVIOUS_FINDS_KEY]);
+      state.previousFinds = Array.isArray(stored[PREVIOUS_FINDS_KEY]) ? stored[PREVIOUS_FINDS_KEY] : [];
+    } catch (_error) {
+      state.previousFinds = [];
+    }
+    await loadEmailCustomize();
+  }
+
+  async function loadEmailCustomize() {
+    try {
+      const response = await sendRuntimeMessage({ type: "GET_EMAIL_CUSTOMIZE" });
+      if (!response?.ok) {
+        state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
+        state.accountError = response?.error || t("signInWebsite");
+        state.action = response?.action || null;
+        return;
+      }
+      state.emailCustomize = normalizeCustomize(response.custom);
+      state.accountError = "";
+    } catch (error) {
+      state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
+      state.accountError = error.message || "Could not load custom settings.";
+    }
+  }
+
+  async function loadAccountStatus() {
+    state.accountLoading = true;
+    state.accountError = "";
+    renderPanel();
+    try {
+      const response = await sendRuntimeMessage({ type: "GET_ACCOUNT_STATUS" });
+      if (!response?.ok) {
+        state.account = null;
+        state.accountError = response?.error || t("signInWebsite");
+        state.action = response?.action || null;
+        return;
+      }
+      state.account = response.account;
+      setCredits(response.account);
+    } catch (error) {
+      state.accountError = error.message || "Could not load account.";
+    } finally {
+      state.accountLoading = false;
       renderPanel();
     }
   }
@@ -849,7 +1116,10 @@
     try {
       const response = await sendRuntimeMessage({
         type: "EMAIL_DRAFT",
-        payload: { contact: { ...contact, email }, pageContext: effectivePageContext() }
+        payload: {
+          contact: { ...contact, email },
+          pageContext: effectivePageContext()
+        }
       });
       if (!response?.ok) throw apiError(response, t("couldNotDraft"));
       setCredits(response);
@@ -890,10 +1160,111 @@
   }
 
   function setCredits(source) {
-    const remaining = source?.credits?.remaining ?? source?.credits?.balance;
+    const remaining = source?.credits?.remaining
+      ?? source?.credits?.balance
+      ?? source?.onboarding?.billing?.creditsRemaining;
     if (Number.isFinite(Number(remaining))) {
       state.creditsRemaining = Number(remaining);
     }
+  }
+
+  async function rememberFind(context) {
+    const item = {
+      companyName: context.companyName || "",
+      jobTitle: context.jobTitle || "",
+      personName: context.personName || "",
+      source: context.source || "",
+      sourceUrl: context.sourceUrl || "",
+      createdAt: new Date().toISOString()
+    };
+    const key = item.sourceUrl || `${item.companyName}|${item.jobTitle}|${item.personName}`;
+    const next = [
+      item,
+      ...state.previousFinds.filter((find) => {
+        const findKey = find.sourceUrl || `${find.companyName}|${find.jobTitle}|${find.personName}`;
+        return findKey !== key;
+      })
+    ].slice(0, 10);
+    state.previousFinds = next;
+    try {
+      await chrome.storage.local.set({ [PREVIOUS_FINDS_KEY]: next });
+    } catch (_error) {
+      // Previous finds are a convenience only.
+    }
+  }
+
+  async function saveCustomizeFromPanel() {
+    const panel = ensurePanel();
+    const next = { ...DEFAULT_EMAIL_CUSTOMIZE };
+    panel.querySelectorAll("[data-customize-field]").forEach((field) => {
+      const key = field.dataset.customizeField;
+      if (field.type === "radio" && !field.checked) return;
+      next[key] = field.value.trim();
+    });
+    state.emailCustomize = normalizeCustomize(next);
+    const response = await sendRuntimeMessage({ type: "SET_EMAIL_CUSTOMIZE", payload: state.emailCustomize });
+    if (!response?.ok) {
+      state.accountError = response?.error || "Could not save custom settings.";
+      state.action = response?.action || null;
+      renderPanel();
+      return;
+    }
+    state.emailCustomize = normalizeCustomize(response.custom);
+    state.accountError = "Custom settings saved.";
+    renderPanel();
+  }
+
+  async function resetCustomize() {
+    state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
+    const response = await sendRuntimeMessage({ type: "SET_EMAIL_CUSTOMIZE", payload: state.emailCustomize });
+    if (!response?.ok) {
+      state.accountError = response?.error || "Could not reset custom settings.";
+      state.action = response?.action || null;
+      renderPanel();
+      return;
+    }
+    state.emailCustomize = normalizeCustomize(response.custom);
+    state.accountError = "Custom settings reset.";
+    renderPanel();
+  }
+
+  async function signOut() {
+    const response = await sendRuntimeMessage({ type: "CLEAR_EXTENSION_SESSION", payload: { fromContentScript: true } });
+    if (!response?.ok) {
+      state.accountError = response?.error || "Could not sign out.";
+      renderPanel();
+      return;
+    }
+    state.account = null;
+    state.creditsRemaining = null;
+    state.accountError = "Signed out.";
+    renderPanel();
+  }
+
+  function normalizeCustomize(value) {
+    const input = value && typeof value === "object" ? value : {};
+    const allowed = {
+      tone: new Set(["warm", "direct", "formal", "confident"]),
+      length: new Set(["short", "concise", "detailed"]),
+      goal: new Set(["advice", "referral", "intro"])
+    };
+    return {
+      tone: allowed.tone.has(input.tone) ? input.tone : DEFAULT_EMAIL_CUSTOMIZE.tone,
+      length: allowed.length.has(input.length) ? input.length : DEFAULT_EMAIL_CUSTOMIZE.length,
+      goal: allowed.goal.has(input.goal) ? input.goal : DEFAULT_EMAIL_CUSTOMIZE.goal,
+      notes: String(input.notes || "").slice(0, 500)
+    };
+  }
+
+  function relativeTime(value) {
+    const time = new Date(value).getTime();
+    if (!Number.isFinite(time)) return "";
+    const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
   }
 
   function findContact(contactId) {

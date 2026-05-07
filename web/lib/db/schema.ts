@@ -88,11 +88,15 @@ export const userSettings = pgTable('user_settings', {
     .notNull()
     .references(() => users.id),
   senderName: text('sender_name'),
+  region: text('region'),
   school: text('school'),
   emailSignature: text('email_signature'),
   introStyle: varchar('intro_style', { length: 40 }).notNull().default('student'),
   targetRole: text('target_role'),
   emailTone: varchar('email_tone', { length: 40 }).notNull().default('warm'),
+  outreachLength: varchar('outreach_length', { length: 40 }).notNull().default('concise'),
+  outreachGoal: varchar('outreach_goal', { length: 40 }).notNull().default('advice'),
+  outreachStyleNotes: text('outreach_style_notes'),
   defaultSearchPreferences: jsonb('default_search_preferences')
     .notNull()
     .default({}),

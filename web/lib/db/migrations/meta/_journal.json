@@ -43,6 +43,13 @@
       "when": 1777921000000,
       "tag": "0005_resume_file_name",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778090000000,
+      "tag": "0006_onboarding_custom",
+      "breakpoints": true
     }
   ]
 }

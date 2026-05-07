@@ -52,11 +52,12 @@ function createTemplateDraft(contact, job, settings = {}) {
   const toneLine = toneSentence(settings.email_tone || settings.emailTone);
   const contactPerspective = contactRoleLabel(preferences.contactRole || preferences.contact_role || preferences.seniority);
   const signature = settings.email_signature || settings.emailSignature || settings.sender_name || settings.senderName || "";
+  const goalLine = goalSentence(settings.outreach_goal || settings.outreachGoal);
 
   const body = [
     `Hi ${firstName},`,
     "",
-    `${titleLine} ${jobLine} and wanted to ask if you would be open to a brief conversation${contactPerspective ? ` from your perspective as ${contactPerspective}` : ""}.`,
+    `${titleLine} ${jobLine} and wanted to ask ${goalLine}${contactPerspective ? ` from your perspective as ${contactPerspective}` : ""}.`,
     "",
     `${senderProfile}${toneLine} and would really appreciate any advice on the team, the role, or the application process.`,
     "",
@@ -151,6 +152,7 @@ function aiInstructions() {
     "Do not invent work experience, degrees, referrals, prior conversations, or personal relationships.",
     "Do not claim the contact can refer the sender. Ask for advice, a brief chat, or the right recruiting contact.",
     "Treat saved sender profile data as stable personal context. Treat company, role intent, job description, selected profile, and contact data as page-specific context.",
+    "Respect sender.outreachLength, sender.outreachGoal, and sender.outreachStyleNotes as style controls only; do not quote style notes verbatim.",
     "If the context is a LinkedIn people profile, write to that one person and do not imply a job posting exists unless one was provided.",
     "If job title or job description is missing, still write a usable email and list the missing fields in missingContext.",
     "Add warnings for weak personalization, missing role context, or anything the sender should verify before sending.",
@@ -163,10 +165,14 @@ function buildAiInput(contact, job, settings) {
   return JSON.stringify({
     sender: {
       name: settings.sender_name || settings.senderName || "",
+      region: settings.region || "",
       school: settings.school || "",
       emailSignature: settings.email_signature || settings.emailSignature || "",
       introStyle: settings.intro_style || settings.introStyle || "student",
       emailTone: settings.email_tone || settings.emailTone || "warm",
+      outreachLength: settings.outreach_length || settings.outreachLength || "concise",
+      outreachGoal: settings.outreach_goal || settings.outreachGoal || "advice",
+      outreachStyleNotes: settings.outreach_style_notes || settings.outreachStyleNotes || "",
       shortProfile: settings.sender_profile || settings.senderProfile || "",
       resumeContext: truncate(settings.resume_context || settings.resumeContext, Number(process.env.AI_DRAFT_MAX_RESUME_CHARS || 20_000))
     },
@@ -305,6 +311,13 @@ function truncate(value, maxLength) {
 
 function openAiModel() {
   return process.env.OPENAI_MODEL || "gpt-5.4-mini";
+}
+
+function goalSentence(value) {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized === "referral") return "whether you would be open to sharing advice or pointing me toward the right recruiting path";
+  if (normalized === "intro") return "whether there is someone on the team you would recommend I speak with";
+  return "if you would be open to a brief conversation";
 }
 
 function openAiResponsesUrl() {

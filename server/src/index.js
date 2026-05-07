@@ -10,6 +10,7 @@ import {
   getBearerToken,
   getAccountSummary,
   getCreditBalance,
+  getOnboardingForUser,
   getUserFromApiToken,
   getUserSettings,
   isAccountDbConfigured,
@@ -94,6 +95,8 @@ app.get("/api/account", async (req, res, next) => {
 
 app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("CONTACT_SEARCH_CREDITS", 0)), async (req, res, next) => {
   try {
+    const onboarding = await getOnboardingForUser(req.user.id);
+    if (!onboarding.complete) return fail(res, 428, "Complete your profile before using Reachard.", onboardingAction(onboarding));
     const settings = await getUserSettings(req.user.id);
     const context = normalizeContext(req.body?.pageContext || req.body, settings);
     if (!context.companyName && !context.companyDomain) {
@@ -122,6 +125,8 @@ app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("C
 
 app.post("/api/contacts/reveal", requireCredits("contacts.reveal", creditCost("CONTACT_REVEAL_CREDITS", 1)), async (req, res, next) => {
   try {
+    const onboarding = await getOnboardingForUser(req.user.id);
+    if (!onboarding.complete) return fail(res, 428, "Complete your profile before using Reachard.", onboardingAction(onboarding));
     const contact = req.body?.contact;
     if (!contact) return fail(res, 400, "Choose a contact before revealing an email.");
 
@@ -149,6 +154,8 @@ app.post("/api/contacts/reveal", requireCredits("contacts.reveal", creditCost("C
 
 app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRAFT_CREDITS", 0)), async (req, res, next) => {
   try {
+    const onboarding = await getOnboardingForUser(req.user.id);
+    if (!onboarding.complete) return fail(res, 428, "Complete your profile before using Reachard.", onboardingAction(onboarding));
     const contact = req.body?.contact;
     const settings = await getUserSettings(req.user.id);
     const context = normalizeContext(req.body?.pageContext || req.body?.job || {}, settings);
@@ -307,6 +314,13 @@ function normalizeContext(input, settings = {}) {
     personTitle: clean(input?.personTitle),
     personLinkedInUrl: clean(input?.personLinkedInUrl),
     pageTitle: clean(input?.pageTitle)
+  };
+}
+
+function onboardingAction(onboarding) {
+  return {
+    onboarding,
+    action: { label: "Complete profile", url: `${getWebRedirectBaseUrl()}/onboarding` }
   };
 }
 

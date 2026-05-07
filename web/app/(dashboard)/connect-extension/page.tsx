@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
-import { getUser } from '@/lib/db/queries';
+import { getSettings, getUser } from '@/lib/db/queries';
 import { createExtensionToken } from '@/lib/extension-tokens';
 import { ConnectExtensionClient } from './connect-extension-client';
+import { getOnboardingStatus } from '@/lib/onboarding';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,16 @@ export default async function ConnectExtensionPage({
     const query = redirectParams.toString();
     const redirectTo = `/connect-extension${query ? `?${query}` : ''}`;
     redirect(`/sign-in?redirect=${encodeURIComponent(redirectTo)}`);
+  }
+
+  const settings = await getSettings(user.id);
+  const onboarding = getOnboardingStatus(user, settings);
+  if (!onboarding.complete) {
+    const currentParams = new URLSearchParams();
+    if (extensionId) currentParams.set('extensionId', extensionId);
+    if (returnTo) currentParams.set('return', returnTo);
+    const currentPath = `/connect-extension${currentParams.toString() ? `?${currentParams}` : ''}`;
+    redirect(`/onboarding?redirect=${encodeURIComponent(currentPath)}`);
   }
 
   const webBaseUrl = process.env.NEXT_PUBLIC_WEB_BASE_URL || process.env.BASE_URL || 'http://localhost:3000';

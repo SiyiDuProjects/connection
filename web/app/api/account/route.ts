@@ -1,4 +1,5 @@
 import { getActiveExtensionTokenInfo, getCreditBalance, getRecentUsage, getSettings, getTeamForUser, getUser } from '@/lib/db/queries';
+import { getOnboardingStatus } from '@/lib/onboarding';
 
 export async function GET() {
   const user = await getUser();
@@ -20,14 +21,7 @@ export async function GET() {
   const team = teamResult.status === 'fulfilled' ? teamResult.value : null;
   const extensionToken = extensionTokenResult.status === 'fulfilled' ? extensionTokenResult.value : null;
 
-  const profileFields = [
-    settings?.senderName,
-    settings?.school,
-    settings?.emailTone,
-    settings?.senderProfile,
-    settings?.resumeContext
-  ];
-  const completedProfileFields = profileFields.filter(Boolean).length;
+  const onboardingProfile = getOnboardingStatus(user, settings);
   const successfulSearch = usage.find((item) => item.action === 'contacts.search' && item.status === 'success');
   const successfulDraft = usage.find((item) => item.action === 'email.draft' && item.status === 'success');
 
@@ -56,9 +50,10 @@ export async function GET() {
     },
     onboarding: {
       profile: {
-        complete: completedProfileFields >= 3,
-        completedFields: completedProfileFields,
-        totalFields: profileFields.length
+        complete: onboardingProfile.complete,
+        completedFields: onboardingProfile.completedFields,
+        totalFields: onboardingProfile.totalFields,
+        missingFields: onboardingProfile.missingFields
       },
       extension: {
         connected: Boolean(extensionToken),
