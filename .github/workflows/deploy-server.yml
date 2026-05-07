@@ -91,8 +91,13 @@ jobs:
           ssh deploy-server "cd '$COMPOSE_PATH' && docker compose up -d --build connection_contacts && docker logs --tail=80 connection_contacts"
 
       - name: Health check
-        env:
-          PUBLIC_HEALTH_URL: ${{ secrets.PUBLIC_HEALTH_URL }}
         run: |
-          test -n "$PUBLIC_HEALTH_URL"
+          PUBLIC_HEALTH_URL="https://contacts.reachard.co/health"
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent --show-error "$PUBLIC_HEALTH_URL"; then
+              exit 0
+            fi
+            echo "Health check failed; retrying in 5 seconds ($attempt/24)."
+            sleep 5
+          done
           curl --fail --silent --show-error "$PUBLIC_HEALTH_URL"
