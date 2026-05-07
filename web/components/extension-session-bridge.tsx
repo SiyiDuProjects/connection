@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { normalizeLanguage } from '@/lib/i18n';
 
-const SYNC_LOCK_KEY = 'gaid:extension-sync-lock';
+const SYNC_LOCK_KEY = 'reachard:extension-sync-lock';
 const SYNC_LOCK_TTL_MS = 5000;
 
 type UserState = {
@@ -125,7 +125,7 @@ function sendWindowBridgeMessage(
   timeoutMs = 4000
 ) {
   return new Promise<ExtensionMessageResponse | undefined>((resolve) => {
-    const id = `gaid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const id = `reachard-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const timer = window.setTimeout(() => {
       window.removeEventListener('message', handleResponse);
       resolve(undefined);
@@ -134,7 +134,7 @@ function sendWindowBridgeMessage(
     function handleResponse(event: MessageEvent) {
       if (event.source !== window) return;
       const data = event.data || {};
-      if (data.source !== 'gaid-extension-bridge' || data.id !== id) return;
+      if (data.source !== 'reachard-extension-bridge' || data.id !== id) return;
 
       window.clearTimeout(timer);
       window.removeEventListener('message', handleResponse);
@@ -144,7 +144,7 @@ function sendWindowBridgeMessage(
     window.addEventListener('message', handleResponse);
     window.postMessage(
       {
-        source: 'gaid-web',
+        source: 'reachard-web',
         id,
         type: message.type,
         payload: message.payload || {}

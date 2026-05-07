@@ -6,7 +6,7 @@ import { LanguageProvider } from '@/components/language-provider';
 import { normalizeLanguage } from '@/lib/i18n';
 
 export const metadata: Metadata = {
-  title: 'Gaid',
+  title: 'Reachard',
   description: 'Find company contacts from LinkedIn job pages.'
 };
 

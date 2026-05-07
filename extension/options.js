@@ -141,7 +141,7 @@ function normalizeWebBaseUrl(value) {
   if (!url) return DEFAULT_WEB_BASE_URL;
   if (url === DEFAULT_API_BASE_URL) return DEFAULT_WEB_BASE_URL;
   if (url.includes("contacts.reachard.co")) return DEFAULT_WEB_BASE_URL;
-  if (url.includes("contacts.gaid.studio")) return DEFAULT_WEB_BASE_URL;
+  if (url.includes("contacts.reachard.studio")) return DEFAULT_WEB_BASE_URL;
   return url;
 }
 
@@ -156,7 +156,7 @@ function normalizeApiBaseUrl(value, webBaseUrl) {
   if (url.includes("reachard.co") && !url.includes("contacts.reachard.co")) {
     return DEFAULT_API_BASE_URL;
   }
-  if (url.includes("gaid.studio") && !url.includes("contacts.gaid.studio")) {
+  if (url.includes("reachard.studio") && !url.includes("contacts.reachard.studio")) {
     return DEFAULT_API_BASE_URL;
   }
   return url;

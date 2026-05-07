@@ -32,7 +32,7 @@ SSH_USER=your_deploy_user
 SSH_KEY=private SSH key for that deploy user
 DEPLOY_PATH=/opt/connection/server
 COMPOSE_PATH=/root/muxing
-PUBLIC_HEALTH_URL=https://contacts.gaid.studio/health
+PUBLIC_HEALTH_URL=https://contacts.reachard.studio/health
 ```
 
 Adjust paths if your server uses a different user or project directory.
@@ -84,7 +84,7 @@ Your production `.env` should contain:
 
 ```env
 PORT=8787
-WEB_BASE_URL=https://gaid.studio
+WEB_BASE_URL=https://reachard.studio
 POSTGRES_URL=postgresql://...
 CONTACT_PROVIDER=explorium
 APOLLO_MOCK=false
@@ -100,7 +100,7 @@ EMAIL_DRAFT_CREDITS=0
 
 `POSTGRES_URL` must point to the same Neon database used by the `web/` app. Extension API tokens, Contact Kit ledger entries, settings, and usage logs live in that database.
 
-`WEB_BASE_URL` must point to the deployed Next.js web app, not the contacts API service. Production should be `https://gaid.studio`; do not set this to Stripe or any other billing/provider domain. The API service redirects `/connect-extension` and `/pricing` there so older or default extension links do not show `Cannot GET`.
+`WEB_BASE_URL` must point to the deployed Next.js web app, not the contacts API service. Production should be `https://reachard.studio`; do not set this to Stripe or any other billing/provider domain. The API service redirects `/connect-extension` and `/pricing` there so older or default extension links do not show `Cannot GET`.
 
 ## Web App Deployment
 
@@ -121,9 +121,9 @@ Required Vercel environment variables:
 POSTGRES_URL=postgresql://...
 STRIPE_SECRET_KEY=sk_test_or_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-BASE_URL=https://gaid.studio
-NEXT_PUBLIC_WEB_BASE_URL=https://gaid.studio
-NEXT_PUBLIC_API_BASE_URL=https://contacts.gaid.studio
+BASE_URL=https://reachard.studio
+NEXT_PUBLIC_WEB_BASE_URL=https://reachard.studio
+NEXT_PUBLIC_API_BASE_URL=https://contacts.reachard.studio
 ALLOWED_EXTENSION_IDS=ojajfgpfdkmaiccoeffhbdbccefpbala
 AUTH_SECRET=long-random-secret
 MONTHLY_CREDITS=20

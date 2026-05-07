@@ -178,7 +178,7 @@ app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRA
 app.use(errorHandler);
 
 app.listen(port, () => {
-  console.log(`Gaid server listening on http://localhost:${port}`);
+  console.log(`Reachard server listening on http://localhost:${port}`);
 });
 
 function createRateLimiter({ windowMs, max }) {
@@ -339,8 +339,8 @@ function getWebRedirectBaseUrl() {
     const allowedHosts = new Set([
       "reachard.co",
       "www.reachard.co",
-      "gaid.studio",
-      "www.gaid.studio",
+      "reachard.studio",
+      "www.reachard.studio",
       "localhost",
       "127.0.0.1"
     ]);

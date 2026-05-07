@@ -63,7 +63,7 @@ export default function HomePage() {
         <div>
           <p className="text-sm font-medium text-slate-500">Reasoning engine</p>
           <h2 className="mt-3 max-w-sm text-3xl font-semibold leading-tight text-slate-950">
-            Gaid explains why someone matters.
+            Reachard explains why someone matters.
           </h2>
         </div>
         <div className="rounded-[8px] border border-slate-900/[0.06] bg-white/72 p-6 backdrop-blur-xl">
@@ -138,7 +138,7 @@ function BrowserScene() {
           <div className="mb-8 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-semibold text-slate-950">G</span>
-              <span className="font-medium">Gaid</span>
+              <span className="font-medium">Reachard</span>
             </div>
             <span className="text-xs font-medium text-slate-400">job - people - outreach</span>
           </div>

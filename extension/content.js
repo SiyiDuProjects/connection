@@ -11,8 +11,8 @@
   const SIDEBAR_DRAG_THRESHOLD_PX = 5;
   const I18N = {
     en: {
-      emailWithGaid: "Email with Gaid",
-      findWithGaid: "Find with Gaid",
+      emailWithReachard: "Email with Reachard",
+      findWithReachard: "Find with Reachard",
       close: "Close",
       thisCompany: "this company",
       linkedInProfile: "LinkedIn profile",
@@ -57,8 +57,8 @@
       extensionRefreshed: "Extension context was refreshed. Reload this tab and try again."
     },
     zh: {
-      emailWithGaid: "用 Gaid 写邮件",
-      findWithGaid: "用 Gaid 查找",
+      emailWithReachard: "用 Reachard 写邮件",
+      findWithReachard: "用 Reachard 查找",
       close: "关闭",
       thisCompany: "这家公司",
       linkedInProfile: "LinkedIn 个人主页",
@@ -485,7 +485,7 @@
     button.setAttribute("title", buttonLabel(context));
     button.innerHTML = `
       <span class="fc-sidebar-logo" aria-hidden="true">G</span>
-      <span class="fc-sidebar-text">Gaid</span>
+      <span class="fc-sidebar-text">Reachard</span>
     `;
     button.addEventListener("click", (event) => {
       if (root.dataset.fcSuppressClick === "true") {
@@ -524,7 +524,7 @@
       <div class="fc-topbar">
         <div class="fc-brand">
           <span class="fc-logo">G</span>
-          <span>Gaid</span>
+          <span>Reachard</span>
         </div>
         <div class="fc-topbar-actions">
           <button class="fc-icon-button" type="button" aria-label="Notifications">!</button>
@@ -958,9 +958,9 @@
   function isExcludedGenericHost(hostname) {
     const host = hostname.replace(/^www\./i, "").toLowerCase();
     return [
-      "gaid.studio",
+      "reachard.studio",
       "reachard.co",
-      "contacts.gaid.studio",
+      "contacts.reachard.studio",
       "contacts.reachard.co",
       "localhost",
       "127.0.0.1",
@@ -981,12 +981,12 @@
     ].some((excluded) => host === excluded || host.endsWith(`.${excluded}`));
   }
 
-  function isGaidWebsite() {
+  function isReachardWebsite() {
     const host = location.hostname.replace(/^www\./i, "").toLowerCase();
     return host === "reachard.co"
       || host === "contacts.reachard.co"
-      || host === "gaid.studio"
-      || host === "contacts.gaid.studio"
+      || host === "reachard.studio"
+      || host === "contacts.reachard.studio"
       || ((host === "localhost" || host === "127.0.0.1") && location.port === "3000");
   }
 
@@ -1046,7 +1046,7 @@
   }
 
   function buttonLabel(context) {
-    return context.type === PAGE_TYPES.LINKEDIN_PERSON ? t("emailWithGaid") : t("findWithGaid");
+    return context.type === PAGE_TYPES.LINKEDIN_PERSON ? t("emailWithReachard") : t("findWithReachard");
   }
 
   function normalizeLanguage(value) {
@@ -1073,7 +1073,7 @@
   }
 
   function boot() {
-    if (isGaidWebsite()) return;
+    if (isReachardWebsite()) return;
 
     window[CLEANUP_KEY]?.();
     document.getElementById(ROOT_ID)?.remove();

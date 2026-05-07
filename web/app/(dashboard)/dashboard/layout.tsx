@@ -47,7 +47,7 @@ export default function DashboardLayout({
             <span className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-slate-950 text-lg font-semibold text-white">
               G
             </span>
-            <span className="text-xl font-semibold text-slate-950">Gaid</span>
+            <span className="text-xl font-semibold text-slate-950">Reachard</span>
           </Link>
 
           <div className="flex items-center gap-3">

@@ -115,7 +115,7 @@ async function setupLocalPostgres() {
 services:
   postgres:
     image: postgres:16.4-alpine
-    container_name: gaid_postgres
+    container_name: reachard_postgres
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres

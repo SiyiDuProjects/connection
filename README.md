@@ -1,4 +1,4 @@
-# Gaid
+# Reachard
 
 Chrome Extension + Express API + Next.js SaaS app for finding company contacts from LinkedIn job pages.
 
@@ -6,7 +6,7 @@ Chrome Extension + Express API + Next.js SaaS app for finding company contacts f
 
 - `extension/`: Manifest V3 Chrome extension injected only on LinkedIn job pages.
 - `server/`: Express API proxy that keeps contact provider credentials private and charges Contact Kit unlocks.
-- `web/`: Gaid web app with auth, Stripe billing, dashboard, Contact Kits, preferences, and extension tokens.
+- `web/`: Reachard web app with auth, Stripe billing, dashboard, Contact Kits, preferences, and extension tokens.
 
 The app uses a Postgres + Drizzle + cookie auth stack. It does not use Supabase.
 
@@ -29,7 +29,7 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 BASE_URL=http://localhost:3000
 APP_URL=http://localhost:3000
 AUTH_SECRET=generate-a-long-random-secret
-EMAIL_FROM="Gaid <noreply@yourdomain.com>"
+EMAIL_FROM="Reachard <noreply@yourdomain.com>"
 RESEND_API_KEY=re_...
 MONTHLY_CREDITS=20
 ```
@@ -71,6 +71,6 @@ EXPLORIUM_SEARCH_LIMIT=5
 6. Paste the token from `Dashboard > Extension`.
 7. Open a LinkedIn job page like `https://www.linkedin.com/jobs/view/...`.
 
-The extension defaults to `https://contacts.gaid.studio`. Change the API base URL in the extension options page if you need to use a local or staging server.
+The extension defaults to `https://contacts.reachard.studio`. Change the API base URL in the extension options page if you need to use a local or staging server.
 
 The unpacked development extension has a stable ID from `extension/manifest.json`: `ojajfgpfdkmaiccoeffhbdbccefpbala`. Set the web app `ALLOWED_EXTENSION_IDS` environment variable to that ID, or to a comma-separated list if you also publish a Chrome Web Store build.

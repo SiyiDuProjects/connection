@@ -11,9 +11,9 @@ This file is a working inventory for the `connection` project. Do not put secret
 | Git repository | `https://github.com/SiyiDu/connection.git` | GitHub | Confirmed locally | Source of truth for `extension/`, `server/`, and `web/`. |
 | Web app | `web/` | Vercel recommended | Needs dashboard confirmation | Next.js SaaS app. Deploy root should be `web`. |
 | Contacts API | `server/` | VPS + Docker Compose | Needs VPS confirmation | Express API, expected local port `8787`. |
-| Browser extension | `extension/` | Chrome unpacked / Chrome Web Store later | Local confirmed | Defaults to `https://contacts.gaid.studio` API and `https://gaid.studio` web app. |
-| Production website domain | `gaid.studio` / `www.gaid.studio` | DNS provider needs confirmation | Referenced in code | Used by extension host permissions and default web URL. |
-| Production API domain | `contacts.gaid.studio` | Cloudflare Tunnel expected | Referenced in code | Used by extension default API URL and CI health check docs. |
+| Browser extension | `extension/` | Chrome unpacked / Chrome Web Store later | Local confirmed | Defaults to `https://contacts.reachard.studio` API and `https://reachard.studio` web app. |
+| Production website domain | `reachard.studio` / `www.reachard.studio` | DNS provider needs confirmation | Referenced in code | Used by extension host permissions and default web URL. |
+| Production API domain | `contacts.reachard.studio` | Cloudflare Tunnel expected | Referenced in code | Used by extension default API URL and CI health check docs. |
 | Database | Neon Postgres | Neon | Local env detected | Shared by `web/` and `server/`. Rotate credentials if local `.env` was shared or committed anywhere. |
 | Billing | Stripe | Stripe | Needs dashboard confirmation | `web/` expects Stripe secret and webhook secret. |
 | Contact provider | Explorium or Apollo | Explorium / Apollo | Needs production confirmation | Docs recommend Explorium. Local env contains an Apollo key, so rotate it if exposed. |
@@ -23,14 +23,14 @@ This file is a working inventory for the `connection` project. Do not put secret
 
 ```text
 User
--> https://gaid.studio
+-> https://reachard.studio
 -> Vercel project for web/
 -> Neon Postgres
 ```
 
 ```text
 Chrome Extension on LinkedIn
--> https://contacts.gaid.studio
+-> https://contacts.reachard.studio
 -> Cloudflare Tunnel public hostname
 -> VPS localhost:8787
 -> Docker Compose service connection_contacts
@@ -48,9 +48,9 @@ Chrome Extension on LinkedIn
 | `POSTGRES_URL` | Yes | Vercel project env | Same Neon database as server. |
 | `STRIPE_SECRET_KEY` | Yes | Vercel project env | Use live key only for production. |
 | `STRIPE_WEBHOOK_SECRET` | Yes | Vercel project env | Must match the Stripe webhook endpoint. |
-| `BASE_URL` | Yes | Vercel project env | Production should be `https://gaid.studio` or the final canonical web domain. |
+| `BASE_URL` | Yes | Vercel project env | Production should be `https://reachard.studio` or the final canonical web domain. |
 | `NEXT_PUBLIC_WEB_BASE_URL` | Yes | Vercel project env | Should match `BASE_URL`. |
-| `NEXT_PUBLIC_API_BASE_URL` | Yes | Vercel project env | Expected `https://contacts.gaid.studio`. |
+| `NEXT_PUBLIC_API_BASE_URL` | Yes | Vercel project env | Expected `https://contacts.reachard.studio`. |
 | `ALLOWED_EXTENSION_IDS` | Yes for production extension connect flow | Vercel project env | Stable unpacked dev ID is `ojajfgpfdkmaiccoeffhbdbccefpbala`; use comma-separated values if a Chrome Web Store ID is added later. |
 | `AUTH_SECRET` | Yes | Vercel project env | Long random secret. Rotate if exposed. |
 | `MONTHLY_CREDITS` | Yes | Vercel project env | Current example: `20` Contact Kits. |
@@ -86,7 +86,7 @@ Chrome Extension on LinkedIn
 | `SSH_KEY` | Yes | Private key for deploy user | Rotate if exposed. |
 | `DEPLOY_PATH` | Yes | Expected `/opt/connection/server` | GitHub repo settings and VPS. |
 | `COMPOSE_PATH` | Yes | Expected `/root/muxing` or actual compose dir | GitHub repo settings and VPS. |
-| `PUBLIC_HEALTH_URL` | Yes | Expected `https://contacts.gaid.studio/health` | GitHub repo settings. |
+| `PUBLIC_HEALTH_URL` | Yes | Expected `https://contacts.reachard.studio/health` | GitHub repo settings. |
 
 ## Dashboard Checklist
 
@@ -94,11 +94,11 @@ Chrome Extension on LinkedIn
 
 | Item | Expected | Actual | Status |
 | --- | --- | --- | --- |
-| Zone for `gaid.studio` exists | Yes |  | Unknown |
+| Zone for `reachard.studio` exists | Yes |  | Unknown |
 | Nameservers at registrar point to Cloudflare | Yes if Cloudflare is DNS authority |  | Unknown |
-| DNS record for `gaid.studio` | Points to Vercel |  | Unknown |
-| DNS record for `www.gaid.studio` | Points to Vercel |  | Unknown |
-| Tunnel public hostname `contacts.gaid.studio` | Points to `http://localhost:8787` |  | Unknown |
+| DNS record for `reachard.studio` | Points to Vercel |  | Unknown |
+| DNS record for `www.reachard.studio` | Points to Vercel |  | Unknown |
+| Tunnel public hostname `contacts.reachard.studio` | Points to `http://localhost:8787` |  | Unknown |
 | Existing `sub2api` hostname | Points to `http://localhost:8080` if still used |  | Unknown |
 
 ### Vercel
@@ -107,7 +107,7 @@ Chrome Extension on LinkedIn
 | --- | --- | --- | --- |
 | Project root | `web` |  | Unknown |
 | Framework | Next.js |  | Unknown |
-| Production domain | `gaid.studio` |  | Unknown |
+| Production domain | `reachard.studio` |  | Unknown |
 | Environment variables match this file | Yes |  | Unknown |
 | Build command | `corepack pnpm build` or migration + build |  | Unknown |
 
@@ -125,7 +125,7 @@ Chrome Extension on LinkedIn
 
 | Item | Expected | Actual | Status |
 | --- | --- | --- | --- |
-| Any domain registration for `gaid.studio` | Registrar only, if bought there |  | Unknown |
+| Any domain registration for `reachard.studio` | Registrar only, if bought there |  | Unknown |
 | Any DNS zone still active | Should not conflict with Cloudflare authority |  | Unknown |
 | Any server/CVM running this project | Only if VPS is Tencent |  | Unknown |
 | Any paid resources not used | Identify and cancel later |  | Unknown |

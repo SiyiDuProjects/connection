@@ -111,7 +111,7 @@ function Header() {
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-xs font-semibold text-white">
             G
           </span>
-          <span className="text-base font-semibold text-slate-950">Gaid</span>
+          <span className="text-base font-semibold text-slate-950">Reachard</span>
         </Link>
         <nav className="hidden items-center gap-7 lg:flex">
           {navItems.map((item) => (

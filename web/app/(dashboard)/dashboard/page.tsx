@@ -325,7 +325,7 @@ function introStyleLabel(value?: Settings['introStyle']) {
 }
 
 function displayName(user?: AccountData['user']) {
-  if (!user) return 'Gaid user';
+  if (!user) return 'Reachard user';
   return user.name || user.email.split('@')[0];
 }
 

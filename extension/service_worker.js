@@ -38,7 +38,7 @@ async function refreshSupportedTabs() {
 
 async function injectIntoTab(tab) {
   if (!tab.id) return;
-  if (isGaidWebsiteUrl(tab.url)) return;
+  if (isReachardWebsiteUrl(tab.url)) return;
 
   await chrome.scripting.insertCSS({
     target: { tabId: tab.id },
@@ -171,15 +171,15 @@ function isAllowedWebsite(url) {
     "https://reachard.co",
     "https://www.reachard.co",
     "https://contacts.reachard.co",
-    "https://gaid.studio",
-    "https://www.gaid.studio",
-    "https://contacts.gaid.studio",
+    "https://reachard.studio",
+    "https://www.reachard.studio",
+    "https://contacts.reachard.studio",
     "http://localhost:3000",
     "http://127.0.0.1:3000"
   ].includes(origin);
 }
 
-function isGaidWebsiteUrl(value) {
+function isReachardWebsiteUrl(value) {
   if (!value) return false;
 
   try {
@@ -187,8 +187,8 @@ function isGaidWebsiteUrl(value) {
     const host = url.hostname.replace(/^www\./i, "").toLowerCase();
     return host === "reachard.co"
       || host === "contacts.reachard.co"
-      || host === "gaid.studio"
-      || host === "contacts.gaid.studio"
+      || host === "reachard.studio"
+      || host === "contacts.reachard.studio"
       || ((host === "localhost" || host === "127.0.0.1") && url.port === "3000");
   } catch (_error) {
     return false;
@@ -219,7 +219,7 @@ function normalizeWebBaseUrl(value) {
   if (!url) return DEFAULT_WEB_BASE_URL;
   if (url === DEFAULT_API_BASE_URL) return DEFAULT_WEB_BASE_URL;
   if (url.includes("contacts.reachard.co")) return DEFAULT_WEB_BASE_URL;
-  if (url.includes("contacts.gaid.studio")) return DEFAULT_WEB_BASE_URL;
+  if (url.includes("contacts.reachard.studio")) return DEFAULT_WEB_BASE_URL;
   return url;
 }
 
@@ -234,7 +234,7 @@ function normalizeApiBaseUrl(value, webBaseUrl) {
   if (url.includes("reachard.co") && !url.includes("contacts.reachard.co")) {
     return DEFAULT_API_BASE_URL;
   }
-  if (url.includes("gaid.studio") && !url.includes("contacts.gaid.studio")) {
+  if (url.includes("reachard.studio") && !url.includes("contacts.reachard.studio")) {
     return DEFAULT_API_BASE_URL;
   }
   return url;

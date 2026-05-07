@@ -1,6 +1,6 @@
-# Gaid
+# Reachard
 
-Gaid is a SaaS application for finding company contacts from LinkedIn job pages, with authentication, Stripe billing, a dashboard, credits, preferences, and extension tokens.
+Reachard is a SaaS application for finding company contacts from LinkedIn job pages, with authentication, Stripe billing, a dashboard, credits, preferences, and extension tokens.
 
 ## Features
 
@@ -82,7 +82,7 @@ To test Stripe payments, use the following test card details:
 
 ## Going to Production
 
-When you're ready to deploy Gaid to production, follow these steps:
+When you're ready to deploy Reachard to production, follow these steps:
 
 ### Set up a production Stripe webhook
 

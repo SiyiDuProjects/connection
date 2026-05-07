@@ -1,6 +1,6 @@
 (function () {
-  const WEB_SOURCE = "gaid-web";
-  const EXTENSION_SOURCE = "gaid-extension-bridge";
+  const WEB_SOURCE = "reachard-web";
+  const EXTENSION_SOURCE = "reachard-extension-bridge";
 
   window.addEventListener("message", (event) => {
     if (event.source !== window) return;
