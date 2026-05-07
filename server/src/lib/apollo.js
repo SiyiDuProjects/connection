@@ -69,7 +69,6 @@ async function apolloPost(path, payload) {
       "Content-Type": "application/json",
       "Cache-Control": "no-cache",
       "accept": "application/json",
-      "Authorization": `Bearer ${process.env.APOLLO_API_KEY}`,
       "X-Api-Key": process.env.APOLLO_API_KEY
     }
   });

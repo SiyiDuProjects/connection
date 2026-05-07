@@ -41,6 +41,8 @@ const FUNCTION_RULES = [
 const TEAM_RULES = [
   ["technical recruiting", ["technical recruiter", "technical sourcer", "engineering recruiter"]],
   ["university recruiting", ["university recruiter", "campus recruiter", "early talent", "new grad", "intern"]],
+  ["data engineering", ["data engineer", "data engineering", "analytics engineering", "etl", "data architecture", "data model", "data pipeline"]],
+  ["applied research", ["applied research", "product applied research", " par ", "superintelligence labs", "research engineer"]],
   ["platform", ["platform", "developer platform", "internal tools"]],
   ["infrastructure", ["infrastructure", "infra", "devops", "sre", "site reliability", "cloud"]],
   ["security", ["security", "trust and safety", "compliance"]],
@@ -54,15 +56,15 @@ const TEAM_RULES = [
 
 const APOLLO_TITLE_PACKS = {
   [FUNCTIONS.RECRUITING]: ["Recruiter", "Technical Recruiter", "Talent Acquisition", "University Recruiter", "People Partner", "Hiring Manager"],
-  [FUNCTIONS.ENGINEERING]: ["Engineering Manager", "Software Engineering Manager", "Director of Engineering", "Head of Engineering", "VP Engineering", "Technical Recruiter"],
-  [FUNCTIONS.PRODUCT]: ["Product Manager", "Group Product Manager", "Director of Product", "Head of Product", "VP Product", "Product Lead"],
-  [FUNCTIONS.DATA]: ["Data Science Manager", "Analytics Manager", "Director of Data", "Head of Data", "Machine Learning Manager"],
-  [FUNCTIONS.DESIGN]: ["Design Manager", "Product Design Manager", "Director of Design", "Head of Design"],
-  [FUNCTIONS.MARKETING]: ["Marketing Manager", "Growth Marketing Manager", "Director of Marketing", "Head of Marketing"],
-  [FUNCTIONS.SALES]: ["Sales Manager", "Account Executive", "Business Development", "Director of Sales", "VP Sales"],
-  [FUNCTIONS.FINANCE]: ["Finance Manager", "Accounting Manager", "Controller", "Director of Finance"],
-  [FUNCTIONS.OPS]: ["Operations Manager", "Program Manager", "Business Operations", "Chief of Staff"],
-  [FUNCTIONS.LEGAL]: ["Legal Counsel", "General Counsel", "Compliance Manager"],
+  [FUNCTIONS.ENGINEERING]: ["Technical Recruiter", "Engineering Recruiter", "Engineering Manager", "Software Engineering Manager", "Director of Engineering", "Head of Engineering", "VP Engineering"],
+  [FUNCTIONS.PRODUCT]: ["Product Recruiter", "Technical Recruiter", "Product Manager", "Group Product Manager", "Director of Product", "Head of Product", "VP Product", "Product Lead"],
+  [FUNCTIONS.DATA]: ["Technical Recruiter", "Data Recruiter", "AI Recruiter", "Data Engineering Manager", "Analytics Engineering Manager", "Data Infrastructure Manager", "Product Analytics Manager", "Data Science Manager", "Analytics Manager", "Director of Data", "Head of Data", "Machine Learning Manager"],
+  [FUNCTIONS.DESIGN]: ["Design Recruiter", "Design Manager", "Product Design Manager", "Director of Design", "Head of Design"],
+  [FUNCTIONS.MARKETING]: ["Marketing Recruiter", "Marketing Manager", "Growth Marketing Manager", "Director of Marketing", "Head of Marketing"],
+  [FUNCTIONS.SALES]: ["Sales Recruiter", "Sales Manager", "Account Executive", "Business Development", "Director of Sales", "VP Sales"],
+  [FUNCTIONS.FINANCE]: ["Finance Recruiter", "Finance Manager", "Accounting Manager", "Controller", "Director of Finance"],
+  [FUNCTIONS.OPS]: ["Recruiter", "Operations Manager", "Program Manager", "Business Operations", "Chief of Staff"],
+  [FUNCTIONS.LEGAL]: ["Legal Recruiter", "Legal Counsel", "General Counsel", "Compliance Manager"],
   [FUNCTIONS.EXECUTIVE]: ["Founder", "CEO", "President", "Chief Executive Officer"]
 };
 
@@ -74,17 +76,6 @@ export function inferFunction(...values) {
 
   const text = searchableText(values);
   return inferFunctionFromText(text);
-}
-
-function inferFunctionFromText(text) {
-  if (isFounderText(text) || /\b(ceo|chief executive officer|president)\b/.test(text)) return FUNCTIONS.EXECUTIVE;
-  if (/\b(cto|chief technology officer)\b/.test(text)) return FUNCTIONS.ENGINEERING;
-
-  for (const [label, terms] of FUNCTION_RULES) {
-    if (containsAny(text, terms)) return label;
-  }
-
-  return FUNCTIONS.UNKNOWN;
 }
 
 export function inferSeniority(...values) {
@@ -101,11 +92,13 @@ export function inferSeniority(...values) {
 }
 
 export function inferTeam(...values) {
-  const text = searchableText(values);
-  for (const [label, terms] of TEAM_RULES) {
-    if (containsAny(text, terms)) return label;
+  for (const value of values.flat().filter(Boolean)) {
+    const direct = inferTeamFromText(searchableText([value]));
+    if (direct) return direct;
   }
-  return "";
+
+  const text = searchableText(values);
+  return inferTeamFromText(text);
 }
 
 export function titlePackForFunction(functionName, fallbackTitle = "") {
@@ -152,7 +145,7 @@ export function locationTerms(value) {
     .replace(/\bpromoted by hirer\b/gi, "")
     .replace(/\bactively reviewing applicants\b/gi, "")
     .replace(/\b(remote|hybrid|on-site)\b/gi, "")
-    .split(/[|,;路]/)
+    .split(/[|,;·]/)
     .map((part) => part.trim())
     .filter(Boolean))
     .slice(0, 3);
@@ -160,6 +153,24 @@ export function locationTerms(value) {
 
 export function unique(values) {
   return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
+}
+
+function inferFunctionFromText(text) {
+  if (isFounderText(text) || /\b(ceo|chief executive officer|president)\b/.test(text)) return FUNCTIONS.EXECUTIVE;
+  if (/\b(cto|chief technology officer)\b/.test(text)) return FUNCTIONS.ENGINEERING;
+
+  for (const [label, terms] of FUNCTION_RULES) {
+    if (containsAny(text, terms)) return label;
+  }
+
+  return FUNCTIONS.UNKNOWN;
+}
+
+function inferTeamFromText(text) {
+  for (const [label, terms] of TEAM_RULES) {
+    if (containsAny(text, terms)) return label;
+  }
+  return "";
 }
 
 function containsAny(text, terms) {
