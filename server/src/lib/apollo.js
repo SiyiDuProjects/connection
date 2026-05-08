@@ -44,9 +44,9 @@ export async function revealApolloEmail(contact) {
   const person = data.person || data.contact || data;
   const status = String(person.email_status || person.emailStatus || "").toLowerCase();
   const email = person.email || "";
-  const verifiedEmail = status === "verified" ? email : "";
-  if (cacheKey) revealCache.set(cacheKey, verifiedEmail);
-  return verifiedEmail;
+  const usableEmail = isUsableWorkEmail(email, status) ? email : "";
+  if (cacheKey) revealCache.set(cacheKey, usableEmail);
+  return usableEmail;
 }
 
 async function apolloPost(path, payload) {
@@ -131,6 +131,12 @@ function compactPayload(payload) {
       return value !== undefined && value !== null && value !== "";
     })
   );
+}
+
+function isUsableWorkEmail(email, status) {
+  if (!email) return false;
+  if (status === "invalid" || status === "unavailable") return false;
+  return true;
 }
 
 function requireApolloKey() {
