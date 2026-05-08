@@ -177,7 +177,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <section className="flex-1 p-4 lg:p-8">
+    <section className="h-[calc(100dvh-64px)] overflow-y-auto p-4 lg:p-8">
       <div className="mb-6">
         <h1 className="text-lg font-medium lg:text-2xl">{t('profile.title')}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -284,16 +284,16 @@ export default function ProfilePage() {
                 ) : null}
               </div>
               <textarea id="resumeContext" name="resumeContext" value={settings.resumeContext || ''} onChange={(event) => update('resumeContext', event.target.value)} placeholder={t('profile.resumeContextPlaceholder')} disabled={loading || saving} className="min-h-56 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col items-start gap-2">
                 <p className="text-xs text-muted-foreground">
                   {t('profile.privacyNote')}
                 </p>
-                <Button type="button" variant="ghost" disabled={loading || saving} onClick={clearResumeContext}>
+                <Button type="button" variant="ghost" disabled={loading || saving} onClick={clearResumeContext} className="h-auto px-0 py-1">
                   {t('profile.clear')}
                 </Button>
               </div>
             </Field>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col items-start gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:gap-3">
               <Button type="submit" disabled={loading || saving} className="rounded-md">
                 {saving ? t('profile.saving') : t('profile.save')}
               </Button>
