@@ -88,7 +88,17 @@ jobs:
           COMPOSE_PATH: ${{ secrets.COMPOSE_PATH }}
         run: |
           test -n "$COMPOSE_PATH"
-          ssh deploy-server "cd '$COMPOSE_PATH' && docker compose up -d --build connection_contacts && docker logs --tail=80 connection_contacts"
+          ssh deploy-server "COMPOSE_PATH='$COMPOSE_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$COMPOSE_PATH"
+          sudo docker compose build connection_contacts
+          if ! sudo docker compose up -d --no-build --force-recreate --remove-orphans connection_contacts; then
+            sudo docker compose rm -fs connection_contacts || true
+            sudo docker rm -f connection_contacts 2>/dev/null || true
+            sudo docker compose up -d --no-build --force-recreate --remove-orphans connection_contacts
+          fi
+          sudo docker logs --tail=80 connection_contacts
+          REMOTE
 
       - name: Health check
         run: |
