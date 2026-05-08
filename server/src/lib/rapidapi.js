@@ -1,4 +1,5 @@
-import { revealApolloEmail } from "./apollo.js";
+import { revealApolloEmail, searchApolloContacts } from "./apollo.js";
+import { buildContactSearchPlan } from "./contact-search-plan.js";
 
 const PEOPLE_HOST = process.env.RAPIDAPI_PEOPLE_HOST || "fresh-linkedin-scraper-api.p.rapidapi.com";
 const METADATA_HOST = process.env.RAPIDAPI_METADATA_HOST || "z-real-time-linkedin-scraper-api1.p.rapidapi.com";
@@ -14,18 +15,8 @@ export async function searchRapidApiContacts(job) {
     job.searchPreferences?.school?.linkedinSchoolId,
     job.schoolLinkedinId
   );
-  const geoId = firstString(
-    job.searchPreferences?.region?.linkedinGeoId,
-    job.searchPreferences?.region?.geoId,
-    job.regionLinkedinGeoId
-  );
-
-  if (!schoolId || !geoId) {
-    const error = new Error("Missing verified school or region LinkedIn ID.");
-    error.status = 428;
-    error.publicMessage = "Confirm your school and region in onboarding before searching contacts.";
-    throw error;
-  }
+  const searchPlan = await buildContactSearchPlan(job);
+  const geoId = await resolveJobLocationId(searchPlan.jobLocation || job.jobLocation);
 
   const companyId = await resolveCompanyId(job);
   if (!companyId) {
@@ -35,17 +26,54 @@ export async function searchRapidApiContacts(job) {
     throw error;
   }
 
-  const params = new URLSearchParams({
-    name: job.companyName || job.companyDomain || "company",
-    current_company: companyId,
-    school: schoolId,
-    geocode_location: geoId,
-    page: String(Math.max(1, Number(job.page || 1)))
+  const queries = [searchPlan.primaryQuery, ...searchPlan.fallbackQueries].filter(Boolean).slice(0, 3);
+  const searches = [];
+  for (const query of queries) {
+    searches.push({ query, schoolId });
+  }
+
+  const people = [];
+  for (const search of searches) {
+    const results = await searchPeople({
+      query: search.query,
+      companyId,
+      schoolId: search.schoolId,
+      geoId,
+      page: job.page
+    });
+    people.push(...results);
+  }
+
+  let contacts = normalizePeople(dedupePeople(people), job, {
+    companyId,
+    schoolId,
+    geoId,
+    searchPlan,
+    schoolRestricted: Boolean(schoolId)
   });
 
-  const data = await rapidApiGet(PEOPLE_BASE_URL, "/api/v1/search/people", params, PEOPLE_HOST);
-  const people = Array.isArray(data.data) ? data.data : [];
-  return people.map((person) => normalizeFreshPerson(person, job, { companyId, schoolId, geoId }));
+  if (schoolId && contacts.length < 5) {
+    const broadPeople = [];
+    for (const query of queries) {
+      const results = await searchPeople({
+        query,
+        companyId,
+        schoolId: "",
+        geoId,
+        page: job.page
+      });
+      broadPeople.push(...results);
+    }
+    contacts = normalizePeople(dedupePeople([...people, ...broadPeople]), job, {
+      companyId,
+      schoolId,
+      geoId,
+      searchPlan,
+      schoolRestricted: false
+    });
+  }
+
+  return filterContactsWithApolloEmailStatus(contacts, job, queries);
 }
 
 export function revealRapidApiEmail(contact) {
@@ -77,6 +105,126 @@ async function resolveCompanyId(job) {
 
   if (cacheKey && id) companyCache.set(cacheKey, id);
   return id;
+}
+
+async function resolveJobLocationId(location) {
+  const query = firstString(location);
+  if (!query) return "";
+
+  try {
+    const params = new URLSearchParams({
+      search: query,
+      limit: "5"
+    });
+
+    const data = await rapidApiGet(METADATA_BASE_URL, "/api/search/metadata/location", params, METADATA_HOST);
+    const locations = Array.isArray(data.data) ? data.data : [];
+    const selected = selectLocation(locations, query);
+    return firstString(selected?.id);
+  } catch {
+    return "";
+  }
+}
+
+function selectLocation(locations, query) {
+  if (!locations.length) return null;
+  const wanted = normalizeKey(query);
+  return locations.find((location) => normalizeKey(location.name) === wanted) || locations[0];
+}
+
+async function searchPeople({ query, companyId, schoolId, geoId, page }) {
+  const params = new URLSearchParams({
+    name: query || "operations",
+    current_company: companyId,
+    page: String(Math.max(1, Number(page || 1)))
+  });
+  if (schoolId) params.set("school", schoolId);
+  if (geoId) params.set("geocode_location", geoId);
+
+  const data = await rapidApiGet(PEOPLE_BASE_URL, "/api/v1/search/people", params, PEOPLE_HOST);
+  return Array.isArray(data.data) ? data.data : [];
+}
+
+function dedupePeople(people) {
+  const seen = new Set();
+  const output = [];
+  for (const person of people) {
+    const key = firstString(person.id, person.urn, person.public_identifier, person.url, person.full_name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    output.push(person);
+  }
+  return output;
+}
+
+function normalizePeople(people, job, metadata) {
+  return people.map((person) => normalizeFreshPerson(person, job, metadata));
+}
+
+async function filterContactsWithApolloEmailStatus(contacts, job, queries) {
+  if (!contacts.length) return [];
+
+  const maxApolloSearches = Math.max(1, Number(process.env.RAPIDAPI_APOLLO_EMAIL_CHECK_SEARCHES || 2));
+  const apolloContacts = [];
+  for (const query of queries.slice(0, maxApolloSearches)) {
+    const results = await searchApolloContacts({
+      ...job,
+      jobTitle: query,
+      targetRole: query
+    }).catch(() => []);
+    apolloContacts.push(...results);
+  }
+
+  const available = buildApolloAvailabilityIndex(apolloContacts);
+  const output = [];
+  for (const contact of contacts) {
+    const match = findApolloAvailability(contact, available);
+    if (!match) continue;
+    output.push({
+      ...contact,
+      apolloId: match.apolloId || contact.apolloId,
+      emailStatus: match.emailStatus || "verified"
+    });
+  }
+  return output;
+}
+
+function buildApolloAvailabilityIndex(contacts) {
+  const byLinkedin = new Map();
+  const byName = new Map();
+  for (const contact of contacts) {
+    if (!hasAvailableEmail(contact)) continue;
+    const value = {
+      apolloId: contact.apolloId,
+      emailStatus: contact.emailStatus || "verified"
+    };
+    const linkedinKey = normalizeLinkedinUrl(contact.linkedinUrl);
+    const nameKey = normalizeKey(contact.name);
+    if (linkedinKey) byLinkedin.set(linkedinKey, value);
+    if (nameKey) byName.set(nameKey, value);
+  }
+  return { byLinkedin, byName };
+}
+
+function findApolloAvailability(contact, available) {
+  const linkedinKey = normalizeLinkedinUrl(contact.linkedinUrl);
+  if (linkedinKey && available.byLinkedin.has(linkedinKey)) return available.byLinkedin.get(linkedinKey);
+  const nameKey = normalizeKey(contact.name);
+  if (nameKey && available.byName.has(nameKey)) return available.byName.get(nameKey);
+  return null;
+}
+
+function hasAvailableEmail(contact) {
+  const status = normalizeKey(contact.emailStatus);
+  return status === "verified" || status === "guessed" || status === "likely to engage";
+}
+
+function normalizeLinkedinUrl(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//, "")
+    .replace(/\/+$/, "");
 }
 
 function selectCompany(companies, job) {
@@ -135,7 +283,9 @@ function normalizeFreshPerson(person, job, ids) {
       hiring: Boolean(person.is_hiring),
       companyLinkedinId: ids.companyId,
       schoolLinkedinId: ids.schoolId,
-      regionLinkedinGeoId: ids.geoId
+      regionLinkedinGeoId: ids.geoId,
+      schoolRestricted: Boolean(ids.schoolRestricted),
+      searchPlan: ids.searchPlan
     }
   };
 }
