@@ -18,7 +18,17 @@ const settingsSchema = z.object({
   targetRole: z.string().max(200).optional(),
   senderProfile: z.string().max(2000).optional(),
   resumeContext: z.string().max(40000).optional(),
-  resumeFileName: z.string().max(260).optional()
+  resumeFileName: z.string().max(260).optional(),
+  defaultSearchPreferences: z.object({
+    school: z.object({
+      label: z.string().max(160),
+      linkedinId: z.string().max(40)
+    }).optional(),
+    region: z.object({
+      label: z.string().max(160),
+      linkedinGeoId: z.string().max(40)
+    }).optional()
+  }).optional()
 });
 
 export async function GET() {
@@ -64,7 +74,7 @@ export async function POST(request: Request) {
     senderProfile: clean(payload.senderProfile),
     resumeContext: cleanMultiline(payload.resumeContext),
     resumeFileName: clean(payload.resumeFileName),
-    defaultSearchPreferences: {},
+    defaultSearchPreferences: normalizeSearchPreferences(payload.defaultSearchPreferences),
     updatedAt: new Date()
   };
 
@@ -97,4 +107,21 @@ function cleanMultiline(value: unknown) {
     .replace(/\r\n/g, '\n')
     .replace(/[ \t]+\n/g, '\n')
     .trim();
+}
+
+function normalizeSearchPreferences(value: z.infer<typeof settingsSchema>['defaultSearchPreferences']) {
+  return {
+    school: value?.school?.label && value.school.linkedinId
+      ? {
+          label: clean(value.school.label),
+          linkedinId: clean(value.school.linkedinId)
+        }
+      : undefined,
+    region: value?.region?.label && value.region.linkedinGeoId
+      ? {
+          label: clean(value.region.label),
+          linkedinGeoId: clean(value.region.linkedinGeoId)
+        }
+      : undefined
+  };
 }

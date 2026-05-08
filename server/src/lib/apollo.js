@@ -1,20 +1,15 @@
 import { buildPeopleSearchPlan } from "./contact-intelligence.js";
-import { cleanDomain, locationTerms, normalizeCompanyName } from "./contact-taxonomy.js";
 
 const APOLLO_BASE_URL = "https://api.apollo.io/api/v1";
+const revealCache = new Map();
 
 export async function searchApolloContacts(job) {
   requireApolloKey();
 
-  const organization = await findOrganization(job);
   const payload = { ...buildPeopleSearchPlan(job).apollo };
 
-  if (organization?.id) {
-    payload.organization_ids = [organization.id];
-    delete payload.q_organization_domains_list;
-    delete payload.q_keywords;
-  } else if (organization?.domain || job.companyDomain) {
-    payload.q_organization_domains_list = [organization?.domain || job.companyDomain];
+  if (job.companyDomain) {
+    payload.q_organization_domains_list = [job.companyDomain];
     delete payload.q_keywords;
   } else {
     payload.q_keywords = job.companyName;
@@ -22,7 +17,10 @@ export async function searchApolloContacts(job) {
 
   const data = await apolloPost("/mixed_people/api_search", compactPayload(payload));
   const people = data.people || data.contacts || [];
-  return people.map((person) => normalizeApolloPerson(person, organization));
+  return people.map((person) => normalizeApolloPerson(person, {
+    name: job.companyName,
+    domain: job.companyDomain
+  }));
 }
 
 export async function revealApolloEmail(contact) {
@@ -30,6 +28,8 @@ export async function revealApolloEmail(contact) {
 
   if (contact.email) return contact.email;
   if (!contact.apolloId && !contact.linkedinUrl && !contact.name) return "";
+  const cacheKey = contact.linkedinUrl || contact.apolloId || `${contact.name}|${contact.companyDomain || contact.companyName}`;
+  if (cacheKey && revealCache.has(cacheKey)) return revealCache.get(cacheKey);
 
   const data = await apolloPost("/people/match", compactPayload({
     id: contact.apolloId,
@@ -41,22 +41,12 @@ export async function revealApolloEmail(contact) {
     reveal_phone_number: false
   }));
 
-  return data.person?.email || data.contact?.email || data.email || "";
-}
-
-async function findOrganization(job) {
-  const data = await apolloPost("/mixed_companies/search", compactPayload({
-    q_organization_name: job.companyName,
-    q_organization_domains_list: job.companyDomain ? [job.companyDomain] : undefined,
-    organization_job_locations: locationTerms(job.jobLocation),
-    q_organization_job_titles: job.jobTitle ? [job.jobTitle] : undefined,
-    page: 1,
-    per_page: 5
-  }));
-
-  const organizations = data.organizations || data.companies || data.accounts || [];
-  const normalized = organizations.map(normalizeOrganization);
-  return pickBestOrganization(normalized, job.companyName, job.companyDomain);
+  const person = data.person || data.contact || data;
+  const status = String(person.email_status || person.emailStatus || "").toLowerCase();
+  const email = person.email || "";
+  const verifiedEmail = status === "verified" ? email : "";
+  if (cacheKey) revealCache.set(cacheKey, verifiedEmail);
+  return verifiedEmail;
 }
 
 async function apolloPost(path, payload) {
@@ -112,25 +102,6 @@ function normalizeApolloPerson(person, organizationFallback = {}) {
 
 function firstString(...values) {
   return values.find((value) => typeof value === "string" && value.trim())?.trim() || "";
-}
-
-function normalizeOrganization(organization) {
-  return {
-    id: organization.organization_id || organization.id,
-    name: organization.name || organization.organization_name || "",
-    domain: cleanDomain(organization.primary_domain || organization.domain || organization.website_url || organization.organization_website_url || "")
-  };
-}
-
-function pickBestOrganization(organizations, companyName, companyDomain = "") {
-  if (!organizations.length) return null;
-  const wantedDomain = cleanDomain(companyDomain);
-  if (wantedDomain) {
-    const domainMatch = organizations.find((organization) => cleanDomain(organization.domain) === wantedDomain);
-    if (domainMatch) return domainMatch;
-  }
-  const wanted = normalizeCompanyName(companyName);
-  return organizations.find((organization) => normalizeCompanyName(organization.name) === wanted) || organizations[0];
 }
 
 function normalizeEducation(person) {

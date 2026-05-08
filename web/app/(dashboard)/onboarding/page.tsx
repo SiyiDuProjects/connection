@@ -38,7 +38,8 @@ export default async function OnboardingPage({
         emailTone: normalizeEmailTone(settings?.emailTone),
         outreachLength: normalizeOutreachLength(settings?.outreachLength),
         outreachGoal: normalizeOutreachGoal(settings?.outreachGoal),
-        outreachStyleNotes: settings?.outreachStyleNotes || ''
+        outreachStyleNotes: settings?.outreachStyleNotes || '',
+        defaultSearchPreferences: normalizeSearchPreferences(settings?.defaultSearchPreferences)
       }}
       redirectTo={redirectTo}
     />
@@ -67,4 +68,26 @@ function normalizeOutreachLength(value: unknown) {
 
 function normalizeOutreachGoal(value: unknown) {
   return value === 'referral' || value === 'intro' ? value : 'advice';
+}
+
+function normalizeSearchPreferences(value: unknown) {
+  if (!value || typeof value !== 'object') return {};
+  const preferences = value as {
+    school?: { label?: unknown; linkedinId?: unknown; linkedinSchoolId?: unknown };
+    region?: { label?: unknown; linkedinGeoId?: unknown; geoId?: unknown };
+  };
+  return {
+    school: preferences.school
+      ? {
+          label: String(preferences.school.label || ''),
+          linkedinId: String(preferences.school.linkedinId || preferences.school.linkedinSchoolId || '')
+        }
+      : undefined,
+    region: preferences.region
+      ? {
+          label: String(preferences.region.label || ''),
+          linkedinGeoId: String(preferences.region.linkedinGeoId || preferences.region.geoId || '')
+        }
+      : undefined
+  };
 }

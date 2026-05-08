@@ -106,12 +106,18 @@ app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("C
       });
     }
 
-    const contacts = await searchContacts(context).catch((error) => {
+    const contacts = await searchContacts(context).catch(async (error) => {
       writeLog("warn", "contacts.provider_failed", {
         requestId: req.requestId,
         provider: providerStatus().contactProvider,
         error: error.message
       });
+      if (error.publicMessage && error.status && error.status < 500) {
+        throw publicError(error.publicMessage, error.status, {
+          action: error.status === 428 ? { label: "Complete profile", url: `${getWebRedirectBaseUrl()}/onboarding` } : undefined,
+          credits: { remaining: await getCreditBalance(req.user.id) }
+        });
+      }
       throw publicError("Contact search is temporarily unavailable. Try again shortly.", 503);
     });
     const ranked = rankContacts(contacts, context).slice(0, 10);
@@ -306,6 +312,7 @@ function normalizeContext(input, settings = {}) {
     jobTitle: jobTitle || targetRole,
     originalJobTitle: jobTitle,
     targetRole,
+    searchPreferences: normalizeSearchPreferences(settings),
     jobLocation: clean(input?.jobLocation),
     jobUrl: sourceUrl,
     sourceUrl,
@@ -321,6 +328,25 @@ function onboardingAction(onboarding) {
   return {
     onboarding,
     action: { label: "Complete profile", url: `${getWebRedirectBaseUrl()}/onboarding` }
+  };
+}
+
+function normalizeSearchPreferences(settings = {}) {
+  const preferences = settings.default_search_preferences || settings.defaultSearchPreferences || {};
+  return {
+    school: normalizePreference(preferences.school),
+    region: normalizePreference(preferences.region)
+  };
+}
+
+function normalizePreference(value) {
+  if (!value || typeof value !== "object") return {};
+  return {
+    label: clean(value.label),
+    linkedinId: clean(value.linkedinId),
+    linkedinSchoolId: clean(value.linkedinSchoolId),
+    linkedinGeoId: clean(value.linkedinGeoId),
+    geoId: clean(value.geoId)
   };
 }
 
@@ -375,6 +401,7 @@ function providerStatus() {
     contactProvider,
     apolloMock: String(process.env.APOLLO_MOCK || "").toLowerCase() === "true",
     hasApolloKey: Boolean(process.env.APOLLO_API_KEY),
-    hasExploriumKey: Boolean(process.env.EXPLORIUM_API_KEY)
+    hasExploriumKey: Boolean(process.env.EXPLORIUM_API_KEY),
+    hasRapidApiKey: Boolean(process.env.RAPIDAPI_KEY)
   };
 }

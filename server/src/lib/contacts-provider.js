@@ -1,6 +1,7 @@
 import { searchApolloContacts, revealApolloEmail } from "./apollo.js";
 import { searchExploriumContacts, revealExploriumEmail } from "./explorium.js";
 import { searchMockContacts, revealMockEmail } from "./mock.js";
+import { searchRapidApiContacts, revealRapidApiEmail } from "./rapidapi.js";
 
 export function searchContacts(job) {
   switch (providerName()) {
@@ -10,6 +11,8 @@ export function searchContacts(job) {
       return searchExploriumContacts(job);
     case "apollo":
       return searchApolloContacts(job);
+    case "rapidapi":
+      return searchRapidApiContacts(job);
     default:
       throw providerError();
   }
@@ -19,6 +22,7 @@ export function revealEmail(contact) {
   if (contact.provider === "mock") return revealMockEmail(contact);
   if (contact.provider === "explorium") return revealExploriumEmail(contact);
   if (contact.provider === "apollo") return revealApolloEmail(contact);
+  if (contact.provider === "rapidapi") return revealRapidApiEmail(contact);
 
   switch (providerName()) {
     case "mock":
@@ -27,6 +31,8 @@ export function revealEmail(contact) {
       return revealExploriumEmail(contact);
     case "apollo":
       return revealApolloEmail(contact);
+    case "rapidapi":
+      return revealRapidApiEmail(contact);
     default:
       throw providerError();
   }
@@ -43,4 +49,3 @@ function providerError() {
   error.publicMessage = "Server contact provider is not configured correctly.";
   return error;
 }
-

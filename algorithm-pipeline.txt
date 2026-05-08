@@ -1,0 +1,154 @@
+Connection discovery pipeline notes
+Date: 2026-05-07
+
+Goal
+Find relevant LinkedIn connections for a target job, then reveal emails only for selected candidates.
+
+Current target example
+- Job: xAI Data Engineer
+- Company: xAI
+- LinkedIn company ID: 96151950
+- School: University of California, Berkeley
+- LinkedIn school ID: 2517
+- Location: San Francisco Bay Area
+- LinkedIn geo ID: 90000084
+
+Working data source
+Fresh LinkedIn Scraper API on RapidAPI:
+https://fresh-linkedin-scraper-api.p.rapidapi.com/api/v1/search/people
+
+Useful search params observed
+- name: required by API schema. Use a broad company/context keyword, e.g. xAI.
+- current_company: numeric LinkedIn company ID, e.g. 96151950.
+- school: numeric LinkedIn school ID, e.g. 2517.
+- geocode_location: numeric LinkedIn geo ID, e.g. 90000084.
+- title: supported, but should not be a hard filter for this use case.
+- page: pagination starts at 1.
+
+Recommended search query
+GET /api/v1/search/people?name=xAI&current_company=96151950&school=2517&geocode_location=90000084&page=1
+
+Observed result
+- total: 55
+- page size: 10
+- cost: 1 RapidAPI credit per page
+- has_more: true on page 1
+
+Why title is not a hard filter
+Using title=data engineer returned zero results. Many good candidates do not write "Data Engineer" in the result title/headline. Examples:
+- Ethan Woodbury: Fresh title was "xAI"; Apollo later showed "Member of Technical Staff".
+- Tong Shen: headline includes Data Analyst / Data Science, not Data Engineer.
+- xAI technical staff may use MTS, Software Engineer, AI Tutor, AI, Infrastructure, or platform wording.
+
+Candidate scoring
+Hard filters should come from the search query:
+- current company xAI
+- UC Berkeley school
+- Bay Area geo
+
+Local scoring should rank candidates after search:
+- title/headline contains "data engineer": +25
+- title/headline contains "data platform" or "data infrastructure": +25
+- title/headline contains "data analyst" or "data science": +15
+- title/headline contains "software engineer", "member of technical staff", or "MTS": +10
+- title/headline contains "infrastructure", "platform", "backend", "distributed systems", "Spark", "ETL", or "warehouse": +10
+- title/headline contains "recruiter", "talent", or "recruiting": +12
+- location is San Francisco Bay Area, San Francisco, Berkeley, Palo Alto, or Mountain View: +5
+- verified profile: +3
+
+Metadata confirmation
+- School and region should not be used as raw text in search.
+- The onboarding UI asks the user to type a school/region, then click Confirm.
+- Confirm calls a metadata endpoint once and shows candidates for the user to choose.
+- Selected values are saved as label + LinkedIn ID in default_search_preferences.
+- This costs about 1 RapidAPI request for school and 1 for region during setup, then uses saved IDs.
+- Search is blocked if the user changes school/region text without confirming again.
+
+Current implementation direction
+- Search provider: CONTACT_PROVIDER=rapidapi.
+- People source: Fresh LinkedIn Scraper API.
+- Metadata source: z-real-time-linkedin-scraper-api1 RapidAPI endpoints.
+- Apollo is not used for candidate search.
+- Apollo is only used for selected email reveal.
+
+Display before email lookup
+Show candidates from RapidAPI search without Apollo enrichment:
+- name
+- LinkedIn URL
+- title/headline
+- location
+- match reasons
+- score
+- optional badges: recruiter, technical, data-adjacent
+- action: Reveal email
+
+Email lookup strategy
+Use Apollo only after candidate selection.
+
+Apollo endpoint used
+POST https://api.apollo.io/api/v1/people/bulk_match?reveal_personal_emails=false&reveal_phone_number=false
+
+Apollo input fields
+- name
+- linkedin_url
+- domain: x.ai
+
+Important Apollo behavior
+- Bulk match supports up to 10 people per request.
+- Do not request personal emails or phone numbers by default.
+- Use only work email and email_status.
+- Treat email_status=verified as contactable.
+- Treat unavailable, null, or missing as not contactable.
+
+Observed Apollo test
+Input candidates:
+- Claire Yu
+- Tong Shen
+- Sishaar Rao
+- Araav Patel
+- Ethan Woodbury
+
+Result:
+- requested: 5
+- enriched: 4
+- missing: 1
+- credits_consumed: 4
+- verified work emails found: 3
+
+Verified work emails from test
+- Claire Yu: cyu@x.ai, Recruiting Coordinator
+- Araav Patel: apatel@x.ai, Member of Technical Staff
+- Ethan Woodbury: ewoodbury@x.ai, Member of Technical Staff
+
+Unavailable or missing
+- Tong Shen: matched, email unavailable
+- Sishaar Rao: not matched in Apollo bulk enrichment
+
+Cost model
+RapidAPI/Fresh search:
+- Around 1 RapidAPI credit per results page.
+- This target produced 55 candidates, so full scan would be about 6 RapidAPI credits.
+
+Apollo enrichment:
+- Credits are consumed only when enriching selected candidates.
+- In the test, 5 selected candidates consumed 4 Apollo credits.
+- Do not enrich every search result by default.
+
+Recommended product flow
+1. User provides target job/company/school/location.
+2. Resolve company/school/location IDs.
+3. Search Fresh LinkedIn API with broad query and hard filters.
+4. Cache results by query and page.
+5. Score candidates locally using title/headline/location/profile flags.
+6. Show ranked candidates without emails.
+7. User selects candidates or clicks Reveal email.
+8. Call Apollo bulk_match for selected candidates only.
+9. Show verified work emails. Hide or mark unavailable emails.
+
+Open questions to validate
+- Whether Fresh API search people returns a stable page size of 10.
+- Whether current_company, school, and geocode_location are hard filters across more queries.
+- Whether company ID 96151950 and Apollo organization xAI remain stable.
+- Whether using name=xAI is always the best required keyword, or if company name variants improve recall.
+- Whether second and later pages add better data/platform candidates.
+- Whether Apollo accepts linkedin_url from Fresh exactly or prefers canonical Apollo LinkedIn URLs.

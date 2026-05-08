@@ -2,6 +2,9 @@ const RECRUITER_TERMS = ["recruiter", "talent", "people", "hr", "human resources
 const SENIORITY_TERMS = ["director", "head", "lead", "manager", "senior", "staff", "principal"];
 const SCHOOL_TERMS = ["berkeley", "uc berkeley", "university of california berkeley"];
 const BAY_AREA_TERMS = ["san francisco", "bay area", "san jose", "palo alto", "mountain view", "sunnyvale", "menlo park"];
+const DATA_PLATFORM_TERMS = ["data engineer", "data platform", "data infrastructure", "data infra", "spark", "etl", "warehouse"];
+const DATA_ADJACENT_TERMS = ["data analyst", "data science", "analytics"];
+const TECHNICAL_TERMS = ["member of technical staff", "mts", "software engineer", "infrastructure", "platform", "backend", "distributed systems"];
 
 export function rankContacts(contacts, job) {
   return contacts
@@ -24,6 +27,19 @@ function scoreContact(contact, job) {
   if (containsAny(title, RECRUITER_TERMS)) {
     score += 45;
     reasons.push("recruiting role");
+  }
+
+  if (containsAny(title, DATA_PLATFORM_TERMS)) {
+    score += 25;
+    reasons.push("data platform relevance");
+  } else if (containsAny(title, DATA_ADJACENT_TERMS)) {
+    score += 15;
+    reasons.push("data-adjacent background");
+  }
+
+  if (containsAny(title, TECHNICAL_TERMS)) {
+    score += 10;
+    reasons.push("technical role");
   }
 
   if (containsAny(title, SENIORITY_TERMS)) {
@@ -50,6 +66,11 @@ function scoreContact(contact, job) {
   if (contact.email) {
     score += 8;
     reasons.push("email available");
+  }
+
+  if (contact.metadata?.verified) {
+    score += 3;
+    reasons.push("verified profile");
   }
 
   return { score, reasons: reasons.slice(0, 3) };
@@ -83,4 +104,3 @@ function overlaps(value, other, terms) {
 function lower(value) {
   return String(value || "").toLowerCase();
 }
-

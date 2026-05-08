@@ -21,9 +21,28 @@ type OnboardingValues = {
   outreachLength: 'short' | 'concise' | 'detailed';
   outreachGoal: 'advice' | 'referral' | 'intro';
   outreachStyleNotes: string;
+  defaultSearchPreferences: SearchPreferences;
 };
 
 const steps = ['Identity', 'Background', 'Custom'];
+
+type ResolvedItem = {
+  id: string;
+  label: string;
+  subtitle: string;
+  type: 'school' | 'location';
+};
+
+type SearchPreferences = {
+  school?: {
+    label: string;
+    linkedinId: string;
+  };
+  region?: {
+    label: string;
+    linkedinGeoId: string;
+  };
+};
 
 export function OnboardingClient({
   initial,
@@ -36,6 +55,10 @@ export function OnboardingClient({
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<OnboardingValues>(initial);
   const [status, setStatus] = useState('');
+  const [resolveStatus, setResolveStatus] = useState('');
+  const [resolving, setResolving] = useState<'school' | 'region' | ''>('');
+  const [schoolOptions, setSchoolOptions] = useState<ResolvedItem[]>([]);
+  const [regionOptions, setRegionOptions] = useState<ResolvedItem[]>([]);
   const [saving, setSaving] = useState(false);
   const missing = useMemo(() => validate(values), [values]);
   const canContinue = step === 0
@@ -45,7 +68,64 @@ export function OnboardingClient({
       : missing.length === 0;
 
   function update(name: keyof OnboardingValues, value: string) {
-    setValues((current) => ({ ...current, [name]: value }));
+    setValues((current) => {
+      const next = { ...current, [name]: value };
+      if (name === 'school') {
+        next.defaultSearchPreferences = {
+          ...current.defaultSearchPreferences,
+          school: current.defaultSearchPreferences.school?.label === value ? current.defaultSearchPreferences.school : undefined
+        };
+      }
+      if (name === 'region') {
+        next.defaultSearchPreferences = {
+          ...current.defaultSearchPreferences,
+          region: current.defaultSearchPreferences.region?.label === value ? current.defaultSearchPreferences.region : undefined
+        };
+      }
+      return next;
+    });
+  }
+
+  async function resolveField(type: 'school' | 'region') {
+    const query = (type === 'school' ? values.school : values.region).trim();
+    if (query.length < 2) {
+      setResolveStatus('Enter at least 2 characters before confirming.');
+      return;
+    }
+    setResolving(type);
+    setResolveStatus('');
+    if (type === 'school') setSchoolOptions([]);
+    else setRegionOptions([]);
+
+    const path = type === 'school' ? '/api/metadata/schools' : '/api/metadata/locations';
+    const response = await fetch(`${path}?q=${encodeURIComponent(query)}`);
+    const payload = await response.json().catch(() => ({}));
+    setResolving('');
+    if (!response.ok || !payload.ok) {
+      setResolveStatus(payload.error || `Could not confirm ${type}.`);
+      return;
+    }
+
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    if (type === 'school') setSchoolOptions(items);
+    else setRegionOptions(items);
+    setResolveStatus(items.length ? `Choose the matching ${type}.` : `No ${type} matches found.`);
+  }
+
+  function selectResolved(type: 'school' | 'region', item: ResolvedItem) {
+    setValues((current) => ({
+      ...current,
+      [type === 'school' ? 'school' : 'region']: item.label,
+      defaultSearchPreferences: {
+        ...current.defaultSearchPreferences,
+        ...(type === 'school'
+          ? { school: { label: item.label, linkedinId: item.id } }
+          : { region: { label: item.label, linkedinGeoId: item.id } })
+      }
+    }));
+    if (type === 'school') setSchoolOptions([]);
+    else setRegionOptions([]);
+    setResolveStatus(`${item.label} confirmed.`);
   }
 
   async function submit() {
@@ -114,12 +194,29 @@ export function OnboardingClient({
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Region" required>
-                  <Input value={values.region} onChange={(event) => update('region', event.target.value)} placeholder="San Francisco Bay Area" />
+                  <ResolveInput
+                    value={values.region}
+                    onChange={(value) => update('region', value)}
+                    onResolve={() => resolveField('region')}
+                    resolving={resolving === 'region'}
+                    verified={values.defaultSearchPreferences.region?.label === values.region}
+                    placeholder="San Francisco Bay Area"
+                  />
+                  <ResolveOptions items={regionOptions} onSelect={(item) => selectResolved('region', item)} />
                 </Field>
                 <Field label="School or identity" required>
-                  <Input value={values.school} onChange={(event) => update('school', event.target.value)} placeholder="UC Berkeley" />
+                  <ResolveInput
+                    value={values.school}
+                    onChange={(value) => update('school', value)}
+                    onResolve={() => resolveField('school')}
+                    resolving={resolving === 'school'}
+                    verified={values.defaultSearchPreferences.school?.label === values.school}
+                    placeholder="UC Berkeley"
+                  />
+                  <ResolveOptions items={schoolOptions} onSelect={(item) => selectResolved('school', item)} />
                 </Field>
               </div>
+              {resolveStatus ? <p className="text-sm font-medium text-slate-500">{resolveStatus}</p> : null}
               <Field label="Target role" required>
                 <Input value={values.targetRole} onChange={(event) => update('targetRole', event.target.value)} placeholder="Software Engineer Intern, Product Manager, Data Analyst" />
               </Field>
@@ -202,6 +299,56 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
+function ResolveInput({
+  value,
+  onChange,
+  onResolve,
+  resolving,
+  verified,
+  placeholder
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onResolve: () => void;
+  resolving: boolean;
+  verified: boolean;
+  placeholder: string;
+}) {
+  return (
+    <div className="flex gap-2">
+      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+      <Button type="button" variant="outline" className="h-10 shrink-0 rounded-md" onClick={onResolve} disabled={resolving}>
+        {resolving ? 'Checking...' : verified ? 'Verified' : 'Confirm'}
+      </Button>
+    </div>
+  );
+}
+
+function ResolveOptions({
+  items,
+  onSelect
+}: {
+  items: ResolvedItem[];
+  onSelect: (item: ResolvedItem) => void;
+}) {
+  if (!items.length) return null;
+  return (
+    <div className="mt-2 overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+      {items.map((item) => (
+        <button
+          key={`${item.type}-${item.id}`}
+          type="button"
+          onClick={() => onSelect(item)}
+          className="block w-full border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+        >
+          <span className="block text-sm font-semibold text-slate-900">{item.label}</span>
+          {item.subtitle ? <span className="block text-xs font-medium text-slate-500">{item.subtitle}</span> : null}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function SelectField({
   label,
   value,
@@ -225,8 +372,8 @@ function SelectField({
 function validate(values: OnboardingValues) {
   const missing: string[] = [];
   if (!values.name.trim()) missing.push('name');
-  if (!values.region.trim()) missing.push('region');
-  if (!values.school.trim()) missing.push('school');
+  if (!values.region.trim() || values.defaultSearchPreferences.region?.label !== values.region) missing.push('region');
+  if (!values.school.trim() || values.defaultSearchPreferences.school?.label !== values.school) missing.push('school');
   if (!values.targetRole.trim()) missing.push('targetRole');
   if (!values.emailTone.trim()) missing.push('emailTone');
   if (!values.outreachGoal.trim()) missing.push('outreachGoal');
