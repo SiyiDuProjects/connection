@@ -3,7 +3,7 @@ export type Language = 'en' | 'zh';
 export const defaultLanguage: Language = 'en';
 
 export function normalizeLanguage(value: unknown): Language {
-  return value === 'zh' ? 'zh' : defaultLanguage;
+  return String(value || '').toLowerCase().startsWith('zh') ? 'zh' : defaultLanguage;
 }
 
 export const dictionaries = {
@@ -128,6 +128,11 @@ export const dictionaries = {
     'general.namePlaceholder': 'Enter your name',
     'general.email': 'Email',
     'general.emailPlaceholder': 'Enter your email',
+    'general.language': 'Language',
+    'general.languageDescription': 'Reachard and the browser extension use this language.',
+    'general.languageBrowser': 'Browser',
+    'general.languageEnglish': 'English',
+    'general.languageChinese': '中文',
     'general.saveChanges': 'Save Changes',
     'general.saving': 'Saving...',
 
@@ -149,6 +154,8 @@ export const dictionaries = {
     'login.emailPlaceholder': 'Enter your email',
     'login.password': 'Password',
     'login.passwordPlaceholder': 'Enter your password',
+    'login.inviteCode': 'Invite code',
+    'login.inviteCodePlaceholder': 'Enter invite code if you have one',
     'login.loading': 'Loading...',
     'login.signIn': 'Sign in',
     'login.signUp': 'Sign up',
@@ -348,6 +355,11 @@ export const dictionaries = {
     'general.namePlaceholder': '输入你的姓名',
     'general.email': '邮箱',
     'general.emailPlaceholder': '输入你的邮箱',
+    'general.language': '语言',
+    'general.languageDescription': 'Reachard 和浏览器插件使用这个语言。',
+    'general.languageBrowser': '浏览器',
+    'general.languageEnglish': 'English',
+    'general.languageChinese': '中文',
     'general.saveChanges': '保存修改',
     'general.saving': '保存中...',
 
@@ -369,6 +381,8 @@ export const dictionaries = {
     'login.emailPlaceholder': '输入你的邮箱',
     'login.password': '密码',
     'login.passwordPlaceholder': '输入你的密码',
+    'login.inviteCode': '\u9080\u8bf7\u7801',
+    'login.inviteCodePlaceholder': '\u5982\u679c\u6709\u9080\u8bf7\u7801\uff0c\u8bf7\u5728\u6b64\u8f93\u5165',
     'login.loading': '加载中...',
     'login.signIn': '登录',
     'login.signUp': '注册',

@@ -48,7 +48,9 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
           <input type="hidden" name="redirect" value={redirect || ''} />
           <input type="hidden" name="priceId" value={priceId || ''} />
           <input type="hidden" name="inviteId" value={inviteId || ''} />
-          <input type="hidden" name="ref" value={ref || ''} />
+          {mode === 'signin' ? (
+            <input type="hidden" name="ref" value={ref || ''} />
+          ) : null}
           <div>
             <Label
               htmlFor="email"
@@ -95,6 +97,29 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
               />
             </div>
           </div>
+
+          {mode === 'signup' ? (
+            <div>
+              <Label
+                htmlFor="ref"
+                className="block text-sm font-medium text-gray-700"
+              >
+                {t('login.inviteCode')}
+              </Label>
+              <div className="mt-1">
+                <Input
+                  id="ref"
+                  name="ref"
+                  type="text"
+                  autoComplete="off"
+                  defaultValue={state.ref ?? ref ?? ''}
+                  maxLength={120}
+                  className="relative block w-full appearance-none rounded-md border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-gray-950 focus:outline-none focus:ring-gray-950 sm:text-sm"
+                  placeholder={t('login.inviteCodePlaceholder')}
+                />
+              </div>
+            </div>
+          ) : null}
 
           {state?.error && (
             <div className="text-red-500 text-sm">{state.error}</div>

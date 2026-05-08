@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { MailCheck } from 'lucide-react';
 import { ResendVerificationForm } from './resend-verification-form';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { normalizeLanguage, translate } from '@/lib/i18n';
 
 export default async function VerifyEmailPage({
@@ -10,7 +10,7 @@ export default async function VerifyEmailPage({
   searchParams: Promise<{ email?: string; error?: string }>;
 }) {
   const { email = '', error } = await searchParams;
-  const language = normalizeLanguage((await cookies()).get('language')?.value);
+  const language = normalizeLanguage((await cookies()).get('language')?.value || (await headers()).get('accept-language'));
   const t = (key: Parameters<typeof translate>[1], values?: Record<string, string | number>) =>
     translate(language, key, values);
 

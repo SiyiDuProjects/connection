@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { randomInt } from 'crypto';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { friendInviteRedemptions, friendInvites } from '@/lib/db/schema';
@@ -20,11 +20,11 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const invite = await getOrCreateInvite(user.id, true);
+  const invite = await getOrCreateInvite(user.id);
   return Response.json(await invitePayload(request, invite));
 }
 
-async function getOrCreateInvite(userId: number, touch = false) {
+async function getOrCreateInvite(userId: number) {
   const [existing] = await db
     .select()
     .from(friendInvites)
@@ -32,10 +32,10 @@ async function getOrCreateInvite(userId: number, touch = false) {
     .limit(1);
 
   if (existing) {
-    if (touch) {
+    if (!isSixDigitCode(existing.token)) {
       const [updated] = await db
         .update(friendInvites)
-        .set({ lastGeneratedAt: new Date() })
+        .set({ token: await uniqueInviteCode() })
         .where(eq(friendInvites.id, existing.id))
         .returning();
       return updated || existing;
@@ -47,7 +47,7 @@ async function getOrCreateInvite(userId: number, touch = false) {
     .insert(friendInvites)
     .values({
       inviterUserId: userId,
-      token: randomBytes(18).toString('base64url'),
+      token: await uniqueInviteCode(),
       lastGeneratedAt: new Date()
     })
     .returning();
@@ -57,6 +57,25 @@ async function getOrCreateInvite(userId: number, touch = false) {
   }
 
   return created;
+}
+
+async function uniqueInviteCode() {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+    const [existing] = await db
+      .select({ id: friendInvites.id })
+      .from(friendInvites)
+      .where(eq(friendInvites.token, code))
+      .limit(1);
+
+    if (!existing) return code;
+  }
+
+  throw new Error('Could not create invite code.');
+}
+
+function isSixDigitCode(value: string) {
+  return /^\d{6}$/.test(value);
 }
 
 async function invitePayload(request: Request, invite: typeof friendInvites.$inferSelect) {
@@ -72,6 +91,7 @@ async function invitePayload(request: Request, invite: typeof friendInvites.$inf
 
   return {
     ok: true,
+    code: invite.token,
     link: link.toString(),
     token: invite.token,
     acceptedCount: Number(count || 0),

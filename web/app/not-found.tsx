@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { CircleIcon } from 'lucide-react';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { normalizeLanguage, translate } from '@/lib/i18n';
 
 export default async function NotFound() {
-  const language = normalizeLanguage((await cookies()).get('language')?.value);
+  const language = normalizeLanguage((await cookies()).get('language')?.value || (await headers()).get('accept-language'));
   const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
 
   return (

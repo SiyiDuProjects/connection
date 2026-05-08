@@ -1,7 +1,7 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { Manrope } from 'next/font/google';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { LanguageProvider } from '@/components/language-provider';
 import { normalizeLanguage } from '@/lib/i18n';
 
@@ -21,7 +21,8 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const language = normalizeLanguage((await cookies()).get('language')?.value);
+  const languageCookie = (await cookies()).get('language')?.value;
+  const language = normalizeLanguage(languageCookie || (await headers()).get('accept-language'));
 
   return (
     <html
@@ -29,7 +30,9 @@ export default async function RootLayout({
       className={`bg-white dark:bg-gray-950 text-black dark:text-white ${manrope.className}`}
     >
       <body className="min-h-[100dvh] bg-gray-50">
-        <LanguageProvider initialLanguage={language}>{children}</LanguageProvider>
+        <LanguageProvider initialLanguage={language} initialLanguageMode={languageCookie ? 'manual' : 'browser'}>
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   );

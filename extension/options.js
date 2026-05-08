@@ -6,7 +6,7 @@ const statusEl = document.getElementById("status");
 
 const DEFAULT_API_BASE_URL = "https://contacts.reachard.co";
 const DEFAULT_WEB_BASE_URL = "https://reachard.co";
-const DEFAULT_LANGUAGE = "en";
+const DEFAULT_LANGUAGE = browserLanguage();
 const I18N = {
   en: {
     account: "Account",
@@ -56,7 +56,7 @@ boot();
 
 async function boot() {
   const stored = await chrome.storage.sync.get(["apiBaseUrl", "webBaseUrl", "extensionApiToken", "extensionLanguage"]);
-  language = normalizeLanguage(stored.extensionLanguage);
+  language = normalizeLanguage(stored.extensionLanguage || browserLanguage());
   applyTranslations();
   webInput.value = normalizeWebBaseUrl(stored.webBaseUrl);
   apiInput.value = normalizeApiBaseUrl(stored.apiBaseUrl, webInput.value);
@@ -163,7 +163,11 @@ function normalizeApiBaseUrl(value, webBaseUrl) {
 }
 
 function normalizeLanguage(value) {
-  return value === "zh" ? "zh" : DEFAULT_LANGUAGE;
+  return String(value || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+}
+
+function browserLanguage() {
+  return normalizeLanguage(chrome.i18n?.getUILanguage?.() || navigator.language || "en");
 }
 
 function t(key) {

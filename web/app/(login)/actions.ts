@@ -109,7 +109,7 @@ const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   inviteId: z.string().optional(),
-  ref: z.string().optional()
+  ref: z.string().trim().optional()
 });
 
 export const signUp = validatedAction(signUpSchema, async (data, formData) => {
@@ -125,12 +125,13 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   if (existingUser.length > 0) {
     return {
       error: 'This email already has an account. Sign in instead.',
-      email
+      email,
+      ref
     };
   }
 
   const passwordHash = await hashPassword(password);
-  const friendInviteToken = String(ref || '').trim();
+  const friendInviteToken = String(ref || '').replace(/\s+/g, '');
   let friendInvite: typeof friendInvites.$inferSelect | undefined;
   if (friendInviteToken) {
     [friendInvite] = await db
@@ -141,7 +142,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   }
 
   if (friendInviteToken && !friendInvite) {
-    return { error: 'Invalid invite link. Ask your friend for a new link.', email };
+    return { error: 'Invalid invite code. Ask your friend for a new code.', email, ref };
   }
 
   const newUser: NewUser = {
@@ -195,7 +196,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
         .where(eq(teams.id, teamId))
         .limit(1);
     } else {
-      return { error: 'Invalid or expired invitation.', email };
+      return { error: 'Invalid or expired invitation.', email, ref };
     }
   } else {
     // Create a new team if there's no invitation

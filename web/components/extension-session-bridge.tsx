@@ -89,7 +89,7 @@ function readWebsiteLanguage() {
     .find((row) => row.startsWith('language='))
     ?.split('=')[1];
 
-  return normalizeLanguage(languageCookie);
+  return normalizeLanguage(languageCookie || window.navigator.language);
 }
 
 function claimSyncLock() {

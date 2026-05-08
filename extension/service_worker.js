@@ -1,6 +1,6 @@
 const DEFAULT_API_BASE_URL = "https://contacts.reachard.co";
 const DEFAULT_WEB_BASE_URL = "https://reachard.co";
-const DEFAULT_LANGUAGE = "en";
+const DEFAULT_LANGUAGE = browserLanguage();
 const SUPPORTED_URLS = ["https://*/*", "http://*/*"];
 const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connection settings.";
 const SESSION_EXPIRED_ERROR = "Session expired. Sign in again.";
@@ -399,11 +399,11 @@ async function webJson(path, options, sender) {
 
 async function getExtensionLanguage() {
   const stored = await chrome.storage.sync.get(["extensionLanguage"]);
-  return { ok: true, language: normalizeLanguage(stored.extensionLanguage) };
+  return { ok: true, language: normalizeLanguage(stored.extensionLanguage || browserLanguage()) };
 }
 
 async function setExtensionLanguage(message) {
-  const extensionLanguage = normalizeLanguage(message.language);
+  const extensionLanguage = normalizeLanguage(message.language || browserLanguage());
   await chrome.storage.sync.set({ extensionLanguage });
   await notifySupportedTabsLanguageUpdated(extensionLanguage);
   return { ok: true, language: extensionLanguage };
@@ -485,7 +485,11 @@ function cleanUrl(value) {
 }
 
 function normalizeLanguage(value) {
-  return value === "zh" ? "zh" : DEFAULT_LANGUAGE;
+  return String(value || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+}
+
+function browserLanguage() {
+  return normalizeLanguage(chrome.i18n?.getUILanguage?.() || "en");
 }
 
 function normalizeCustomize(value) {

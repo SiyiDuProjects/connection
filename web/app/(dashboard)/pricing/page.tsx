@@ -3,7 +3,7 @@ import { Check } from 'lucide-react';
 import { getStripePrices, getStripeProducts } from '@/lib/payments/stripe';
 import { SubmitButton } from './submit-button';
 import { Button } from '@/components/ui/button';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { normalizeLanguage, translate, type Language } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +35,7 @@ const planCopy = {
 };
 
 export default async function PricingPage() {
-  const language = normalizeLanguage((await cookies()).get('language')?.value);
+  const language = normalizeLanguage((await cookies()).get('language')?.value || (await headers()).get('accept-language'));
   const t = (key: Parameters<typeof translate>[1], values?: Record<string, string | number>) =>
     translate(language, key, values);
   let prices: StripePrice[] = [];

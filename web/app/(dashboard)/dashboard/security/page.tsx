@@ -27,7 +27,7 @@ type DeleteState = {
 };
 
 export default function SecurityPage() {
-  const { t } = useI18n();
+  const { t, language, languageMode, setLanguage, useBrowserLanguage } = useI18n();
   const router = useRouter();
   const [passwordState, passwordAction, isPasswordPending] = useActionState<
     PasswordState,
@@ -54,6 +54,46 @@ export default function SecurityPage() {
         </h1>
 
         <div className="space-y-4">
+          <Card className="rounded-[8px] border-gray-200 shadow-none">
+            <CardHeader>
+              <CardTitle>{t('general.language')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-3 text-sm text-gray-500">
+                {t('general.languageDescription')}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={useBrowserLanguage}
+                  className={`h-9 rounded-[8px] px-3 text-sm font-semibold transition-colors hover:bg-[#f9f9f9] ${
+                    languageMode === 'browser' ? 'bg-[#f3f3f3] text-gray-950' : 'text-gray-500'
+                  }`}
+                >
+                  {t('general.languageBrowser')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLanguage('en')}
+                  className={`h-9 rounded-[8px] px-3 text-sm font-semibold transition-colors hover:bg-[#f9f9f9] ${
+                    languageMode === 'manual' && language === 'en' ? 'bg-[#f3f3f3] text-gray-950' : 'text-gray-500'
+                  }`}
+                >
+                  {t('general.languageEnglish')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLanguage('zh')}
+                  className={`h-9 rounded-[8px] px-3 text-sm font-semibold transition-colors hover:bg-[#f9f9f9] ${
+                    languageMode === 'manual' && language === 'zh' ? 'bg-[#f3f3f3] text-gray-950' : 'text-gray-500'
+                  }`}
+                >
+                  {t('general.languageChinese')}
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="rounded-[8px] border-gray-200 shadow-none">
             <CardHeader>
               <CardTitle>{t('security.password')}</CardTitle>

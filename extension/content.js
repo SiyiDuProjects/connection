@@ -4,7 +4,7 @@
   const BUTTON_ID = "fc-linkedin-button";
   const CLEANUP_KEY = "__fcLinkedInCleanup";
   const AUTH_LISTENER_KEY = "__fcLinkedInAuthListener";
-  const DEFAULT_LANGUAGE = "en";
+  const DEFAULT_LANGUAGE = browserLanguage();
   const BUTTON_REFRESH_DELAY_MS = 250;
   const SIDEBAR_POSITION_KEY = "fcSidebarCenterY";
   const PREVIOUS_FINDS_KEY = "reachardPreviousFinds";
@@ -1421,7 +1421,11 @@
   }
 
   function normalizeLanguage(value) {
-    return value === "zh" ? "zh" : DEFAULT_LANGUAGE;
+    return String(value || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+  }
+
+  function browserLanguage() {
+    return normalizeLanguage(chrome.i18n?.getUILanguage?.() || window.navigator.language || "en");
   }
 
   function t(key) {
@@ -1439,7 +1443,7 @@
         renderPanel();
       }
     } catch (_error) {
-      state.language = DEFAULT_LANGUAGE;
+      state.language = browserLanguage();
     }
   }
 

@@ -1,9 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import useSWR from 'swr';
-import { ChevronDown } from 'lucide-react';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 const buttonShadow = 'transition-all hover:shadow-[0_14px_34px_rgba(15,23,42,0.12)]';
@@ -69,27 +68,36 @@ type AccountData = {
   usage: UsageRow[];
 };
 
+type InviteData = {
+  ok: boolean;
+  code?: string;
+};
+
 type PreferenceKey = 'targetRole' | 'outreachGoal' | 'outreachLength' | 'outreachStyleNotes';
 
 export default function DashboardPage() {
   const { data, mutate } = useSWR<AccountData>('/api/account', fetcher);
+  const { data: inviteData, mutate: mutateInvite } = useSWR<InviteData>('/api/invite-friend', fetcher);
   const [resumeStatus, setResumeStatus] = useState('');
   const [resumeSaving, setResumeSaving] = useState(false);
   const [editingPreference, setEditingPreference] = useState<PreferenceKey | ''>('');
   const [preferenceDraft, setPreferenceDraft] = useState('');
   const [preferenceStatus, setPreferenceStatus] = useState('');
   const [preferenceSaving, setPreferenceSaving] = useState(false);
-  const [inviteLink, setInviteLink] = useState('');
+  const [preferenceOverrides, setPreferenceOverrides] = useState<Partial<Settings>>({});
+  const preferenceSaveAbortRef = useRef<AbortController | null>(null);
   const [inviteStatus, setInviteStatus] = useState('');
-  const [inviteGenerating, setInviteGenerating] = useState(false);
-  const settings = data?.settings;
+  const [inviteCopying, setInviteCopying] = useState(false);
+  const accountSettings = data?.settings;
+  const settings = { ...(accountSettings || {}), ...preferenceOverrides } as Settings;
   const name = settings?.senderName || data?.user?.name || displayName(data?.user);
   const targetRoles = settings?.targetRole || 'Add target roles';
   const outreach = recentOutreach(data?.usage);
+  const inviteCode = inviteData?.code || '';
 
   async function importResumeFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    if (!file || !settings) return;
+    if (!file || !accountSettings) return;
 
     setResumeStatus('');
     setResumeSaving(true);
@@ -121,40 +129,51 @@ export default function DashboardPage() {
     }
   }
 
-  async function generateInviteLink() {
-    setInviteGenerating(true);
+  async function copyInviteCode() {
+    setInviteCopying(true);
     setInviteStatus('');
     try {
-      const response = await fetch('/api/invite-friend', { method: 'POST' });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload.ok || !payload.link) {
-        throw new Error(payload.error || 'Could not generate invite link.');
+      let code = inviteCode;
+      if (!code) {
+        const response = await fetch('/api/invite-friend', { method: 'GET' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok || !payload.code) {
+          throw new Error(payload.error || 'Could not load invite code.');
+        }
+        code = payload.code;
+        mutateInvite(payload, false);
       }
-      setInviteLink(payload.link);
       try {
-        await navigator.clipboard.writeText(payload.link);
-        setInviteStatus('Invite link copied.');
+        await navigator.clipboard.writeText(code);
+        setInviteStatus('Invite code copied.');
       } catch {
-        setInviteStatus('Invite link generated.');
+        setInviteStatus('Copy blocked. Select the code manually.');
       }
     } catch (error) {
-      setInviteStatus(error instanceof Error ? error.message : 'Could not generate invite link.');
+      setInviteStatus(error instanceof Error ? error.message : 'Could not copy invite code.');
     } finally {
-      setInviteGenerating(false);
+      setInviteCopying(false);
     }
   }
 
   function startPreferenceEdit(key: PreferenceKey) {
-    if (!settings) return;
+    if (!accountSettings) return;
     setPreferenceStatus('');
     setEditingPreference(key);
     setPreferenceDraft(preferenceValue(settings, key));
   }
 
-  async function savePreference(key: PreferenceKey, value: string) {
-    if (!settings) return;
+  async function savePreference(key: PreferenceKey, value: string, keepEditing = false) {
+    if (!accountSettings) return;
 
-    setPreferenceSaving(true);
+    preferenceSaveAbortRef.current?.abort();
+    const controller = new AbortController();
+    preferenceSaveAbortRef.current = controller;
+    setPreferenceOverrides((current) => ({ ...current, [key]: value }));
+    if (!keepEditing || editingPreference === key) {
+      setPreferenceDraft(value);
+    }
+    setPreferenceSaving(!keepEditing);
     setPreferenceStatus('');
     try {
       const response = await fetch('/api/settings', {
@@ -162,29 +181,33 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           [key]: value
-        })
+        }),
+        signal: controller.signal
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
         throw new Error(payload.error || 'Could not save this preference.');
       }
-      await mutate();
-      setEditingPreference('');
-      setPreferenceDraft('');
-      setPreferenceStatus('Saved.');
+      if (preferenceSaveAbortRef.current !== controller) return;
+      if (!keepEditing) {
+        setEditingPreference('');
+        setPreferenceDraft('');
+      }
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (preferenceSaveAbortRef.current !== controller) return;
       setPreferenceStatus(error instanceof Error ? error.message : 'Could not save this preference.');
     } finally {
-      setPreferenceSaving(false);
+      if (preferenceSaveAbortRef.current === controller) {
+        preferenceSaveAbortRef.current = null;
+        setPreferenceSaving(false);
+      }
     }
   }
 
   return (
-    <main className="h-[calc(100dvh-64px)] overflow-hidden px-6 py-3">
-      <section
-        className="mx-auto grid h-full max-w-[1240px] gap-8"
-        style={{ gridTemplateColumns: '304px minmax(0, 1fr)' }}
-      >
+    <main className="min-h-[calc(100dvh-64px)] overflow-y-auto px-6 py-3">
+      <section className="mx-auto grid min-h-[calc(100dvh-88px)] max-w-[1240px] grid-cols-1 gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[304px_minmax(0,1fr)]">
         <aside className="flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-slate-200 bg-white/78 p-4 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
           <div className="text-center">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-[8px] bg-slate-100 text-xl font-semibold text-slate-700">
@@ -262,7 +285,7 @@ export default function DashboardPage() {
                     type="file"
                     accept=".txt,.md,.rtf,.pdf,.doc,.docx"
                     className="sr-only"
-                    disabled={resumeSaving || !settings}
+                    disabled={resumeSaving || !accountSettings}
                     onChange={importResumeFile}
                   />
                 </label>
@@ -333,41 +356,27 @@ export default function DashboardPage() {
             <section className="rounded-[8px] border border-slate-200 bg-white/80 p-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-base font-semibold text-slate-950">Invite friend</h2>
+                  <h2 className="text-base font-semibold text-slate-950">Invite code</h2>
                   <p className="mt-1 text-sm font-medium text-slate-500">
-                    Generate a signup link you can send directly.
+                    Share this code with a friend during signup.
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={generateInviteLink}
-                  disabled={inviteGenerating}
-                  className={`inline-flex h-9 items-center rounded-[8px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 disabled:opacity-60 ${buttonShadow}`}
+                  onClick={copyInviteCode}
+                  disabled={inviteCopying}
+                  className="inline-flex h-9 items-center rounded-[8px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 transition-colors hover:bg-[#f9f9f9] disabled:opacity-60"
                 >
-                  {inviteGenerating ? 'Generating' : 'Generate link'}
+                  {inviteCopying ? 'Copying' : 'Copy code'}
                 </button>
               </div>
-              {inviteLink ? (
-                <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+              {inviteCode ? (
+                <div className="mt-3">
                   <input
                     readOnly
-                    value={inviteLink}
-                    className="h-10 rounded-[8px] border border-slate-200 bg-slate-50/80 px-3 text-sm font-medium text-slate-600"
+                    value={inviteCode}
+                    className="h-10 w-full rounded-[8px] border border-slate-200 bg-slate-50/80 px-3 text-sm font-medium text-slate-600"
                   />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(inviteLink);
-                        setInviteStatus('Invite link copied.');
-                      } catch {
-                        setInviteStatus('Copy blocked. Select the link manually.');
-                      }
-                    }}
-                    className={`inline-flex h-10 items-center rounded-[8px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 ${buttonShadow}`}
-                  >
-                    Copy
-                  </button>
                 </div>
               ) : null}
               {inviteStatus ? (
@@ -404,13 +413,33 @@ function PreferenceRow({
   onStart: (field: PreferenceKey) => void;
   onDraftChange: (value: string) => void;
   onCancel: () => void;
-  onSave: (field: PreferenceKey, value: string) => void;
+  onSave: (field: PreferenceKey, value: string, keepEditing?: boolean) => void;
   last?: boolean;
 }) {
+  if (isSelectPreference(field)) {
+    return (
+      <div
+        className={`relative z-0 grid min-h-11 grid-cols-1 gap-2 px-2 py-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center sm:gap-3 ${
+          last ? '' : 'border-b border-slate-200'
+        }`}
+      >
+        <p className="text-sm font-semibold text-slate-950">{label}</p>
+        <InlinePreferenceEditor
+          field={field}
+          value={editing ? draft : preferenceRawValue(field, value)}
+          saving={saving}
+          onChange={onDraftChange}
+          onCancel={onCancel}
+          onSave={(value, keepEditing) => onSave(field, value, keepEditing)}
+        />
+      </div>
+    );
+  }
+
   if (editing) {
     return (
       <div
-        className={`relative z-[90] grid min-h-11 grid-cols-[180px_minmax(0,1fr)] items-center gap-3 px-2 py-1.5 ${
+        className={`relative z-[90] grid min-h-11 grid-cols-1 gap-2 px-2 py-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center sm:gap-3 ${
           last ? '' : 'border-b border-slate-200'
         }`}
       >
@@ -421,7 +450,7 @@ function PreferenceRow({
           saving={saving}
           onChange={onDraftChange}
           onCancel={onCancel}
-          onSave={(value) => onSave(field, value)}
+          onSave={(value, keepEditing) => onSave(field, value, keepEditing)}
         />
       </div>
     );
@@ -429,7 +458,7 @@ function PreferenceRow({
 
   return (
     <div
-      className={`relative z-0 grid min-h-11 grid-cols-[180px_minmax(0,1fr)] items-center gap-3 px-2 py-1.5 ${
+      className={`relative z-0 grid min-h-11 grid-cols-1 gap-2 px-2 py-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center sm:gap-3 ${
         last ? '' : 'border-b border-slate-200'
       }`}
     >
@@ -437,10 +466,9 @@ function PreferenceRow({
       <button
         type="button"
         onClick={() => onStart(field)}
-        className="grid h-9 w-full grid-cols-[minmax(0,1fr)_20px] items-center rounded-[8px] border border-slate-200 bg-white px-3 text-left text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 active:bg-slate-100"
+        className="h-9 w-full rounded-[8px] border border-slate-200 bg-white px-3 text-left text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 active:bg-slate-100"
       >
         <span className="truncate">{value}</span>
-        {isSelectPreference(field) ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <span />}
       </button>
     </div>
   );
@@ -459,7 +487,7 @@ function InlinePreferenceEditor({
   saving: boolean;
   onChange: (value: string) => void;
   onCancel: () => void;
-  onSave: (value: string) => void;
+  onSave: (value: string, keepEditing?: boolean) => void;
 }) {
   if (field === 'outreachGoal') {
     return (
@@ -472,7 +500,7 @@ function InlinePreferenceEditor({
           ['intro', 'Request intro']
         ]}
         onCancel={onCancel}
-        onSave={onSave}
+        onSave={(value) => onSave(value, true)}
       />
     );
   }
@@ -488,7 +516,7 @@ function InlinePreferenceEditor({
           ['detailed', 'Detailed']
         ]}
         onCancel={onCancel}
-        onSave={onSave}
+        onSave={(value) => onSave(value, true)}
       />
     );
   }
@@ -541,18 +569,17 @@ function InlineSelect({
   onSave: (value: string) => void;
 }) {
   return (
-    <div className="grid h-9 grid-cols-3 gap-1 rounded-[8px] border border-slate-200 bg-white p-1">
+    <div className="grid h-9 w-full grid-cols-3 items-center rounded-[8px]" aria-busy={saving}>
       {options.map(([optionValue, label]) => (
         <button
           key={optionValue}
           type="button"
-          autoFocus={optionValue === value}
-          disabled={saving}
+          aria-pressed={optionValue === value}
           onClick={() => onSave(optionValue)}
-          className={`h-7 truncate rounded-[6px] px-2 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 ${
+          className={`mx-0.5 flex h-8 min-w-0 items-center justify-center truncate rounded-[8px] px-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 ${
             optionValue === value
-              ? 'bg-slate-950 text-white'
-              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+              ? 'bg-[#f3f3f3] text-slate-950'
+              : 'bg-transparent text-neutral-500 hover:bg-[#f9f9f9] hover:text-neutral-950 disabled:opacity-60'
           }`}
         >
           {label}
@@ -633,6 +660,20 @@ function goalLabel(value?: Settings['outreachGoal']) {
 
 function isSelectPreference(field: PreferenceKey) {
   return field === 'outreachGoal' || field === 'outreachLength';
+}
+
+function preferenceRawValue(field: PreferenceKey, label: string) {
+  if (field === 'outreachGoal') {
+    if (label === 'Explore referral') return 'referral';
+    if (label === 'Request intro') return 'intro';
+    return 'advice';
+  }
+  if (field === 'outreachLength') {
+    if (label === 'Short') return 'short';
+    if (label === 'Detailed') return 'detailed';
+    return 'concise';
+  }
+  return label;
 }
 
 function preferenceValue(settings: Settings, key: PreferenceKey) {
