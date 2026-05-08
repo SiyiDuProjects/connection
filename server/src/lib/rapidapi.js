@@ -73,7 +73,12 @@ export async function searchRapidApiContacts(job) {
     });
   }
 
-  return filterContactsWithApolloEmailStatus(contacts, job, queries);
+  return mergeApolloEmailAvailableContacts(contacts, job, queries, {
+    companyId,
+    schoolId,
+    geoId,
+    searchPlan
+  });
 }
 
 export function revealRapidApiEmail(contact) {
@@ -161,9 +166,7 @@ function normalizePeople(people, job, metadata) {
   return people.map((person) => normalizeFreshPerson(person, job, metadata));
 }
 
-async function filterContactsWithApolloEmailStatus(contacts, job, queries) {
-  if (!contacts.length) return [];
-
+async function mergeApolloEmailAvailableContacts(contacts, job, queries, metadata = {}) {
   const maxApolloSearches = Math.max(1, Number(process.env.RAPIDAPI_APOLLO_EMAIL_CHECK_SEARCHES || 2));
   const apolloContacts = [];
   for (const query of queries.slice(0, maxApolloSearches)) {
@@ -176,17 +179,47 @@ async function filterContactsWithApolloEmailStatus(contacts, job, queries) {
   }
 
   const available = buildApolloAvailabilityIndex(apolloContacts);
-  const output = [];
+  const output = new Map();
   for (const contact of contacts) {
     const match = findApolloAvailability(contact, available);
     if (!match) continue;
-    output.push({
+    addMergedContact(output, {
       ...contact,
       apolloId: match.apolloId || contact.apolloId,
       emailStatus: match.emailStatus || "verified"
     });
   }
-  return output;
+
+  for (const contact of apolloContacts) {
+    if (!hasAvailableEmail(contact)) continue;
+    addMergedContact(output, {
+      ...contact,
+      provider: "apollo",
+      metadata: {
+        ...(contact.metadata || {}),
+        emailAvailabilitySource: "apollo_search",
+        rapidApiSearchPlan: metadata.searchPlan,
+        companyLinkedinId: metadata.companyId,
+        schoolLinkedinId: metadata.schoolId,
+        regionLinkedinGeoId: metadata.geoId
+      }
+    });
+  }
+
+  const merged = [...output.values()];
+  logSearchSummary({
+    companyName: job.companyName,
+    jobTitle: job.jobTitle,
+    queries,
+    rapidApiCandidates: contacts.length,
+    apolloCandidates: apolloContacts.length,
+    apolloEmailAvailable: apolloContacts.filter(hasAvailableEmail).length,
+    returned: merged.length,
+    companyId: metadata.companyId,
+    schoolId: metadata.schoolId,
+    geoId: metadata.geoId
+  });
+  return merged;
 }
 
 function buildApolloAvailabilityIndex(contacts) {
@@ -214,9 +247,27 @@ function findApolloAvailability(contact, available) {
   return null;
 }
 
+function addMergedContact(output, contact) {
+  const key = mergeKey(contact);
+  if (!key || output.has(key)) return;
+  output.set(key, contact);
+}
+
+function mergeKey(contact) {
+  return normalizeLinkedinUrl(contact.linkedinUrl)
+    || normalizeKey([contact.name, contact.companyName, contact.title].filter(Boolean).join("|"));
+}
+
 function hasAvailableEmail(contact) {
   const status = normalizeKey(contact.emailStatus);
-  return status === "verified" || status === "guessed" || status === "likely to engage";
+  return status === "verified" || status === "guessed" || status === "likely to engage" || status === "available";
+}
+
+function logSearchSummary(summary) {
+  console.log(JSON.stringify({
+    event: "rapidapi.search.summary",
+    ...summary
+  }));
 }
 
 function normalizeLinkedinUrl(value) {

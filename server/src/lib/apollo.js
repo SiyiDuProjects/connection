@@ -88,7 +88,7 @@ function normalizeApolloPerson(person, organizationFallback = {}) {
     id: person.id || linkedinUrl || person.email,
     provider: "apollo",
     apolloId: person.person_id || person.id,
-    name: person.name || [person.first_name, person.last_name].filter(Boolean).join(" "),
+    name: person.name || [person.first_name, person.last_name || person.last_name_obfuscated].filter(Boolean).join(" "),
     title: person.title || "",
     companyName: organization.name || person.organization_name || organizationFallback.name || "",
     companyDomain: organization.primary_domain || organization.website_url || organization.domain || organizationFallback.domain || "",
@@ -96,7 +96,7 @@ function normalizeApolloPerson(person, organizationFallback = {}) {
     education: normalizeEducation(person),
     linkedinUrl,
     email: "",
-    emailStatus: person.email_status || ""
+    emailStatus: person.email_status || person.emailStatus || (person.has_email ? "available" : "")
   };
 }
 
