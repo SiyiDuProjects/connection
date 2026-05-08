@@ -49,10 +49,10 @@ export default function HomePage() {
       <section className="mx-auto grid min-h-screen max-w-6xl items-center gap-12 px-4 pb-14 pt-24 sm:px-6 lg:grid-cols-[0.86fr_1.14fr]">
         <div className="max-w-xl">
           <h1 className="text-5xl font-semibold leading-none text-slate-950 sm:text-6xl lg:text-7xl">
-            Turn job posts into warm introductions.
+            Your next referral is hiding in the job post.
           </h1>
           <p className="mt-6 text-xl font-medium text-slate-500">
-            Find the right people behind every application.
+            Reachard finds the insiders, ranks the strongest paths, and drafts the message that gets you in.
           </p>
           <Button asChild className="mt-9 h-11 rounded-[8px] bg-slate-950 px-5 text-sm font-medium text-white shadow-none hover:bg-slate-800">
             <Link href="/sign-up">

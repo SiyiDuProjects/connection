@@ -40,7 +40,7 @@ export default function DashboardLayout({
 
   return (
     <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.10),transparent_40%),#F8FAFC] text-slate-950">
-      <AppHeader account={data} showCredits />
+      <AppHeader account={data} />
 
       {children}
     </div>

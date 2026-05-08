@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
+import { Check, FileText, Pencil, Search } from 'lucide-react';
 import { useRef, useState } from 'react';
 import useSWR from 'swr';
+import { DashboardSidebar } from './dashboard-sidebar';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
-const buttonShadow = 'transition-all hover:shadow-[0_14px_34px_rgba(15,23,42,0.12)]';
 
 type UsageRow = {
   id: number;
@@ -21,6 +21,7 @@ type UsageRow = {
 };
 
 type Settings = {
+  name?: string | null;
   senderName?: string | null;
   region?: string | null;
   school?: string | null;
@@ -71,9 +72,21 @@ type AccountData = {
 type InviteData = {
   ok: boolean;
   code?: string;
+  link?: string;
 };
 
 type PreferenceKey = 'targetRole' | 'outreachGoal' | 'outreachLength' | 'outreachStyleNotes';
+type PersonalDraft = {
+  name: string;
+  school: string;
+  senderProfile: string;
+};
+type ResolvedItem = {
+  id: string;
+  label: string;
+  subtitle: string;
+  type: 'school' | 'location';
+};
 
 export default function DashboardPage() {
   const { data, mutate } = useSWR<AccountData>('/api/account', fetcher);
@@ -86,14 +99,24 @@ export default function DashboardPage() {
   const [preferenceSaving, setPreferenceSaving] = useState(false);
   const [preferenceOverrides, setPreferenceOverrides] = useState<Partial<Settings>>({});
   const preferenceSaveAbortRef = useRef<AbortController | null>(null);
+  const [personalDraft, setPersonalDraft] = useState<PersonalDraft | null>(null);
+  const [personalEditing, setPersonalEditing] = useState<keyof PersonalDraft | ''>('');
+  const [personalSaving, setPersonalSaving] = useState(false);
+  const [personalStatus, setPersonalStatus] = useState('');
+  const [schoolOptions, setSchoolOptions] = useState<ResolvedItem[]>([]);
+  const [schoolResolving, setSchoolResolving] = useState(false);
   const [inviteStatus, setInviteStatus] = useState('');
   const [inviteCopying, setInviteCopying] = useState(false);
   const accountSettings = data?.settings;
   const settings = { ...(accountSettings || {}), ...preferenceOverrides } as Settings;
   const name = settings?.senderName || data?.user?.name || displayName(data?.user);
   const targetRoles = settings?.targetRole || 'Add target roles';
-  const outreach = recentOutreach(data?.usage);
-  const inviteCode = inviteData?.code || '';
+  const inviteLink = inviteData?.link || '';
+  const personal = personalDraft || {
+    name: data?.user?.name || '',
+    school: settings.school || '',
+    senderProfile: settings.senderProfile || ''
+  };
 
   async function importResumeFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -129,28 +152,28 @@ export default function DashboardPage() {
     }
   }
 
-  async function copyInviteCode() {
+  async function copyInviteLink() {
     setInviteCopying(true);
     setInviteStatus('');
     try {
-      let code = inviteCode;
-      if (!code) {
+      let link = inviteLink;
+      if (!link) {
         const response = await fetch('/api/invite-friend', { method: 'GET' });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload.ok || !payload.code) {
-          throw new Error(payload.error || 'Could not load invite code.');
+        if (!response.ok || !payload.ok || !payload.link) {
+          throw new Error(payload.error || 'Could not load invite link.');
         }
-        code = payload.code;
+        link = payload.link;
         mutateInvite(payload, false);
       }
       try {
-        await navigator.clipboard.writeText(code);
-        setInviteStatus('Invite code copied.');
+        await navigator.clipboard.writeText(link);
+        setInviteStatus('Invite link copied.');
       } catch {
-        setInviteStatus('Copy blocked. Select the code manually.');
+        setInviteStatus('Copy blocked. Try again from a secure browser window.');
       }
     } catch (error) {
-      setInviteStatus(error instanceof Error ? error.message : 'Could not copy invite code.');
+      setInviteStatus(error instanceof Error ? error.message : 'Could not copy invite link.');
     } finally {
       setInviteCopying(false);
     }
@@ -165,6 +188,13 @@ export default function DashboardPage() {
 
   async function savePreference(key: PreferenceKey, value: string, keepEditing = false) {
     if (!accountSettings) return;
+
+    if (!keepEditing && value === preferenceValue(settings, key)) {
+      setEditingPreference('');
+      setPreferenceDraft('');
+      setPreferenceStatus('');
+      return;
+    }
 
     preferenceSaveAbortRef.current?.abort();
     const controller = new AbortController();
@@ -205,82 +235,194 @@ export default function DashboardPage() {
     }
   }
 
+  function updatePersonalDraft(key: keyof PersonalDraft, value: string) {
+    setPersonalStatus('');
+    if (key === 'school') {
+      setSchoolOptions([]);
+      setPreferenceOverrides((current) => ({
+        ...current,
+        defaultSearchPreferences: {
+          ...settings.defaultSearchPreferences,
+          ...current.defaultSearchPreferences,
+          school: undefined
+        }
+      }));
+    }
+    setPersonalDraft((current) => ({
+      ...(current || personal),
+      [key]: value
+    }));
+  }
+
+  async function resolveSchool() {
+    const query = personal.school.trim();
+    if (query.length < 2) {
+      setPersonalStatus('Enter at least 2 characters before searching for a school.');
+      return;
+    }
+
+    setSchoolResolving(true);
+    setPersonalStatus('');
+    setSchoolOptions([]);
+    try {
+      const response = await fetch(`/api/metadata/schools?q=${encodeURIComponent(query)}`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || 'Could not search schools.');
+      }
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      setSchoolOptions(items);
+      setPersonalStatus(items.length ? 'Choose the matching school.' : 'No school matches found.');
+    } catch (error) {
+      setPersonalStatus(error instanceof Error ? error.message : 'Could not search schools.');
+    } finally {
+      setSchoolResolving(false);
+    }
+  }
+
+  function selectSchool(item: ResolvedItem) {
+    const next = {
+      ...personal,
+      school: item.label
+    };
+    const schoolPreference = {
+      label: item.label,
+      linkedinId: item.id
+    };
+    setPersonalDraft(next);
+    setPreferenceOverrides((current) => ({
+      ...current,
+      school: item.label,
+      defaultSearchPreferences: {
+        ...settings.defaultSearchPreferences,
+        ...current.defaultSearchPreferences,
+        school: schoolPreference
+      }
+    }));
+    setSchoolOptions([]);
+    setPersonalStatus(`${item.label} confirmed.`);
+    void commitPersonalInfo(next, schoolPreference);
+  }
+
+  async function commitPersonalInfo(
+    values = personal,
+    schoolPreference?: NonNullable<Settings['defaultSearchPreferences']>['school']
+  ) {
+    if (!accountSettings) return;
+
+    setPersonalEditing('');
+    setPersonalStatus('');
+    const currentValues = {
+      name: data?.user?.name || '',
+      school: settings.school || '',
+      senderProfile: settings.senderProfile || ''
+    };
+    const hasChanged =
+      values.name !== currentValues.name ||
+      values.school !== currentValues.school ||
+      values.senderProfile !== currentValues.senderProfile ||
+      Boolean(schoolPreference);
+
+    if (!hasChanged) {
+      setPersonalDraft(null);
+      return;
+    }
+
+    setPersonalSaving(true);
+    const existingPreferences = settings.defaultSearchPreferences || {};
+    const defaultSearchPreferences = {
+      school:
+        schoolPreference ||
+        (existingPreferences.school?.label === values.school
+          ? existingPreferences.school
+          : undefined),
+      region:
+        existingPreferences.region?.label === settings.region
+          ? existingPreferences.region
+          : undefined
+    };
+
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: values.name,
+          senderName: values.name,
+          school: values.school,
+          senderProfile: values.senderProfile,
+          defaultSearchPreferences
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || 'Could not save personal info.');
+      }
+      setPreferenceOverrides((current) => ({
+        ...current,
+        senderName: values.name,
+        school: values.school,
+        senderProfile: values.senderProfile,
+        defaultSearchPreferences
+      }));
+      setPersonalDraft(null);
+      setPersonalEditing('');
+      await mutate();
+      setPersonalStatus('');
+    } catch (error) {
+      setPersonalStatus(error instanceof Error ? error.message : 'Could not save personal info.');
+    } finally {
+      setPersonalSaving(false);
+    }
+  }
+
   return (
     <main className="min-h-[calc(100dvh-64px)] overflow-y-auto px-6 py-3">
-      <section className="mx-auto grid min-h-[calc(100dvh-88px)] max-w-[1240px] grid-cols-1 gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[304px_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-slate-200 bg-white/78 p-4 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-          <div className="text-center">
-            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-[8px] bg-slate-100 text-xl font-semibold text-slate-700">
-              {initialsFromName(name)}
-            </span>
-            <h2 className="mt-2 text-lg font-semibold text-slate-950">{name}</h2>
-            <p className="mt-1 text-sm font-medium text-slate-500">
-              {settings?.school || 'Add school or affiliation'}
-            </p>
-            <p className="mt-1 text-sm font-medium text-slate-500">
-              {settings?.region || 'Add region'}
-            </p>
-            <p className="mx-auto mt-2 max-w-[210px] text-sm font-medium leading-5 text-slate-500">
-              Interested in <span className="font-semibold text-slate-700">{targetRoles}</span>
-            </p>
-            <Link
-              href="/dashboard/profile"
-              className={`mt-3 inline-flex h-9 items-center rounded-[8px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 ${buttonShadow}`}
-            >
-              Edit profile
-            </Link>
-          </div>
-
-          <div className="mt-4 min-h-0 border-t border-slate-200 pt-3">
-            <p className="text-sm font-semibold text-slate-950">Recent outreach</p>
-            <RecentOutreachList outreach={outreach} compact />
-          </div>
-
-          <div className="mt-auto rounded-[8px] border border-slate-200 bg-slate-50/80 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-950">
-                  {data?.extension?.connected ? 'Extension active' : 'Extension inactive'}
-                </p>
-                <p className="mt-1 text-sm font-medium text-slate-500">
-                  {data?.extension?.connected ? 'Ready in your browser' : 'Connect when ready'}
-                </p>
-              </div>
-              <span className={`h-3 w-3 rounded-full ${data?.extension?.connected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-            </div>
-          </div>
-
-          <div className="mt-3 flex items-center justify-between text-sm font-medium">
-            <span className="text-slate-500">
-              {formatNumber(data?.credits?.remaining)} credits
-            </span>
-            <Link href="/pricing" className="font-semibold text-indigo-600">
-              View plans
-            </Link>
-          </div>
-        </aside>
+      <section className="mx-auto grid min-h-[calc(100dvh-88px)] max-w-[1240px] grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[304px_minmax(0,1fr)]">
+        <DashboardSidebar
+          account={data}
+          inviteCopying={inviteCopying}
+          inviteStatus={inviteStatus}
+          onCopyInviteLink={copyInviteLink}
+        />
 
         <section className="flex min-h-0 flex-col overflow-visible">
-          <div className="mb-3">
-            <h1 className="text-[28px] font-semibold leading-tight text-slate-950">
-              Welcome back, {firstName(name)}
-            </h1>
-            <p className="mt-1 text-sm font-medium text-slate-500">
-              Manage your outreach preferences and recent activity.
-            </p>
-          </div>
-
           <div className="flex min-h-0 flex-1 flex-col gap-3">
-            <section className="rounded-[8px] border border-slate-200 bg-white/80 px-3 py-2 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-slate-950">Resume</h2>
-                  <p className="truncate text-sm font-medium text-slate-500">
-                    {settings?.resumeFileName || (settings?.resumeContext ? 'Saved' : 'No resume')}
-                  </p>
+            <section className="rounded-[8px] border border-slate-200 bg-white/80 px-3 pb-0 pt-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+              <div className="mb-2">
+                <h2 className="text-base font-semibold text-slate-950">Resume</h2>
+              </div>
+
+              <div className="flex min-w-0 items-center justify-between gap-4 px-2 py-2">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center text-slate-700">
+                    <FileText className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-slate-950">
+                        {settings?.resumeFileName || (settings?.resumeContext ? 'Saved resume' : 'No resume added')}
+                      </p>
+                      {settings?.resumeFileName || settings?.resumeContext ? (
+                        <span className="rounded-full bg-[#f3f3f3] px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          Default
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-sm font-medium text-slate-500">
+                      Last uploaded: {settings?.resumeUploadedAt ? formatDateTime(settings.resumeUploadedAt) : 'Not available'}
+                    </p>
+                  </div>
                 </div>
-                <label className={`inline-flex h-9 shrink-0 cursor-pointer items-center rounded-[8px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 ${buttonShadow}`}>
-                  {resumeSaving ? 'Reading' : settings?.resumeFileName ? 'Replace' : 'Upload'}
+                <label
+                  aria-disabled={resumeSaving || !accountSettings}
+                  className={`inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-[#f9f9f9] hover:text-slate-950 ${
+                    resumeSaving || !accountSettings ? 'pointer-events-none opacity-60' : ''
+                  }`}
+                  title={settings?.resumeFileName ? 'Replace resume' : 'Upload resume'}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                  <span className="sr-only">{settings?.resumeFileName ? 'Replace resume' : 'Upload resume'}</span>
                   <input
                     type="file"
                     accept=".txt,.md,.rtf,.pdf,.doc,.docx"
@@ -295,7 +437,7 @@ export default function DashboardPage() {
               ) : null}
             </section>
 
-            <section className="rounded-[8px] border border-slate-200 bg-white/80 p-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+            <section className="rounded-[8px] border border-slate-200 bg-white/80 px-3 pb-0 pt-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
               <div className="mb-3">
                 <h2 className="text-base font-semibold text-slate-950">Outreach preferences</h2>
               </div>
@@ -353,36 +495,118 @@ export default function DashboardPage() {
               ) : null}
             </section>
 
-            <section className="rounded-[8px] border border-slate-200 bg-white/80 p-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-              <div className="flex items-start justify-between gap-4">
+            <section
+              id="personal-info"
+              className="rounded-[8px] border border-slate-200 bg-white/80 px-3 pb-0 pt-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl"
+            >
+              <div>
+                <div className="mb-3">
+                  <h2 className="text-base font-semibold text-slate-950">Personal Info</h2>
+                </div>
                 <div>
-                  <h2 className="text-base font-semibold text-slate-950">Invite code</h2>
-                  <p className="mt-1 text-sm font-medium text-slate-500">
-                    Share this code with a friend during signup.
-                  </p>
+                  <PersonalInfoField
+                    label="Name"
+                    value={personal.name || 'Add your name'}
+                    editing={personalEditing === 'name'}
+                    onEdit={() => setPersonalEditing('name')}
+                  >
+                    <input
+                      autoFocus
+                      value={personal.name}
+                      onChange={(event) => updatePersonalDraft('name', event.target.value)}
+                      onBlur={(event) => void commitPersonalInfo({ ...personal, name: event.currentTarget.value })}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      disabled={personalSaving || !accountSettings}
+                      placeholder="Enter your name"
+                      className="h-5 w-full bg-transparent p-0 text-sm font-medium leading-5 text-slate-600 outline-none ring-0 focus:outline-none focus:ring-0"
+                    />
+                  </PersonalInfoField>
+
+                  <PersonalInfoField
+                    label="School, region, or affiliation"
+                    value={personal.school || 'Add school or affiliation'}
+                    editing={personalEditing === 'school'}
+                    onEdit={() => setPersonalEditing('school')}
+                  >
+                    <div className="relative w-full">
+                      <input
+                        autoFocus
+                        value={personal.school}
+                        onChange={(event) => updatePersonalDraft('school', event.target.value)}
+                        onBlur={(event) => {
+                          if (event.relatedTarget instanceof HTMLElement && event.currentTarget.parentElement?.contains(event.relatedTarget)) {
+                            return;
+                          }
+                          void commitPersonalInfo({ ...personal, school: event.currentTarget.value });
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            event.currentTarget.blur();
+                          }
+                        }}
+                        disabled={personalSaving || !accountSettings}
+                        placeholder="University of California, Berkeley"
+                        className="h-5 w-full bg-transparent p-0 pr-8 text-sm font-medium leading-5 text-slate-600 outline-none ring-0 focus:outline-none focus:ring-0"
+                      />
+                      <button
+                        type="button"
+                        onClick={resolveSchool}
+                        disabled={personalSaving || schoolResolving || !accountSettings}
+                        className="absolute right-0 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[8px] text-slate-500 transition-colors hover:bg-[#f9f9f9] hover:text-slate-950 disabled:opacity-60"
+                        title={settings.defaultSearchPreferences?.school?.label === personal.school ? 'Verified' : 'Search school'}
+                      >
+                        {settings.defaultSearchPreferences?.school?.label === personal.school ? (
+                          <Check className="h-4 w-4" aria-hidden="true" />
+                        ) : (
+                          <Search className="h-4 w-4" aria-hidden="true" />
+                        )}
+                        <span className="sr-only">
+                          {settings.defaultSearchPreferences?.school?.label === personal.school ? 'Verified school' : 'Search school'}
+                        </span>
+                      </button>
+                    </div>
+                    {schoolOptions.length ? (
+                      <ResolveOptions items={schoolOptions} onSelect={selectSchool} />
+                    ) : null}
+                  </PersonalInfoField>
+
+                  <PersonalInfoField
+                    label="Extra personal info"
+                    value={personal.senderProfile || 'Add any personal context that should shape outreach.'}
+                    editing={personalEditing === 'senderProfile'}
+                    multiline
+                    onEdit={() => setPersonalEditing('senderProfile')}
+                    last
+                  >
+                    <textarea
+                      autoFocus
+                      value={personal.senderProfile}
+                      onChange={(event) => updatePersonalDraft('senderProfile', event.target.value)}
+                      onBlur={(event) => void commitPersonalInfo({ ...personal, senderProfile: event.currentTarget.value })}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      disabled={personalSaving || !accountSettings}
+                      placeholder="Add any personal context that should shape outreach."
+                      className="min-h-5 w-full resize-none bg-transparent p-0 text-sm font-medium leading-5 text-slate-600 outline-none ring-0 focus:outline-none focus:ring-0"
+                    />
+                  </PersonalInfoField>
                 </div>
-                <button
-                  type="button"
-                  onClick={copyInviteCode}
-                  disabled={inviteCopying}
-                  className="inline-flex h-9 items-center rounded-[8px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 transition-colors hover:bg-[#f9f9f9] disabled:opacity-60"
-                >
-                  {inviteCopying ? 'Copying' : 'Copy code'}
-                </button>
+                {personalStatus ? (
+                  <p className="mt-2 text-sm font-medium text-slate-500">{personalStatus}</p>
+                ) : null}
               </div>
-              {inviteCode ? (
-                <div className="mt-3">
-                  <input
-                    readOnly
-                    value={inviteCode}
-                    className="h-10 w-full rounded-[8px] border border-slate-200 bg-slate-50/80 px-3 text-sm font-medium text-slate-600"
-                  />
-                </div>
-              ) : null}
-              {inviteStatus ? (
-                <p className="mt-2 text-sm font-medium text-slate-500">{inviteStatus}</p>
-              ) : null}
             </section>
+
           </div>
         </section>
       </section>
@@ -423,7 +647,7 @@ function PreferenceRow({
           last ? '' : 'border-b border-slate-200'
         }`}
       >
-        <p className="text-sm font-semibold text-slate-950">{label}</p>
+        <p className="text-sm font-semibold text-slate-500">{label}</p>
         <InlinePreferenceEditor
           field={field}
           value={editing ? draft : preferenceRawValue(field, value)}
@@ -443,7 +667,7 @@ function PreferenceRow({
           last ? '' : 'border-b border-slate-200'
         }`}
       >
-        <p className="text-sm font-semibold text-slate-950">{label}</p>
+        <p className="text-sm font-semibold text-slate-500">{label}</p>
         <InlinePreferenceEditor
           field={field}
           value={draft}
@@ -462,14 +686,63 @@ function PreferenceRow({
         last ? '' : 'border-b border-slate-200'
       }`}
     >
-      <p className="text-sm font-semibold text-slate-950">{label}</p>
-      <button
-        type="button"
-        onClick={() => onStart(field)}
-        className="h-9 w-full rounded-[8px] border border-slate-200 bg-white px-3 text-left text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 active:bg-slate-100"
-      >
-        <span className="truncate">{value}</span>
-      </button>
+      <p className="text-sm font-semibold text-slate-500">{label}</p>
+      <EditableValue value={value} onEdit={() => onStart(field)} />
+    </div>
+  );
+}
+
+function EditableValue({
+  value,
+  multiline = false,
+  onEdit
+}: {
+  value: string;
+  multiline?: boolean;
+  onEdit: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      className="flex min-h-9 w-full items-center rounded-[8px] px-3 py-2 text-left transition-colors hover:bg-[#f9f9f9] focus:outline-none"
+    >
+      <span className={`block min-w-0 text-sm font-medium text-slate-950 ${multiline ? 'whitespace-pre-wrap leading-5' : 'truncate'}`}>
+        {value}
+      </span>
+    </button>
+  );
+}
+
+function PersonalInfoField({
+  label,
+  value,
+  editing,
+  multiline,
+  onEdit,
+  last,
+  children
+}: {
+  label: string;
+  value: string;
+  editing: boolean;
+  multiline?: boolean;
+  onEdit: () => void;
+  last?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`grid min-h-11 gap-2 px-2 py-2 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-start ${
+        last ? '' : 'border-b border-slate-200'
+      }`}
+    >
+      <p className="pt-2 text-sm font-semibold leading-5 text-slate-500">{label}</p>
+      {editing ? (
+        <div className="flex min-h-9 flex-col justify-center rounded-[8px] px-3 py-2">{children}</div>
+      ) : (
+        <EditableValue value={value} multiline={multiline} onEdit={onEdit} />
+      )}
     </div>
   );
 }
@@ -521,37 +794,24 @@ function InlinePreferenceEditor({
     );
   }
 
-  const isNotes = field === 'outreachStyleNotes';
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
+    <div className="flex min-h-9 items-center rounded-[8px] px-3 py-2">
       <input
         autoFocus
         value={value}
         disabled={saving}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => onSave(event.currentTarget.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') onSave(value);
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
           if (event.key === 'Escape') onCancel();
         }}
-        className="h-9 min-w-0 rounded-[8px] border border-slate-200 bg-white px-3 text-sm font-medium text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-200"
-        placeholder={isNotes ? 'Extra style notes' : 'Target roles'}
+        className="h-5 w-full min-w-0 bg-transparent p-0 text-sm font-medium leading-5 text-slate-600 outline-none ring-0 focus:outline-none focus:ring-0"
+        placeholder={field === 'outreachStyleNotes' ? 'Extra style notes' : 'Target roles'}
       />
-      <button
-        type="button"
-        onClick={onCancel}
-        disabled={saving}
-        className="h-9 rounded-[8px] px-3 text-sm font-semibold text-slate-500 hover:bg-white hover:text-slate-950"
-      >
-        Cancel
-      </button>
-      <button
-        type="button"
-        onClick={() => onSave(value)}
-        disabled={saving}
-        className="h-9 rounded-[8px] bg-slate-950 px-3 text-sm font-semibold text-white disabled:opacity-60"
-      >
-        {saving ? 'Saving' : 'Save'}
-      </button>
     </div>
   );
 }
@@ -569,14 +829,14 @@ function InlineSelect({
   onSave: (value: string) => void;
 }) {
   return (
-    <div className="grid h-9 w-full grid-cols-3 items-center rounded-[8px]" aria-busy={saving}>
+    <div className="flex w-full flex-wrap items-center gap-4 rounded-[8px]" aria-busy={saving}>
       {options.map(([optionValue, label]) => (
         <button
           key={optionValue}
           type="button"
           aria-pressed={optionValue === value}
           onClick={() => onSave(optionValue)}
-          className={`mx-0.5 flex h-8 min-w-0 items-center justify-center truncate rounded-[8px] px-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 ${
+          className={`flex h-9 min-w-0 items-center justify-center truncate rounded-[8px] px-4 text-sm font-semibold transition-colors focus:outline-none ${
             optionValue === value
               ? 'bg-[#f3f3f3] text-slate-950'
               : 'bg-transparent text-neutral-500 hover:bg-[#f9f9f9] hover:text-neutral-950 disabled:opacity-60'
@@ -589,61 +849,30 @@ function InlineSelect({
   );
 }
 
-function recentOutreach(usage: UsageRow[] | undefined) {
-  return (usage || [])
-    .filter((item) => item.action === 'email.draft' || item.action === 'contacts.reveal')
-    .slice(0, 4)
-    .map((item) => ({
-      id: item.id,
-      title: formatActionName(item.action),
-      detail: [item.request?.jobTitle || item.request?.targetRole, item.request?.companyName]
-        .filter(Boolean)
-        .join(' @ ') || 'Outreach activity',
-      time: formatRelative(item.createdAt)
-    }));
-}
-
-function RecentOutreachList({
-  outreach,
-  compact
+function ResolveOptions({
+  items,
+  onSelect
 }: {
-  outreach: ReturnType<typeof recentOutreach>;
-  compact?: boolean;
+  items: ResolvedItem[];
+  onSelect: (item: ResolvedItem) => void;
 }) {
-  if (!outreach.length) {
-    return (
-      <div className="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50/70 p-3">
-        <p className="text-sm font-semibold text-slate-950">No outreach yet.</p>
-        <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
-          Drafted or unlocked emails will appear here.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className={compact ? 'mt-2 divide-y divide-slate-200' : 'divide-y divide-slate-200'}>
-      {outreach.map((item) => (
-        <article key={item.id} className="py-2.5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-950">{item.title}</p>
-              <p className="mt-1 text-sm font-medium leading-5 text-slate-500">{item.detail}</p>
-            </div>
-            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
-              {item.time}
-            </span>
-          </div>
-        </article>
+    <div className="mt-2 overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+      {items.map((item) => (
+        <button
+          key={`${item.type}-${item.id}`}
+          type="button"
+          onClick={() => onSelect(item)}
+          className="block w-full border-b border-slate-200 px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-[#f9f9f9]"
+        >
+          <span className="block text-sm font-semibold text-slate-950">{item.label}</span>
+          {item.subtitle ? (
+            <span className="mt-0.5 block text-xs font-medium text-slate-500">{item.subtitle}</span>
+          ) : null}
+        </button>
       ))}
     </div>
   );
-}
-
-function formatActionName(action: string) {
-  if (action === 'email.draft') return 'Draft created';
-  if (action === 'contacts.reveal') return 'Email unlocked';
-  return 'Outreach';
 }
 
 function lengthLabel(value?: Settings['outreachLength']) {
@@ -706,11 +935,13 @@ async function extractReadableText(file: File) {
 function formatDateTime(value?: string | null) {
   if (!value) return '';
   return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
+    month: 'numeric',
     day: 'numeric',
     year: 'numeric',
     hour: 'numeric',
-    minute: '2-digit'
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short'
   }).format(new Date(value));
 }
 
@@ -719,27 +950,3 @@ function displayName(user?: AccountData['user']) {
   return user.name || user.email.split('@')[0];
 }
 
-function firstName(value: string) {
-  return value.split(' ')[0] || value;
-}
-
-function initialsFromName(value: string) {
-  return value
-    .split(/[ @.]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-}
-
-function formatRelative(value?: string) {
-  if (!value) return 'recently';
-  const days = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 86_400_000));
-  if (days === 0) return 'today';
-  if (days === 1) return '1d ago';
-  return `${days}d ago`;
-}
-
-function formatNumber(value?: number) {
-  return Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US') : '...';
-}
