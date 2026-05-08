@@ -16,26 +16,16 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, error: 'RapidAPI is not configured.' }, { status: 500 });
   }
 
-  const url = new URL(`https://${HOST}/api/search/schools`);
-  url.searchParams.set('keywords', query);
-  url.searchParams.set('limit', '8');
-
-  const response = await fetch(url, { headers: rapidHeaders() });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.status === 'ERROR') {
-    return Response.json({ ok: false, error: data.message || 'Could not resolve school.' }, { status: 502 });
+  const searches = schoolSearchTerms(query);
+  const responses = await Promise.all(searches.map((term) => searchSchools(term)));
+  const failed = responses.find((result) => result.error);
+  if (failed?.error) {
+    return Response.json({ ok: false, error: failed.error }, { status: 502 });
   }
 
-  const results = Array.isArray(data.data?.data) ? data.data.data : [];
-  const sorted = [...results].sort((first: Record<string, unknown>, second: Record<string, unknown>) => {
-    const firstName = String(first.name || '').toLowerCase();
-    const secondName = String(second.name || '').toLowerCase();
-    const wanted = query.toLowerCase();
-    const firstExact = firstName === wanted ? 1 : 0;
-    const secondExact = secondName === wanted ? 1 : 0;
-    if (firstExact !== secondExact) return secondExact - firstExact;
-    return Number(second.membersCount || 0) - Number(first.membersCount || 0);
-  });
+  const sorted = dedupeSchools(responses.flatMap((result) => result.results))
+    .sort((first, second) => scoreSchool(second, query) - scoreSchool(first, query))
+    .slice(0, 8);
 
   return Response.json({
     ok: true,
@@ -46,6 +36,71 @@ export async function GET(request: Request) {
       type: 'school'
     })).filter((item: { id: string; label: string }) => item.id && item.label)
   });
+}
+
+async function searchSchools(query: string) {
+  const url = new URL(`https://${HOST}/api/search/schools`);
+  url.searchParams.set('keywords', query);
+  url.searchParams.set('limit', '8');
+
+  const response = await fetch(url, { headers: rapidHeaders() });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.status === 'ERROR') {
+    return {
+      results: [],
+      error: data.message || 'Could not resolve school.'
+    };
+  }
+
+  return {
+    results: Array.isArray(data.data?.data) ? data.data.data : [],
+    error: ''
+  };
+}
+
+function schoolSearchTerms(query: string) {
+  const terms = [query];
+  const normalized = normalizeName(query);
+  if (['ucberkeley', 'ucb', 'berkeley', 'universityofcaliforniaberkeley'].includes(normalized)) {
+    terms.push('University of California Berkeley');
+  }
+  return [...new Set(terms)];
+}
+
+function dedupeSchools(results: Record<string, unknown>[]) {
+  const seen = new Set<string>();
+  const schools: Record<string, unknown>[] = [];
+  for (const school of results) {
+    const key = String(school.id || school.entityUrn || school.name || '').toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    schools.push(school);
+  }
+  return schools;
+}
+
+function scoreSchool(school: Record<string, unknown>, query: string) {
+  const name = String(school.name || '');
+  const normalizedName = normalizeName(name);
+  const normalizedQuery = normalizeName(query);
+  let score = Math.min(Number(school.membersCount || 0) / 1000, 50);
+
+  if (normalizedName === normalizedQuery) score += 120;
+  if (normalizedName.includes(normalizedQuery)) score += 30;
+
+  const broadBerkeleyQuery = ['ucberkeley', 'ucb', 'berkeley', 'universityofcaliforniaberkeley'].includes(normalizedQuery);
+  if (broadBerkeleyQuery) {
+    if (normalizedName === 'universityofcaliforniaberkeley') score += 240;
+    if (/\b(extension|college|school|division|department|rausser|letters|engineering|public health|information)\b/i.test(name)) {
+      score -= 80;
+    }
+  }
+
+  return score;
+}
+
+function normalizeName(value: string) {
+  return value.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '');
 }
 
 function rapidHeaders() {
