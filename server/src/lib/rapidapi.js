@@ -26,7 +26,7 @@ export async function searchRapidApiContacts(job) {
     throw error;
   }
 
-  const queries = [searchPlan.primaryQuery, ...searchPlan.fallbackQueries].filter(Boolean).slice(0, 3);
+  const queries = buildPeopleSearchQueries(searchPlan, job);
   const searches = [];
   for (const query of queries) {
     searches.push({ query, schoolId });
@@ -54,7 +54,8 @@ export async function searchRapidApiContacts(job) {
 
   if (schoolId && contacts.length < 5) {
     const broadPeople = [];
-    for (const query of queries) {
+    const broadQueries = buildPeopleSearchQueries(searchPlan, job, { broad: true });
+    for (const query of broadQueries) {
       const results = await searchPeople({
         query,
         companyId,
@@ -166,6 +167,21 @@ function normalizePeople(people, job, metadata) {
   return people.map((person) => normalizeFreshPerson(person, job, metadata));
 }
 
+function buildPeopleSearchQueries(searchPlan, job, options = {}) {
+  const baseQueries = [
+    searchPlan.primaryQuery,
+    ...searchPlan.fallbackQueries
+  ];
+  if (options.broad) {
+    baseQueries.push(
+      roleHead(searchPlan.primaryQuery),
+      roleHead(job.originalJobTitle || job.jobTitle || job.targetRole),
+      job.companyName
+    );
+  }
+  return uniqueStrings(baseQueries).slice(0, options.broad ? 5 : 3);
+}
+
 async function mergeApolloEmailAvailableContacts(contacts, job, queries, metadata = {}) {
   const maxApolloSearches = Math.max(1, Number(process.env.RAPIDAPI_APOLLO_EMAIL_CHECK_SEARCHES || 2));
   const apolloContacts = [];
@@ -175,7 +191,18 @@ async function mergeApolloEmailAvailableContacts(contacts, job, queries, metadat
       jobTitle: query,
       targetRole: query
     }).catch(() => []);
-    apolloContacts.push(...results);
+    if (results.length) {
+      apolloContacts.push(...results);
+      continue;
+    }
+
+    const relaxedResults = await searchApolloContacts({
+      ...job,
+      jobTitle: query,
+      targetRole: query,
+      relaxedApolloSearch: true
+    }).catch(() => []);
+    apolloContacts.push(...relaxedResults);
   }
 
   const available = buildApolloAvailabilityIndex(apolloContacts);
@@ -343,6 +370,26 @@ function normalizeFreshPerson(person, job, ids) {
 
 function firstString(...values) {
   return values.find((value) => typeof value === "string" && value.trim())?.trim() || "";
+}
+
+function roleHead(value) {
+  const words = firstString(value).split(/\s+/).filter(Boolean);
+  if (words.length < 2) return "";
+  const head = words[0].replace(/[^a-z0-9&+-]/gi, "");
+  return head.length >= 4 ? head : "";
+}
+
+function uniqueStrings(values) {
+  const seen = new Set();
+  const output = [];
+  for (const value of values) {
+    const text = firstString(value);
+    const key = normalizeKey(text);
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    output.push(text);
+  }
+  return output;
 }
 
 function normalizeCompany(value) {

@@ -7,6 +7,13 @@ export async function searchApolloContacts(job) {
   requireApolloKey();
 
   const payload = { ...buildPeopleSearchPlan(job).apollo };
+  if (job.relaxedApolloSearch) {
+    delete payload.q_organization_job_titles;
+    delete payload.organization_job_locations;
+    delete payload.person_locations;
+    delete payload.person_seniorities;
+    payload.include_similar_titles = true;
+  }
 
   if (job.companyDomain) {
     payload.q_organization_domains_list = [job.companyDomain];

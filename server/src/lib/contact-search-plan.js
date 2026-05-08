@@ -51,10 +51,11 @@ export async function buildContactSearchPlan(job) {
 
 function fallbackPlan(job) {
   const title = clean(job.originalJobTitle || job.jobTitle || job.targetRole);
+  const functionalTitle = functionalQuery(title);
   const queries = compact([
-    title,
-    shortenTitle(title, 3),
-    shortenTitle(title, 2)
+    functionalTitle,
+    shortenTitle(functionalTitle, 3),
+    shortenTitle(functionalTitle, 2)
   ]);
   return {
     companyName: clean(job.companyName),
@@ -70,12 +71,15 @@ function fallbackPlan(job) {
 function instructions() {
   return [
     "You prepare LinkedIn people-search queries for job networking.",
+    "The goal is to find likely hiring managers, team leads, recruiters, or functional leaders at the company, not exact peers with the same job level.",
     "Use only the provided job title and job description. Do not invent adjacent roles or domains.",
     "Do not infer e-commerce, marketing, CRM, clienteling, or analytics unless those words or very close equivalents appear in the input.",
     "The company is searched separately through current_company, so do not include the company name in role queries.",
-    "The primaryQuery should be the clean role phrase from the job title.",
-    "Fallback queries must be sub-phrases or very close abbreviations from the original role phrase, such as Sales Operations -> Sales Ops.",
-    "Each query must be 2 to 5 words when possible.",
+    "The primaryQuery must be the functional area or team keyword, not the exact job title when the title contains level words.",
+    "Remove seniority and level words such as Associate, Assistant, Intern, Junior, Senior, Staff, Principal, Lead, Manager, Director, Head, VP, I, II, III, New Grad, and Entry Level.",
+    "Examples: Operations Associate -> Operations; Digital Sales Operations Associate -> Digital Sales Operations; Data Engineer II -> Data Engineering; Product Manager -> Product; Software Engineering Manager -> Software Engineering.",
+    "Fallback queries must be broader functional sub-phrases or close abbreviations, such as Digital Sales Operations -> Sales Operations -> Operations.",
+    "Each query should usually be 1 to 4 words.",
     "Return only valid JSON matching the schema."
   ].join("\n");
 }
@@ -117,8 +121,9 @@ function schema() {
 }
 
 function normalizePlan(value, fallback) {
-  const primary = clean(value.primaryQuery) || fallback.primaryQuery;
+  const primary = functionalQuery(value.primaryQuery) || fallback.primaryQuery;
   const fallbackQueries = normalizeQueries(value.fallbackQueries)
+    .map(functionalQuery)
     .filter((query) => normalizeKey(query) !== normalizeKey(primary))
     .slice(0, 2);
 
@@ -126,7 +131,7 @@ function normalizePlan(value, fallback) {
     companyName: clean(value.companyName) || fallback.companyName,
     primaryQuery: primary,
     fallbackQueries,
-    positiveSignals: normalizeQueries(value.positiveSignals).slice(0, 8),
+    positiveSignals: normalizeQueries(value.positiveSignals).map(functionalQuery).slice(0, 8),
     negativeSignals: normalizeQueries(value.negativeSignals).slice(0, 8),
     jobLocation: clean(value.jobLocation) || fallback.jobLocation,
     ai: { used: true, provider: "openai", model: process.env.OPENAI_MODEL || "gpt-5.4-mini" }
@@ -136,6 +141,34 @@ function normalizePlan(value, fallback) {
 function normalizeQueries(value) {
   if (!Array.isArray(value)) return [];
   return compact(value.map((item) => clean(item).split(/\s+/).slice(0, 5).join(" ")));
+}
+
+function functionalQuery(value) {
+  const text = clean(value);
+  if (!text) return "";
+
+  const replacements = [
+    [/\bdata engineer(?:ing)?\b/gi, "Data Engineering"],
+    [/\bsoftware engineer(?:ing)?\b/gi, "Software Engineering"],
+    [/\bproduct manager\b/gi, "Product"],
+    [/\bprogram manager\b/gi, "Program"],
+    [/\bproject manager\b/gi, "Project"],
+    [/\bsales ops\b/gi, "Sales Operations"],
+    [/\bbizops\b/gi, "Business Operations"]
+  ];
+  let output = text;
+  for (const [pattern, replacement] of replacements) {
+    output = output.replace(pattern, replacement);
+  }
+
+  output = output
+    .replace(/\b(?:associate|assistant|internship|intern|junior|jr\.?|senior|sr\.?|staff|principal|lead|manager|director|head|vp|svp|evp|new grad|entry level)\b/gi, " ")
+    .replace(/\b(?:i|ii|iii|iv|v|l\d+)\b/gi, " ")
+    .replace(/[-/|,;:()[\]]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return output || text;
 }
 
 function shortenTitle(value, words) {
