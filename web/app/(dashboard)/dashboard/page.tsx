@@ -393,7 +393,7 @@ export default function DashboardPage() {
                 <h2 className="text-base font-semibold text-slate-950">Resume</h2>
               </div>
 
-              <div className="flex min-w-0 items-center justify-between gap-4 px-2 py-2">
+              <div className="-mx-3 flex min-w-0 items-center justify-between gap-4 px-3 py-2">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center text-slate-700">
                     <FileText className="h-6 w-6" aria-hidden="true" />
@@ -528,7 +528,7 @@ export default function DashboardPage() {
                   </PersonalInfoField>
 
                   <PersonalInfoField
-                    label="School, region, or affiliation"
+                    label="School or affiliation"
                     value={personal.school || 'Add school or affiliation'}
                     editing={personalEditing === 'school'}
                     onEdit={() => setPersonalEditing('school')}
@@ -643,19 +643,21 @@ function PreferenceRow({
   if (isSelectPreference(field)) {
     return (
       <div
-        className={`relative z-0 grid min-h-11 grid-cols-1 gap-2 px-2 py-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center sm:gap-3 ${
+        className={`relative z-0 min-h-11 px-2 py-2 ${
           last ? '' : 'border-b border-slate-200'
         }`}
       >
-        <p className="text-sm font-semibold text-slate-500">{label}</p>
-        <InlinePreferenceEditor
-          field={field}
-          value={editing ? draft : preferenceRawValue(field, value)}
-          saving={saving}
-          onChange={onDraftChange}
-          onCancel={onCancel}
-          onSave={(value, keepEditing) => onSave(field, value, keepEditing)}
-        />
+        <p className="text-xs font-semibold text-slate-500">{label}</p>
+        <div className="mt-1">
+          <InlinePreferenceEditor
+            field={field}
+            value={editing ? draft : preferenceRawValue(field, value)}
+            saving={saving}
+            onChange={onDraftChange}
+            onCancel={onCancel}
+            onSave={(value, keepEditing) => onSave(field, value, keepEditing)}
+          />
+        </div>
       </div>
     );
   }
@@ -663,31 +665,35 @@ function PreferenceRow({
   if (editing) {
     return (
       <div
-        className={`relative z-[90] grid min-h-11 grid-cols-1 gap-2 px-2 py-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center sm:gap-3 ${
+        className={`relative z-[90] min-h-11 px-2 py-2 ${
           last ? '' : 'border-b border-slate-200'
         }`}
       >
-        <p className="text-sm font-semibold text-slate-500">{label}</p>
-        <InlinePreferenceEditor
-          field={field}
-          value={draft}
-          saving={saving}
-          onChange={onDraftChange}
-          onCancel={onCancel}
-          onSave={(value, keepEditing) => onSave(field, value, keepEditing)}
-        />
+        <p className="text-xs font-semibold text-slate-500">{label}</p>
+        <div className="mt-1">
+          <InlinePreferenceEditor
+            field={field}
+            value={draft}
+            saving={saving}
+            onChange={onDraftChange}
+            onCancel={onCancel}
+            onSave={(value, keepEditing) => onSave(field, value, keepEditing)}
+          />
+        </div>
       </div>
     );
   }
 
   return (
     <div
-      className={`relative z-0 grid min-h-11 grid-cols-1 gap-2 px-2 py-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center sm:gap-3 ${
+      className={`relative z-0 min-h-11 px-2 py-2 ${
         last ? '' : 'border-b border-slate-200'
       }`}
     >
-      <p className="text-sm font-semibold text-slate-500">{label}</p>
-      <EditableValue value={value} onEdit={() => onStart(field)} />
+      <p className="text-xs font-semibold text-slate-500">{label}</p>
+      <div className="mt-1">
+        <EditableValue value={value} onEdit={() => onStart(field)} />
+      </div>
     </div>
   );
 }
@@ -705,7 +711,7 @@ function EditableValue({
     <button
       type="button"
       onClick={onEdit}
-      className="flex min-h-9 w-full items-center rounded-[8px] px-3 py-2 text-left transition-colors hover:bg-[#f9f9f9] focus:outline-none"
+      className="flex min-h-9 w-full items-center rounded-[8px] p-2 text-left transition-colors hover:bg-[#f9f9f9] focus:outline-none"
     >
       <span className={`block min-w-0 text-sm font-medium text-slate-950 ${multiline ? 'whitespace-pre-wrap leading-5' : 'truncate'}`}>
         {value}
@@ -733,16 +739,18 @@ function PersonalInfoField({
 }) {
   return (
     <div
-      className={`grid min-h-11 gap-2 px-2 py-2 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-start ${
+      className={`min-h-11 px-2 py-2 ${
         last ? '' : 'border-b border-slate-200'
       }`}
     >
-      <p className="pt-2 text-sm font-semibold leading-5 text-slate-500">{label}</p>
-      {editing ? (
-        <div className="flex min-h-9 flex-col justify-center rounded-[8px] px-3 py-2">{children}</div>
-      ) : (
-        <EditableValue value={value} multiline={multiline} onEdit={onEdit} />
-      )}
+      <p className="text-xs font-semibold text-slate-500">{label}</p>
+      <div className="mt-1">
+        {editing ? (
+          <div className="flex min-h-9 w-full flex-col justify-center rounded-[8px] p-2">{children}</div>
+        ) : (
+          <EditableValue value={value} multiline={multiline} onEdit={onEdit} />
+        )}
+      </div>
     </div>
   );
 }
@@ -795,7 +803,7 @@ function InlinePreferenceEditor({
   }
 
   return (
-    <div className="flex min-h-9 items-center rounded-[8px] px-3 py-2">
+    <div className="flex min-h-9 w-full items-center rounded-[8px] p-2">
       <input
         autoFocus
         value={value}
@@ -836,7 +844,7 @@ function InlineSelect({
           type="button"
           aria-pressed={optionValue === value}
           onClick={() => onSave(optionValue)}
-          className={`flex h-9 min-w-0 items-center justify-center truncate rounded-[8px] px-4 text-sm font-semibold transition-colors focus:outline-none ${
+          className={`flex min-h-9 min-w-0 items-center justify-center truncate rounded-[8px] p-2 text-sm font-semibold transition-colors focus:outline-none ${
             optionValue === value
               ? 'bg-[#f3f3f3] text-slate-950'
               : 'bg-transparent text-neutral-500 hover:bg-[#f9f9f9] hover:text-neutral-950 disabled:opacity-60'
