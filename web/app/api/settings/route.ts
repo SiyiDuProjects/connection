@@ -10,15 +10,16 @@ const settingsSchema = z.object({
   region: z.string().max(160).optional(),
   school: z.string().max(160).optional(),
   emailSignature: z.string().max(1000).optional(),
-  introStyle: z.enum(['student', 'career-switcher', 'experienced', 'founder']).default('student'),
-  emailTone: z.enum(['warm', 'concise', 'confident', 'formal']).default('warm'),
-  outreachLength: z.enum(['short', 'concise', 'detailed']).default('concise'),
-  outreachGoal: z.enum(['advice', 'referral', 'intro']).default('advice'),
+  introStyle: z.enum(['student', 'career-switcher', 'experienced', 'founder']).optional(),
+  emailTone: z.enum(['warm', 'concise', 'confident', 'formal']).optional(),
+  outreachLength: z.enum(['short', 'concise', 'detailed']).optional(),
+  outreachGoal: z.enum(['advice', 'referral', 'intro']).optional(),
   outreachStyleNotes: z.string().max(500).optional(),
   targetRole: z.string().max(200).optional(),
   senderProfile: z.string().max(2000).optional(),
   resumeContext: z.string().max(40000).optional(),
   resumeFileName: z.string().max(260).optional(),
+  resumeUploadedAt: z.string().datetime().nullable().optional(),
   defaultSearchPreferences: z.object({
     school: z.object({
       label: z.string().max(160),
@@ -58,42 +59,49 @@ export async function POST(request: Request) {
   }
 
   const payload = parsed.data;
+  const existing = await getSettings(user.id);
   const name = clean(payload.name);
+  const has = (key: keyof typeof payload) => Object.prototype.hasOwnProperty.call(payload, key);
   const values = {
     userId: user.id,
-    senderName: clean(payload.senderName),
-    region: clean(payload.region),
-    school: clean(payload.school),
-    emailSignature: cleanMultiline(payload.emailSignature),
-    introStyle: payload.introStyle,
-    targetRole: clean(payload.targetRole),
-    emailTone: payload.emailTone,
-    outreachLength: payload.outreachLength,
-    outreachGoal: payload.outreachGoal,
-    outreachStyleNotes: cleanMultiline(payload.outreachStyleNotes),
-    senderProfile: clean(payload.senderProfile),
-    resumeContext: cleanMultiline(payload.resumeContext),
-    resumeFileName: clean(payload.resumeFileName),
-    defaultSearchPreferences: normalizeSearchPreferences(payload.defaultSearchPreferences),
+    senderName: has('senderName') ? clean(payload.senderName) : existing?.senderName || '',
+    region: has('region') ? clean(payload.region) : existing?.region || '',
+    school: has('school') ? clean(payload.school) : existing?.school || '',
+    emailSignature: has('emailSignature') ? cleanMultiline(payload.emailSignature) : existing?.emailSignature || '',
+    introStyle: payload.introStyle || existing?.introStyle || 'student',
+    targetRole: has('targetRole') ? clean(payload.targetRole) : existing?.targetRole || '',
+    emailTone: payload.emailTone || existing?.emailTone || 'warm',
+    outreachLength: payload.outreachLength || existing?.outreachLength || 'concise',
+    outreachGoal: payload.outreachGoal || existing?.outreachGoal || 'advice',
+    outreachStyleNotes: has('outreachStyleNotes') ? cleanMultiline(payload.outreachStyleNotes) : existing?.outreachStyleNotes || '',
+    senderProfile: has('senderProfile') ? clean(payload.senderProfile) : existing?.senderProfile || '',
+    resumeContext: has('resumeContext') ? cleanMultiline(payload.resumeContext) : existing?.resumeContext || '',
+    resumeFileName: has('resumeFileName') ? clean(payload.resumeFileName) : existing?.resumeFileName || '',
+    resumeUploadedAt: has('resumeUploadedAt')
+      ? payload.resumeUploadedAt
+        ? new Date(payload.resumeUploadedAt)
+        : null
+      : existing?.resumeUploadedAt || null,
+    defaultSearchPreferences: has('defaultSearchPreferences')
+      ? normalizeSearchPreferences(payload.defaultSearchPreferences)
+      : normalizeSearchPreferences(existing?.defaultSearchPreferences),
     updatedAt: new Date()
   };
 
-  const existing = await getSettings(user.id);
-  if (name && name !== user.name) {
+  if (has('name') && name && name !== user.name) {
     await db
       .update(users)
       .set({ name, updatedAt: new Date() })
       .where(eq(users.id, user.id));
   }
 
-  if (existing) {
-    await db
-      .update(userSettings)
-      .set(values)
-      .where(eq(userSettings.userId, user.id));
-  } else {
-    await db.insert(userSettings).values(values);
-  }
+  await db
+    .insert(userSettings)
+    .values(values)
+    .onConflictDoUpdate({
+      target: userSettings.userId,
+      set: values
+    });
 
   return Response.json({ ok: true });
 }
@@ -109,18 +117,25 @@ function cleanMultiline(value: unknown) {
     .trim();
 }
 
-function normalizeSearchPreferences(value: z.infer<typeof settingsSchema>['defaultSearchPreferences']) {
+function normalizeSearchPreferences(value: z.infer<typeof settingsSchema>['defaultSearchPreferences'] | unknown) {
+  if (!value || typeof value !== 'object') {
+    return {
+      school: undefined,
+      region: undefined
+    };
+  }
+  const preferences = value as z.infer<typeof settingsSchema>['defaultSearchPreferences'];
   return {
-    school: value?.school?.label && value.school.linkedinId
+    school: preferences?.school?.label && preferences.school.linkedinId
       ? {
-          label: clean(value.school.label),
-          linkedinId: clean(value.school.linkedinId)
+          label: clean(preferences.school.label),
+          linkedinId: clean(preferences.school.linkedinId)
         }
       : undefined,
-    region: value?.region?.label && value.region.linkedinGeoId
+    region: preferences?.region?.label && preferences.region.linkedinGeoId
       ? {
-          label: clean(value.region.label),
-          linkedinGeoId: clean(value.region.linkedinGeoId)
+          label: clean(preferences.region.label),
+          linkedinGeoId: clean(preferences.region.linkedinGeoId)
         }
       : undefined
   };

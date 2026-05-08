@@ -7,6 +7,7 @@ import useSWR, { mutate } from 'swr';
 import { Bolt, Home, LogOut, Settings } from 'lucide-react';
 import { signOut } from '@/app/(login)/actions';
 import { clearExtensionSessionBeforeSignOut } from '@/components/extension-session-bridge';
+import { LanguageSwitcher } from '@/components/language-switcher';
 
 type AccountSummary = {
   user?: {
@@ -50,7 +51,7 @@ export default function DashboardLayout({
 
   return (
     <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.10),transparent_40%),#F8FAFC] text-slate-950">
-      <header className="h-16 border-b border-slate-200/70 bg-white/72 backdrop-blur-xl">
+      <header className="h-16">
         <div className="mx-auto flex h-full max-w-[1240px] items-center justify-between gap-5 px-6">
           <Link
             href="/"
@@ -63,9 +64,10 @@ export default function DashboardLayout({
           </Link>
 
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
             <Link
               href="/pricing"
-              className="inline-flex h-10 items-center rounded-[8px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 transition-all hover:shadow-[0_14px_34px_rgba(15,23,42,0.12)]"
+              className="inline-flex h-10 items-center rounded-[8px] border border-slate-200 bg-white/76 px-4 text-sm font-semibold text-slate-950 transition-all hover:shadow-[0_14px_34px_rgba(15,23,42,0.12)]"
             >
               <Bolt className="mr-2 h-4 w-4 text-amber-500" />
               {formatNumber(data?.credits?.remaining)} credits
@@ -73,7 +75,7 @@ export default function DashboardLayout({
             <Link
               href="/dashboard/security"
               aria-label="Settings"
-              className="hidden h-10 w-10 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-600 transition-all hover:text-slate-950 hover:shadow-[0_14px_34px_rgba(15,23,42,0.12)] sm:inline-flex"
+              className="hidden h-10 w-10 items-center justify-center rounded-[8px] border border-slate-200 bg-white/76 text-slate-600 transition-all hover:text-slate-950 hover:shadow-[0_14px_34px_rgba(15,23,42,0.12)] sm:inline-flex"
             >
               <Settings className="h-4 w-4" />
             </Link>

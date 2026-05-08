@@ -26,16 +26,13 @@ export default async function OnboardingPage({
     <OnboardingClient
       initial={{
         name: user.name || '',
-        senderName: settings?.senderName || user.name || '',
         region: settings?.region || '',
         school: settings?.school || '',
         targetRole: settings?.targetRole || '',
         senderProfile: settings?.senderProfile || '',
         resumeContext: settings?.resumeContext || '',
         resumeFileName: settings?.resumeFileName || '',
-        emailSignature: settings?.emailSignature || '',
-        introStyle: normalizeIntroStyle(settings?.introStyle),
-        emailTone: normalizeEmailTone(settings?.emailTone),
+        resumeUploadedAt: settings?.resumeUploadedAt?.toISOString() || '',
         outreachLength: normalizeOutreachLength(settings?.outreachLength),
         outreachGoal: normalizeOutreachGoal(settings?.outreachGoal),
         outreachStyleNotes: settings?.outreachStyleNotes || '',
@@ -48,18 +45,6 @@ export default async function OnboardingPage({
 
 function isInternalRedirect(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//');
-}
-
-function normalizeIntroStyle(value: unknown) {
-  return value === 'career-switcher' || value === 'experienced' || value === 'founder'
-    ? value
-    : 'student';
-}
-
-function normalizeEmailTone(value: unknown) {
-  return value === 'concise' || value === 'confident' || value === 'formal'
-    ? value
-    : 'warm';
 }
 
 function normalizeOutreachLength(value: unknown) {

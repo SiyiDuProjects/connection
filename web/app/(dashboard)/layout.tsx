@@ -61,7 +61,8 @@ function UserMenu() {
     <>
       <ExtensionSessionBridge user={user} />
       <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-        <DropdownMenuTrigger>
+        <DropdownMenuTrigger asChild>
+          <Link href="/dashboard" aria-label={t('nav.dashboard')}>
           <Avatar className="cursor-pointer size-9">
             <AvatarImage alt={user.name || ''} />
             <AvatarFallback>
@@ -71,6 +72,7 @@ function UserMenu() {
                 .join('')}
             </AvatarFallback>
           </Avatar>
+          </Link>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="flex flex-col gap-1">
           <DropdownMenuItem className="cursor-pointer">
@@ -95,17 +97,11 @@ function UserMenu() {
 
 function Header() {
   const pathname = usePathname();
-  const navItems = [
-    { label: 'Product', href: '/#product' },
-    { label: 'Workflow', href: '/#workflow' },
-    { label: 'Pricing', href: '/pricing' },
-    { label: 'Docs', href: '/#docs' }
-  ];
 
   if (pathname.startsWith('/dashboard')) return null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/50 bg-[#f8fafc]/82 backdrop-blur-xl">
+    <header className="absolute inset-x-0 top-0 z-40">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-3">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-xs font-semibold text-white">
@@ -113,17 +109,6 @@ function Header() {
           </span>
           <span className="text-base font-semibold text-slate-950">Reachard</span>
         </Link>
-        <nav className="hidden items-center gap-7 lg:flex">
-          {navItems.map((item) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              className="text-sm font-medium text-slate-500 transition-colors hover:text-slate-950"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
         <div className="flex items-center gap-3">
           <LanguageSwitcher />
           <Suspense fallback={<div className="h-9" />}>

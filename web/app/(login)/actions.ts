@@ -14,6 +14,8 @@ import {
   type NewTeamMember,
   type NewActivityLog,
   ActivityType,
+  friendInviteRedemptions,
+  friendInvites,
   invitations
 } from '@/lib/db/schema';
 import { comparePasswords, hashPassword, setSession } from '@/lib/auth/session';
@@ -106,11 +108,12 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
-  inviteId: z.string().optional()
+  inviteId: z.string().optional(),
+  ref: z.string().optional()
 });
 
 export const signUp = validatedAction(signUpSchema, async (data, formData) => {
-  const { password, inviteId } = data;
+  const { password, inviteId, ref } = data;
   const email = data.email.toLowerCase();
 
   const existingUser = await db
@@ -127,6 +130,19 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   }
 
   const passwordHash = await hashPassword(password);
+  const friendInviteToken = String(ref || '').trim();
+  let friendInvite: typeof friendInvites.$inferSelect | undefined;
+  if (friendInviteToken) {
+    [friendInvite] = await db
+      .select()
+      .from(friendInvites)
+      .where(eq(friendInvites.token, friendInviteToken))
+      .limit(1);
+  }
+
+  if (friendInviteToken && !friendInvite) {
+    return { error: 'Invalid invite link. Ask your friend for a new link.', email };
+  }
 
   const newUser: NewUser = {
     email,
@@ -210,6 +226,12 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
 
   await Promise.all([
     db.insert(teamMembers).values(newTeamMember),
+    friendInvite && friendInvite.inviterUserId !== createdUser.id
+      ? db.insert(friendInviteRedemptions).values({
+          inviteId: friendInvite.id,
+          invitedUserId: createdUser.id
+        })
+      : Promise.resolve(),
     logActivity(teamId, createdUser.id, ActivityType.SIGN_UP),
     setSession(createdUser)
   ]);

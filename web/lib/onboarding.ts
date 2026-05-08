@@ -16,7 +16,6 @@ export function getOnboardingStatus(
     ['region', settings?.region],
     ['school', settings?.school],
     ['targetRole', settings?.targetRole],
-    ['emailTone', settings?.emailTone],
     ['outreachGoal', settings?.outreachGoal],
   ] as const;
   const hasBackground = Boolean(clean(settings?.senderProfile) || clean(settings?.resumeContext));

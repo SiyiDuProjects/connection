@@ -47,154 +47,163 @@ export default function SecurityPage() {
   }
 
   return (
-    <section className="h-[calc(100dvh-64px)] overflow-y-auto p-4 lg:p-8">
-      <h1 className="text-lg lg:text-2xl font-medium bold text-gray-900 mb-6">
-        {t('security.title')}
-      </h1>
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>{t('security.password')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" action={passwordAction}>
-            <div>
-              <Label htmlFor="current-password" className="mb-2">
-                {t('security.currentPassword')}
-              </Label>
-              <Input
-                id="current-password"
-                name="currentPassword"
-                type="password"
-                autoComplete="current-password"
-                required
-                minLength={8}
-                maxLength={100}
-                defaultValue={passwordState.currentPassword}
-              />
-            </div>
-            <div>
-              <Label htmlFor="new-password" className="mb-2">
-                {t('security.newPassword')}
-              </Label>
-              <Input
-                id="new-password"
-                name="newPassword"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                maxLength={100}
-                defaultValue={passwordState.newPassword}
-              />
-            </div>
-            <div>
-              <Label htmlFor="confirm-password" className="mb-2">
-                {t('security.confirmNewPassword')}
-              </Label>
-              <Input
-                id="confirm-password"
-                name="confirmPassword"
-                type="password"
-                required
-                minLength={8}
-                maxLength={100}
-                defaultValue={passwordState.confirmPassword}
-              />
-            </div>
-            {passwordState.error && (
-              <p className="text-red-500 text-sm">{passwordState.error}</p>
-            )}
-            {passwordState.success && (
-              <p className="text-green-500 text-sm">{passwordState.success}</p>
-            )}
-            <Button
-              type="submit"
-              className="bg-gray-950 text-white hover:bg-gray-800"
-              disabled={isPasswordPending}
-            >
-              {isPasswordPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t('security.updating')}
-                </>
-              ) : (
-                <>
-                  <Lock className="mr-2 h-4 w-4" />
-                  {t('security.updatePassword')}
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <section className="h-[calc(100dvh-64px)] overflow-y-auto px-6 py-6 lg:py-8">
+      <div className="mx-auto max-w-[760px]">
+        <h1 className="mb-5 text-2xl font-semibold leading-tight text-gray-950">
+          {t('security.title')}
+        </h1>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Log out</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-500 mb-4">
-            End this session and return to the homepage.
-          </p>
-          <Button
-            type="button"
-            onClick={handleSignOut}
-            variant="outline"
-            className="border-gray-200 bg-white text-gray-950 hover:bg-gray-50"
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Log out
-          </Button>
-        </CardContent>
-      </Card>
+        <div className="space-y-4">
+          <Card className="rounded-[8px] border-gray-200 shadow-none">
+            <CardHeader>
+              <CardTitle>{t('security.password')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" action={passwordAction}>
+                <div>
+                  <Label htmlFor="current-password" className="mb-2">
+                    {t('security.currentPassword')}
+                  </Label>
+                  <Input
+                    id="current-password"
+                    name="currentPassword"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    minLength={8}
+                    maxLength={100}
+                    defaultValue={passwordState.currentPassword}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="new-password" className="mb-2">
+                    {t('security.newPassword')}
+                  </Label>
+                  <Input
+                    id="new-password"
+                    name="newPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    minLength={8}
+                    maxLength={100}
+                    defaultValue={passwordState.newPassword}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="confirm-password" className="mb-2">
+                    {t('security.confirmNewPassword')}
+                  </Label>
+                  <Input
+                    id="confirm-password"
+                    name="confirmPassword"
+                    type="password"
+                    required
+                    minLength={8}
+                    maxLength={100}
+                    defaultValue={passwordState.confirmPassword}
+                  />
+                </div>
+                {passwordState.error && (
+                  <p className="text-red-500 text-sm">{passwordState.error}</p>
+                )}
+                {passwordState.success && (
+                  <p className="text-green-500 text-sm">{passwordState.success}</p>
+                )}
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    className="bg-gray-950 text-white hover:bg-gray-800"
+                    disabled={isPasswordPending}
+                  >
+                    {isPasswordPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {t('security.updating')}
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="mr-2 h-4 w-4" />
+                        {t('security.updatePassword')}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('security.deleteAccount')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-500 mb-4">
-            {t('security.deleteWarning')}
-          </p>
-          <form action={deleteAction} className="space-y-4">
-            <div>
-              <Label htmlFor="delete-password" className="mb-2">
-                {t('security.confirmPassword')}
-              </Label>
-              <Input
-                id="delete-password"
-                name="password"
-                type="password"
-                required
-                minLength={8}
-                maxLength={100}
-                defaultValue={deleteState.password}
-              />
-            </div>
-            {deleteState.error && (
-              <p className="text-red-500 text-sm">{deleteState.error}</p>
-            )}
-            <Button
-              type="submit"
-              variant="destructive"
-              className="bg-red-600 hover:bg-red-700"
-              disabled={isDeletePending}
-            >
-              {isDeletePending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t('security.deleting')}
-                </>
-              ) : (
-                <>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  {t('security.deleteAccount')}
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          <Card className="rounded-[8px] border-gray-200 shadow-none">
+            <CardHeader>
+              <CardTitle>Log out</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-500 mb-4">
+                End this session and return to the homepage.
+              </p>
+              <Button
+                type="button"
+                onClick={handleSignOut}
+                variant="outline"
+                className="border-gray-200 bg-white text-gray-950 hover:bg-gray-50"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Log out
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-[8px] border-gray-200 shadow-none">
+            <CardHeader>
+              <CardTitle>{t('security.deleteAccount')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-500 mb-4">
+                {t('security.deleteWarning')}
+              </p>
+              <form action={deleteAction} className="space-y-4">
+                <div>
+                  <Label htmlFor="delete-password" className="mb-2">
+                    {t('security.confirmPassword')}
+                  </Label>
+                  <Input
+                    id="delete-password"
+                    name="password"
+                    type="password"
+                    required
+                    minLength={8}
+                    maxLength={100}
+                    defaultValue={deleteState.password}
+                  />
+                </div>
+                {deleteState.error && (
+                  <p className="text-red-500 text-sm">{deleteState.error}</p>
+                )}
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    variant="destructive"
+                    className="bg-red-600 hover:bg-red-700"
+                    disabled={isDeletePending}
+                  >
+                    {isDeletePending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {t('security.deleting')}
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {t('security.deleteAccount')}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </section>
   );
 }

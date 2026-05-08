@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Check, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +24,7 @@ type Settings = {
   senderProfile?: string | null;
   resumeContext?: string | null;
   resumeFileName?: string | null;
+  resumeUploadedAt?: string | null;
   defaultSearchPreferences?: SearchPreferences;
 };
 
@@ -45,6 +47,7 @@ type ResolvedItem = {
 };
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [settings, setSettings] = useState<Settings>({});
   const [status, setStatus] = useState('');
   const [resolveStatus, setResolveStatus] = useState('');
@@ -79,7 +82,12 @@ export default function ProfilePage() {
     });
     const payload = await response.json().catch(() => ({}));
     setSaving(false);
-    setStatus(response.ok && payload.ok ? t('profile.saved') : payload.error || t('profile.saveError'));
+    if (response.ok && payload.ok) {
+      setStatus(t('profile.saved'));
+      router.push('/dashboard');
+      return;
+    }
+    setStatus(payload.error || t('profile.saveError'));
   }
 
   function update(name: keyof Settings, value: string) {
@@ -151,7 +159,7 @@ export default function ProfilePage() {
   }
 
   function clearResumeContext() {
-    setSettings((current) => ({ ...current, resumeContext: '', resumeFileName: '' }));
+    setSettings((current) => ({ ...current, resumeContext: '', resumeFileName: '', resumeUploadedAt: null }));
     setFormVersion((value) => value + 1);
   }
 
@@ -159,149 +167,115 @@ export default function ProfilePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const extension = file.name.split('.').pop()?.toLowerCase();
-    if (!['txt', 'md'].includes(extension || '')) {
-      setStatus(t('profile.resumeFileUnsupported'));
+    try {
+      const text = await extractReadableText(file);
+      setSettings((current) => ({
+        ...current,
+        resumeContext: text.slice(0, 40000),
+        resumeFileName: file.name,
+        resumeUploadedAt: new Date().toISOString()
+      }));
+      setStatus(t('profile.resumeFileImported'));
+      setFormVersion((value) => value + 1);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : t('profile.resumeFileUnsupported'));
       event.target.value = '';
-      return;
     }
-
-    const text = await file.text();
-    setSettings((current) => ({
-      ...current,
-      resumeContext: text.slice(0, 40000),
-      resumeFileName: file.name
-    }));
-    setStatus(t('profile.resumeFileImported'));
-    setFormVersion((value) => value + 1);
   }
 
   return (
-    <section className="h-[calc(100dvh-64px)] overflow-y-auto p-4 lg:p-8">
-      <div className="mb-6">
-        <h1 className="text-lg font-medium lg:text-2xl">{t('profile.title')}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t('profile.subtitle')}
-        </p>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('profile.cardTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form key={`${loading}-${formVersion}`} className="max-w-2xl space-y-5" onSubmit={submit}>
-            <div className="grid gap-4 sm:grid-cols-2">
+    <section className="h-[calc(100dvh-64px)] overflow-y-auto px-6 py-6">
+      <div className="mx-auto max-w-[760px]">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-[28px] font-semibold leading-tight text-slate-950">Edit profile</h1>
+            <p className="mt-1 text-sm font-medium text-slate-500">
+              Keep only the context Reachard needs for contact search and outreach.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" disabled={saving} onClick={() => router.push('/dashboard')} className="rounded-md">
+              Cancel
+            </Button>
+            <Button type="submit" form="profile-form" disabled={loading || saving} className="rounded-md">
+              {saving ? t('profile.saving') : 'Save'}
+            </Button>
+          </div>
+        </div>
+        <form id="profile-form" key={`${loading}-${formVersion}`} className="space-y-4" onSubmit={submit}>
+          <Card className="rounded-[8px]">
+            <CardHeader>
+              <CardTitle>Personal</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <Field label={t('general.name')} id="name">
-                <Input id="name" name="name" defaultValue={settings.name || ''} placeholder={t('general.namePlaceholder')} disabled={loading || saving} />
+                <Input id="name" name="name" value={settings.name || ''} onChange={(event) => update('name', event.target.value)} placeholder={t('general.namePlaceholder')} disabled={loading || saving} />
               </Field>
-              <Field label={t('profile.senderName')} id="senderName">
-                <Input id="senderName" name="senderName" defaultValue={settings.senderName || ''} placeholder={t('profile.senderNamePlaceholder')} disabled={loading || saving} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Region" id="region">
+                  <ResolveInput
+                    id="region"
+                    value={settings.region || ''}
+                    onChange={(value) => update('region', value)}
+                    onResolve={() => resolveField('region')}
+                    resolving={resolving === 'region'}
+                    verified={settings.defaultSearchPreferences?.region?.label === settings.region}
+                    placeholder="San Francisco Bay Area"
+                    disabled={loading || saving}
+                  />
+                  <ResolveOptions items={regionOptions} onSelect={(item) => selectResolved('region', item)} />
+                </Field>
+                <Field label={t('profile.school')} id="school">
+                  <ResolveInput
+                    id="school"
+                    value={settings.school || ''}
+                    onChange={(value) => update('school', value)}
+                    onResolve={() => resolveField('school')}
+                    resolving={resolving === 'school'}
+                    verified={settings.defaultSearchPreferences?.school?.label === settings.school}
+                    placeholder={t('profile.schoolPlaceholder')}
+                    disabled={loading || saving}
+                  />
+                  <ResolveOptions items={schoolOptions} onSelect={(item) => selectResolved('school', item)} />
+                </Field>
+              </div>
+              {resolveStatus ? <p className="text-sm font-medium text-muted-foreground">{resolveStatus}</p> : null}
+              <Field label="Extra personal info" id="senderProfile">
+                <textarea id="senderProfile" name="senderProfile" value={settings.senderProfile || ''} onChange={(event) => update('senderProfile', event.target.value)} placeholder="Add any personal context that should shape outreach." disabled={loading || saving} className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
               </Field>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Region" id="region">
-                <ResolveInput
-                  id="region"
-                  value={settings.region || ''}
-                  onChange={(value) => update('region', value)}
-                  onResolve={() => resolveField('region')}
-                  resolving={resolving === 'region'}
-                  verified={settings.defaultSearchPreferences?.region?.label === settings.region}
-                  placeholder="San Francisco Bay Area"
-                  disabled={loading || saving}
-                />
-                <ResolveOptions items={regionOptions} onSelect={(item) => selectResolved('region', item)} />
-              </Field>
-              <Field label={t('profile.school')} id="school">
-                <ResolveInput
-                  id="school"
-                  value={settings.school || ''}
-                  onChange={(value) => update('school', value)}
-                  onResolve={() => resolveField('school')}
-                  resolving={resolving === 'school'}
-                  verified={settings.defaultSearchPreferences?.school?.label === settings.school}
-                  placeholder={t('profile.schoolPlaceholder')}
-                  disabled={loading || saving}
-                />
-                <ResolveOptions items={schoolOptions} onSelect={(item) => selectResolved('school', item)} />
-              </Field>
-            </div>
-            {resolveStatus ? <p className="text-sm font-medium text-muted-foreground">{resolveStatus}</p> : null}
-            <Field label="Target roles" id="targetRole">
-              <Input id="targetRole" name="targetRole" value={settings.targetRole || ''} onChange={(event) => update('targetRole', event.target.value)} placeholder="Software Engineer Intern, Product Manager, Data Analyst" disabled={loading || saving} />
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t('profile.emailTone')} id="emailTone">
-                <select id="emailTone" name="emailTone" value={settings.emailTone || 'warm'} onChange={(event) => update('emailTone', event.target.value)} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="warm">{t('profile.warm')}</option>
-                  <option value="concise">{t('profile.concise')}</option>
-                  <option value="confident">{t('profile.confident')}</option>
-                  <option value="formal">{t('profile.formal')}</option>
-                </select>
-              </Field>
-              <Field label={t('profile.introStyle')} id="introStyle">
-                <select id="introStyle" name="introStyle" value={settings.introStyle || 'student'} onChange={(event) => update('introStyle', event.target.value)} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="student">{t('profile.student')}</option>
-                  <option value="career-switcher">{t('profile.careerSwitcher')}</option>
-                  <option value="experienced">{t('profile.experienced')}</option>
-                  <option value="founder">{t('profile.founder')}</option>
-                </select>
-              </Field>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Outreach length" id="outreachLength">
-                <select id="outreachLength" name="outreachLength" value={settings.outreachLength || 'concise'} onChange={(event) => update('outreachLength', event.target.value)} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="short">Short</option>
-                  <option value="concise">Concise</option>
-                  <option value="detailed">Detailed</option>
-                </select>
-              </Field>
-              <Field label="Outreach goal" id="outreachGoal">
-                <select id="outreachGoal" name="outreachGoal" value={settings.outreachGoal || 'advice'} onChange={(event) => update('outreachGoal', event.target.value)} disabled={loading || saving} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="advice">Ask advice</option>
-                  <option value="referral">Explore referral</option>
-                  <option value="intro">Request intro</option>
-                </select>
-              </Field>
-            </div>
-            <Field label="Extra style notes" id="outreachStyleNotes">
-              <textarea id="outreachStyleNotes" name="outreachStyleNotes" value={settings.outreachStyleNotes || ''} onChange={(event) => update('outreachStyleNotes', event.target.value)} placeholder="Example: sound less formal, mention curiosity about product work." disabled={loading || saving} className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-            </Field>
-            <Field label={t('profile.personalBackground')} id="senderProfile">
-              <textarea id="senderProfile" name="senderProfile" value={settings.senderProfile || ''} onChange={(event) => update('senderProfile', event.target.value)} placeholder={t('profile.personalBackgroundPlaceholder')} disabled={loading || saving} className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-            </Field>
-            <Field label={t('profile.emailSignature')} id="emailSignature">
-              <textarea id="emailSignature" name="emailSignature" value={settings.emailSignature || ''} onChange={(event) => update('emailSignature', event.target.value)} placeholder={t('profile.emailSignaturePlaceholder')} disabled={loading || saving} className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-            </Field>
-            <Field label={t('profile.resumeContext')} id="resumeContext">
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-[8px]">
+            <CardHeader>
+              <CardTitle>Resume</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-[8px] bg-slate-50/80 p-3">
+                <p className="text-sm font-semibold text-slate-950">
+                  {settings.resumeFileName || 'No resume added'}
+                </p>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  {settings.resumeFileName && settings.resumeUploadedAt
+                    ? `Stored ${formatDateTime(settings.resumeUploadedAt)}`
+                    : 'Add a resume file to improve outreach drafts'}
+                </p>
+              </div>
               <div className="flex flex-wrap items-center gap-3">
-                <Input id="resumeFile" type="file" accept=".txt,.md,.pdf,.doc,.docx" disabled={loading || saving} onChange={importResumeFile} className="max-w-sm" />
-                <input type="hidden" name="resumeFileName" value={settings.resumeFileName || ''} />
+                <Input id="resumeFile" type="file" accept=".txt,.md,.rtf,.pdf,.doc,.docx" disabled={loading || saving} onChange={importResumeFile} className="max-w-sm" />
                 {settings.resumeFileName ? (
-                  <span className="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700">
-                    {settings.resumeFileName}
-                  </span>
+                  <Button type="button" variant="ghost" disabled={loading || saving} onClick={clearResumeContext} className="h-10 px-3">
+                    {t('profile.clear')}
+                  </Button>
                 ) : null}
               </div>
-              <textarea id="resumeContext" name="resumeContext" value={settings.resumeContext || ''} onChange={(event) => update('resumeContext', event.target.value)} placeholder={t('profile.resumeContextPlaceholder')} disabled={loading || saving} className="min-h-56 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-              <div className="flex flex-col items-start gap-2">
-                <p className="text-xs text-muted-foreground">
-                  {t('profile.privacyNote')}
-                </p>
-                <Button type="button" variant="ghost" disabled={loading || saving} onClick={clearResumeContext} className="h-auto px-0 py-1">
-                  {t('profile.clear')}
-                </Button>
-              </div>
-            </Field>
-            <div className="flex flex-col items-start gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:gap-3">
-              <Button type="submit" disabled={loading || saving} className="rounded-md">
-                {saving ? t('profile.saving') : t('profile.save')}
-              </Button>
-              <p className="text-sm text-muted-foreground">{loading ? t('profile.loading') : status}</p>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+              <input type="hidden" name="resumeFileName" value={settings.resumeFileName || ''} />
+            </CardContent>
+          </Card>
+
+          <p className="text-sm text-muted-foreground">{loading ? t('profile.loading') : status}</p>
+        </form>
+      </div>
     </section>
   );
 }
@@ -313,6 +287,38 @@ function Field({ label, id, children }: { label: string; id: string; children: R
       {children}
     </div>
   );
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(new Date(value));
+}
+
+async function extractReadableText(file: File) {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  const text = await file.text();
+  const cleaned = text
+    .replace(/\u0000/g, ' ')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  const printableRatio = cleaned.length / Math.max(text.length, 1);
+
+  if (!cleaned || cleaned.length < 80 || printableRatio < 0.45) {
+    throw new Error(
+      extension && ['pdf', 'doc', 'docx'].includes(extension)
+        ? 'This file text could not be read. Export it as TXT or paste text in a readable file.'
+        : 'This file does not contain enough readable text.'
+    );
+  }
+
+  return cleaned.slice(0, 40000);
 }
 
 function ResolveInput({

@@ -50,6 +50,27 @@
       "when": 1778090000000,
       "tag": "0006_onboarding_custom",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778260000000,
+      "tag": "0007_resume_uploaded_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778261000000,
+      "tag": "0008_friend_invites",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778262000000,
+      "tag": "0009_user_settings_unique",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
   const redirect = searchParams.get('redirect');
   const priceId = searchParams.get('priceId');
   const inviteId = searchParams.get('inviteId');
+  const ref = searchParams.get('ref');
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     mode === 'signin' ? signIn : signUp,
     { error: '' }
@@ -25,7 +26,8 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
     mode,
     redirect,
     priceId,
-    inviteId
+    inviteId,
+    ref
   });
 
   return (
@@ -46,6 +48,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
           <input type="hidden" name="redirect" value={redirect || ''} />
           <input type="hidden" name="priceId" value={priceId || ''} />
           <input type="hidden" name="inviteId" value={inviteId || ''} />
+          <input type="hidden" name="ref" value={ref || ''} />
           <div>
             <Label
               htmlFor="email"
@@ -151,17 +154,20 @@ function getSwitchHref({
   mode,
   redirect,
   priceId,
-  inviteId
+  inviteId,
+  ref
 }: {
   mode: 'signin' | 'signup';
   redirect: string | null;
   priceId: string | null;
   inviteId: string | null;
+  ref: string | null;
 }) {
   const params = new URLSearchParams();
   if (redirect) params.set('redirect', redirect);
   if (priceId) params.set('priceId', priceId);
   if (inviteId) params.set('inviteId', inviteId);
+  if (ref) params.set('ref', ref);
 
   const path = mode === 'signin' ? '/sign-up' : '/sign-in';
   const query = params.toString();

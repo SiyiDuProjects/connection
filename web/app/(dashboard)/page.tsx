@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import { Chrome, Copy, ExternalLink, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -17,20 +18,36 @@ const people = [
   }
 ];
 
-const workflow = [
-  'Open a job post',
-  'Find the right people',
-  'Draft thoughtful outreach'
-];
-
 export default function HomePage() {
+  const [copied, setCopied] = useState(false);
+  const draftBody = useMemo(
+    () =>
+      "Hi Jenny -\n\nI'm a Berkeley student interested in product and payments infrastructure. I saw Stripe's Senior Product Manager role and wanted to ask one thoughtful question about the team.",
+    []
+  );
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=&su=${encodeURIComponent(
+    'Thoughtful question about the Senior Product Manager role'
+  )}&body=${encodeURIComponent(draftBody)}`;
+
+  async function copyDraft() {
+    try {
+      await navigator.clipboard.writeText(draftBody);
+    } catch {
+      // Some browser contexts block clipboard writes; the click should still feel handled.
+    } finally {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    }
+  }
+
+  function scrollToDraft() {
+    document.getElementById('docs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   return (
     <main className="min-h-screen bg-[#f8fafc] bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.10),transparent_40%)] text-slate-950">
-      <section className="mx-auto grid min-h-[calc(100dvh-56px)] max-w-6xl items-center gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[0.86fr_1.14fr]">
+      <section className="mx-auto grid min-h-screen max-w-6xl items-center gap-12 px-4 pb-14 pt-24 sm:px-6 lg:grid-cols-[0.86fr_1.14fr]">
         <div className="max-w-xl">
-          <p className="mb-6 inline-flex rounded-full border border-slate-200/70 bg-white/70 px-3 py-1.5 text-sm font-medium text-slate-600 backdrop-blur-xl">
-            AI beside your job applications
-          </p>
           <h1 className="text-5xl font-semibold leading-none text-slate-950 sm:text-6xl lg:text-7xl">
             Turn job posts into warm introductions.
           </h1>
@@ -45,38 +62,10 @@ export default function HomePage() {
           </Button>
         </div>
 
-        <BrowserScene />
+        <BrowserScene onDraftIntro={scrollToDraft} />
       </section>
 
-      <section id="workflow" className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="grid gap-3 md:grid-cols-3">
-          {workflow.map((step, index) => (
-            <div key={step} className="rounded-[8px] border border-slate-900/[0.06] bg-white/70 p-6 backdrop-blur-xl">
-              <p className="text-sm font-medium text-slate-400">0{index + 1}</p>
-              <h2 className="mt-8 text-xl font-semibold text-slate-950">{step}</h2>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section id="product" className="mx-auto grid max-w-6xl gap-4 px-4 py-16 sm:px-6 lg:grid-cols-[0.8fr_1.2fr]">
-        <div>
-          <p className="text-sm font-medium text-slate-500">Reasoning engine</p>
-          <h2 className="mt-3 max-w-sm text-3xl font-semibold leading-tight text-slate-950">
-            Reachard explains why someone matters.
-          </h2>
-        </div>
-        <div className="rounded-[8px] border border-slate-900/[0.06] bg-white/72 p-6 backdrop-blur-xl">
-          <p className="text-sm font-medium text-slate-500">Why matched</p>
-          <div className="mt-5 space-y-4 text-lg font-medium text-slate-800">
-            <p>Hiring-side signal</p>
-            <p>Product org overlap</p>
-            <p>Berkeley alumni path</p>
-          </div>
-        </div>
-      </section>
-
-      <section id="docs" className="mx-auto grid max-w-6xl gap-4 px-4 py-16 sm:px-6 lg:grid-cols-[1.15fr_0.85fr]">
+      <section id="docs" className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="rounded-[8px] border border-slate-900/[0.06] bg-white/72 p-6 backdrop-blur-xl">
           <div className="mb-5 flex items-center gap-2 text-sm font-medium text-slate-500">
             <Mail className="h-4 w-4" />
@@ -89,31 +78,31 @@ export default function HomePage() {
             </p>
           </div>
           <div className="mt-4 flex gap-2">
-            <button className="inline-flex h-9 items-center rounded-[8px] border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700">
+            <button
+              type="button"
+              onClick={copyDraft}
+              className="inline-flex h-9 items-center rounded-[8px] border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
+            >
               <Copy className="mr-2 h-4 w-4" />
-              Copy
+              {copied ? 'Copied' : 'Copy'}
             </button>
-            <button className="inline-flex h-9 items-center rounded-[8px] bg-slate-950 px-3 text-sm font-medium text-white">
+            <a
+              href={gmailUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-9 items-center rounded-[8px] bg-slate-950 px-3 text-sm font-medium text-white"
+            >
               <ExternalLink className="mr-2 h-4 w-4" />
               Open Gmail
-            </button>
+            </a>
           </div>
-        </div>
-
-        <div className="flex flex-col justify-end rounded-[8px] border border-slate-900/[0.06] bg-white/72 p-6 backdrop-blur-xl">
-          <h2 className="text-3xl font-semibold leading-tight text-slate-950">
-            Job to people to outreach.
-          </h2>
-          <Button asChild className="mt-8 h-11 w-fit rounded-[8px] bg-slate-950 px-5 text-sm font-medium text-white shadow-none hover:bg-slate-800">
-            <Link href="/sign-up">Add to Chrome</Link>
-          </Button>
         </div>
       </section>
     </main>
   );
 }
 
-function BrowserScene() {
+function BrowserScene({ onDraftIntro }: { onDraftIntro: () => void }) {
   return (
     <div className="rounded-[8px] border border-slate-900/[0.06] bg-white/72 p-3 shadow-[0_24px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
       <div className="mb-3 flex h-8 items-center gap-2 rounded-[8px] bg-white/70 px-3">
@@ -154,9 +143,22 @@ function BrowserScene() {
                     <p key={reason}>{reason}</p>
                   ))}
                 </div>
-                <button className="mt-5 h-9 rounded-[8px] bg-white px-3 text-sm font-medium text-slate-950">
-                  {person.name === 'Jenny Wilson' ? 'Draft intro' : 'View contact'}
-                </button>
+                {person.name === 'Jenny Wilson' ? (
+                  <button
+                    type="button"
+                    onClick={onDraftIntro}
+                    className="mt-5 inline-flex h-9 items-center rounded-[8px] bg-white px-3 text-sm font-medium text-slate-950"
+                  >
+                    Draft intro
+                  </button>
+                ) : (
+                  <Link
+                    href="/sign-up"
+                    className="mt-5 inline-flex h-9 items-center rounded-[8px] bg-white px-3 text-sm font-medium text-slate-950"
+                  >
+                    View contact
+                  </Link>
+                )}
               </article>
             ))}
           </div>

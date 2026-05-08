@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   boolean,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -71,6 +72,27 @@ export const invitations = pgTable('invitations', {
   status: varchar('status', { length: 20 }).notNull().default('pending'),
 });
 
+export const friendInvites = pgTable('friend_invites', {
+  id: serial('id').primaryKey(),
+  inviterUserId: integer('inviter_user_id')
+    .notNull()
+    .references(() => users.id),
+  token: text('token').notNull().unique(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastGeneratedAt: timestamp('last_generated_at').notNull().defaultNow(),
+});
+
+export const friendInviteRedemptions = pgTable('friend_invite_redemptions', {
+  id: serial('id').primaryKey(),
+  inviteId: integer('invite_id')
+    .notNull()
+    .references(() => friendInvites.id),
+  invitedUserId: integer('invited_user_id')
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
 export const emailVerificationTokens = pgTable('email_verification_tokens', {
   id: serial('id').primaryKey(),
   userId: integer('user_id')
@@ -82,30 +104,37 @@ export const emailVerificationTokens = pgTable('email_verification_tokens', {
   usedAt: timestamp('used_at'),
 });
 
-export const userSettings = pgTable('user_settings', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id')
-    .notNull()
-    .references(() => users.id),
-  senderName: text('sender_name'),
-  region: text('region'),
-  school: text('school'),
-  emailSignature: text('email_signature'),
-  introStyle: varchar('intro_style', { length: 40 }).notNull().default('student'),
-  targetRole: text('target_role'),
-  emailTone: varchar('email_tone', { length: 40 }).notNull().default('warm'),
-  outreachLength: varchar('outreach_length', { length: 40 }).notNull().default('concise'),
-  outreachGoal: varchar('outreach_goal', { length: 40 }).notNull().default('advice'),
-  outreachStyleNotes: text('outreach_style_notes'),
-  defaultSearchPreferences: jsonb('default_search_preferences')
-    .notNull()
-    .default({}),
-  senderProfile: text('sender_profile'),
-  resumeContext: text('resume_context'),
-  resumeFileName: text('resume_file_name'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+export const userSettings = pgTable(
+  'user_settings',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    senderName: text('sender_name'),
+    region: text('region'),
+    school: text('school'),
+    emailSignature: text('email_signature'),
+    introStyle: varchar('intro_style', { length: 40 }).notNull().default('student'),
+    targetRole: text('target_role'),
+    emailTone: varchar('email_tone', { length: 40 }).notNull().default('warm'),
+    outreachLength: varchar('outreach_length', { length: 40 }).notNull().default('concise'),
+    outreachGoal: varchar('outreach_goal', { length: 40 }).notNull().default('advice'),
+    outreachStyleNotes: text('outreach_style_notes'),
+    defaultSearchPreferences: jsonb('default_search_preferences')
+      .notNull()
+      .default({}),
+    senderProfile: text('sender_profile'),
+    resumeContext: text('resume_context'),
+    resumeFileName: text('resume_file_name'),
+    resumeUploadedAt: timestamp('resume_uploaded_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdUnique: uniqueIndex('user_settings_user_id_unique').on(table.userId),
+  })
+);
 
 export const extensionApiTokens = pgTable('extension_api_tokens', {
   id: serial('id').primaryKey(),
@@ -160,6 +189,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   teamMembers: many(teamMembers),
   invitationsSent: many(invitations),
   emailVerificationTokens: many(emailVerificationTokens),
+  friendInvitesSent: many(friendInvites),
 }));
 
 export const invitationsRelations = relations(invitations, ({ one }) => ({
@@ -212,6 +242,25 @@ export const userSettingsRelations = relations(userSettings, ({ one }) => ({
   }),
 }));
 
+export const friendInvitesRelations = relations(friendInvites, ({ one, many }) => ({
+  inviter: one(users, {
+    fields: [friendInvites.inviterUserId],
+    references: [users.id],
+  }),
+  redemptions: many(friendInviteRedemptions),
+}));
+
+export const friendInviteRedemptionsRelations = relations(friendInviteRedemptions, ({ one }) => ({
+  invite: one(friendInvites, {
+    fields: [friendInviteRedemptions.inviteId],
+    references: [friendInvites.id],
+  }),
+  invitedUser: one(users, {
+    fields: [friendInviteRedemptions.invitedUserId],
+    references: [users.id],
+  }),
+}));
+
 export const extensionApiTokensRelations = relations(
   extensionApiTokens,
   ({ one }) => ({
@@ -246,6 +295,8 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type Invitation = typeof invitations.$inferSelect;
 export type NewInvitation = typeof invitations.$inferInsert;
+export type FriendInvite = typeof friendInvites.$inferSelect;
+export type FriendInviteRedemption = typeof friendInviteRedemptions.$inferSelect;
 export type EmailVerificationToken =
   typeof emailVerificationTokens.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;
