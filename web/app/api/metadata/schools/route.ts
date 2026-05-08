@@ -16,8 +16,8 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, error: 'RapidAPI is not configured.' }, { status: 500 });
   }
 
-  const searches = schoolSearchTerms(query);
-  const responses = await Promise.all(searches.map((term) => searchSchools(term)));
+  const searchTerms = buildSchoolSearchTerms(query);
+  const responses = await Promise.all(searchTerms.map((term) => searchSchools(term)));
   const failed = responses.find((result) => result.error);
   if (failed?.error) {
     return Response.json({ ok: false, error: failed.error }, { status: 502 });
@@ -58,13 +58,49 @@ async function searchSchools(query: string) {
   };
 }
 
-function schoolSearchTerms(query: string) {
+function buildSchoolSearchTerms(query: string) {
   const terms = [query];
-  const normalized = normalizeName(query);
-  if (['ucberkeley', 'ucb', 'berkeley', 'universityofcaliforniaberkeley'].includes(normalized)) {
-    terms.push('University of California Berkeley');
+  const cleaned = query.replace(/\s+/g, ' ').trim();
+  const normalized = normalizeName(cleaned);
+  const lower = cleaned.toLowerCase();
+
+  const knownAliases: Record<string, string[]> = {
+    mit: ['Massachusetts Institute of Technology'],
+    cmu: ['Carnegie Mellon University'],
+    ucla: ['University of California Los Angeles'],
+    ucsd: ['University of California San Diego'],
+    ucsb: ['University of California Santa Barbara'],
+    uci: ['University of California Irvine'],
+    ucr: ['University of California Riverside'],
+    ucd: ['University of California Davis'],
+    ucsc: ['University of California Santa Cruz'],
+    ucsf: ['University of California San Francisco'],
+    usc: ['University of Southern California'],
+    uiuc: ['University of Illinois Urbana Champaign'],
+    gatech: ['Georgia Institute of Technology'],
+    georgiatech: ['Georgia Institute of Technology'],
+    uw: ['University of Washington'],
+    nyu: ['New York University']
+  };
+
+  terms.push(...(knownAliases[normalized] || []));
+
+  const ucMatch = lower.match(/^uc\s+(.+)$/);
+  if (ucMatch?.[1]) {
+    terms.push(`University of California ${ucMatch[1]}`);
   }
-  return [...new Set(terms)];
+
+  const csuMatch = lower.match(/^(?:csu|cal state)\s+(.+)$/);
+  if (csuMatch?.[1]) {
+    terms.push(`California State University ${csuMatch[1]}`);
+  }
+
+  const stateMatch = lower.match(/^(.+)\s+state$/);
+  if (stateMatch?.[1]) {
+    terms.push(`${titleCase(stateMatch[1])} State University`);
+  }
+
+  return [...new Set(terms.map((term) => term.trim()).filter(Boolean))].slice(0, 3);
 }
 
 function dedupeSchools(results: Record<string, unknown>[]) {
@@ -83,24 +119,46 @@ function scoreSchool(school: Record<string, unknown>, query: string) {
   const name = String(school.name || '');
   const normalizedName = normalizeName(name);
   const normalizedQuery = normalizeName(query);
-  let score = Math.min(Number(school.membersCount || 0) / 1000, 50);
+  const queryTokens = tokenize(query);
+  const nameTokens = tokenize(name);
+  let score = Math.min(Number(school.membersCount || 0) / 1000, 60);
 
-  if (normalizedName === normalizedQuery) score += 120;
-  if (normalizedName.includes(normalizedQuery)) score += 30;
-
-  const broadBerkeleyQuery = ['ucberkeley', 'ucb', 'berkeley', 'universityofcaliforniaberkeley'].includes(normalizedQuery);
-  if (broadBerkeleyQuery) {
-    if (normalizedName === 'universityofcaliforniaberkeley') score += 240;
-    if (/\b(extension|college|school|division|department|rausser|letters|engineering|public health|information)\b/i.test(name)) {
-      score -= 80;
-    }
-  }
+  if (normalizedName === normalizedQuery) score += 140;
+  if (normalizedName.includes(normalizedQuery)) score += 45;
+  if (queryTokens.length && queryTokens.every((token) => nameTokens.includes(token))) score += 55;
+  if (normalizedQuery.length >= 2 && acronym(name) === normalizedQuery) score += 120;
+  if (isMainInstitutionName(name)) score += 65;
+  if (isSubInstitutionName(name)) score -= 90;
 
   return score;
 }
 
+function isMainInstitutionName(name: string) {
+  return /\b(university|institute of technology|college|polytechnic|school of mines)\b/i.test(name)
+    && !isSubInstitutionName(name);
+}
+
+function isSubInstitutionName(name: string) {
+  return /\b(extension|continuing studies|professional studies|college of|school of|department|division|faculty of|graduate school|law school|business school|medical school|school for|center for)\b/i.test(name);
+}
+
+function tokenize(value: string): string[] {
+  return value.toLowerCase().replace(/&/g, ' and ').match(/[a-z0-9]+/g) || [];
+}
+
 function normalizeName(value: string) {
-  return value.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '');
+  return tokenize(value).join('');
+}
+
+function acronym(value: string) {
+  return tokenize(value)
+    .filter((token) => !['of', 'the', 'and', 'at', 'for'].includes(token))
+    .map((token) => token[0])
+    .join('');
+}
+
+function titleCase(value: string) {
+  return value.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
 }
 
 function rapidHeaders() {
