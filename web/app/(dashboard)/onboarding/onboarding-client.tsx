@@ -180,7 +180,7 @@ export function OnboardingClient({
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-950">
+    <main className="min-h-screen bg-[#f5f5f7] px-4 py-10 text-slate-950">
       <section className="mx-auto max-w-3xl">
         <div className="mb-7">
           <p className="text-sm font-semibold text-indigo-600">Reachard setup</p>
@@ -196,8 +196,8 @@ export function OnboardingClient({
               key={label}
               type="button"
               onClick={() => setStep(index)}
-              className={`h-10 rounded-[8px] border text-sm font-semibold ${
-                step === index ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-600'
+              className={`min-h-11 rounded-[8px] text-sm font-semibold transition-colors duration-300 ease-out ${
+                step === index ? 'bg-slate-950 text-white' : 'bg-white text-slate-600'
               }`}
             >
               {label}
@@ -205,7 +205,7 @@ export function OnboardingClient({
           ))}
         </div>
 
-        <div className="rounded-[8px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-[8px] bg-white p-6 shadow-sm">
           {step === 0 ? (
             <div className="space-y-5">
               <Field label="Name" required>
@@ -240,12 +240,12 @@ export function OnboardingClient({
                 <textarea
                   value={values.senderProfile}
                   onChange={(event) => update('senderProfile', event.target.value)}
-                  className="min-h-28 w-full rounded-md border border-input px-3 py-2 text-sm"
+                  className="min-h-28 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 py-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35"
                   placeholder="A truthful short summary of your education, projects, internships, skills, and focus."
                 />
               </Field>
               <Field label="Resume">
-                <div className="rounded-[8px] bg-slate-50/80 p-3">
+                <div className="rounded-[8px] bg-white p-3">
                   <p className="text-sm font-semibold text-slate-950">
                     {values.resumeFileName || 'No resume added'}
                   </p>
@@ -256,7 +256,7 @@ export function OnboardingClient({
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <Input type="file" accept=".txt,.md,.rtf,.pdf,.doc,.docx" onChange={importResumeFile} className="max-w-sm" />
                   {values.resumeFileName ? (
-                    <Button type="button" variant="ghost" onClick={clearResume} className="h-10 px-3">
+                    <Button type="button" variant="ghost" onClick={clearResume} className="min-h-11 px-4">
                       Clear
                     </Button>
                   ) : null}
@@ -284,7 +284,7 @@ export function OnboardingClient({
                 <textarea
                   value={values.outreachStyleNotes}
                   onChange={(event) => update('outreachStyleNotes', event.target.value.slice(0, 500))}
-                  className="min-h-24 w-full rounded-md border border-input px-3 py-2 text-sm"
+                  className="min-h-24 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 py-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35"
                   placeholder="Example: sound less formal, mention curiosity about product work."
                 />
               </Field>
@@ -294,15 +294,15 @@ export function OnboardingClient({
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
             <p className="text-sm text-slate-500">{status || (missing.length ? `${missing.length} required item${missing.length === 1 ? '' : 's'} remaining.` : 'Ready to save.')}</p>
             <div className="flex gap-3">
-              <Button type="button" variant="outline" className="rounded-md" disabled={step === 0 || saving} onClick={() => setStep(0)}>
+              <Button type="button" variant="outline" disabled={step === 0 || saving} onClick={() => setStep(0)}>
                 Back
               </Button>
               {step === 0 ? (
-                <Button type="button" className="rounded-md" disabled={!canContinue || saving} onClick={() => setStep(1)}>
+                <Button type="button" disabled={!canContinue || saving} onClick={() => setStep(1)}>
                   Continue
                 </Button>
               ) : (
-                <Button type="button" className="rounded-md" disabled={!canContinue || saving} onClick={submit}>
+                <Button type="button" disabled={!canContinue || saving} onClick={submit}>
                   {saving ? 'Saving...' : 'Finish setup'}
                 </Button>
               )}
@@ -341,7 +341,7 @@ function ResolveInput({
   return (
     <div className="flex gap-2">
       <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
-      <Button type="button" variant="outline" className="h-10 shrink-0 rounded-md" onClick={onResolve} disabled={resolving}>
+      <Button type="button" variant="outline" className="min-h-11 shrink-0" onClick={onResolve} disabled={resolving}>
         {resolving ? 'Checking...' : verified ? 'Verified' : 'Confirm'}
       </Button>
     </div>
@@ -357,7 +357,7 @@ function ResolveOptions({
 }) {
   if (!items.length) return null;
   return (
-    <div className="mt-2 overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+    <div className="mt-2 overflow-hidden rounded-[8px] bg-white">
       {items.map((item) => (
         <button
           key={`${item.type}-${item.id}`}
@@ -386,7 +386,7 @@ function SelectField({
 }) {
   return (
     <Field label={label} required>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35">
         {children}
       </select>
     </Field>

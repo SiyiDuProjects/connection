@@ -75,7 +75,7 @@ export function ConnectExtensionClient({
 
   return (
     <div className="mx-auto max-w-xl px-4 py-16 sm:px-6 lg:px-8">
-      <div className="border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-[8px] bg-white p-6 shadow-sm">
         <Icon className={`h-8 w-8 ${state === 'sending' ? 'animate-spin' : ''}`} />
         <h1 className="mt-5 text-2xl font-semibold text-gray-950">
           {state === 'connected'
@@ -87,10 +87,10 @@ export function ConnectExtensionClient({
         <p className="mt-3 text-sm leading-6 text-gray-600">{message}</p>
         {state !== 'sending' ? (
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button asChild className="rounded-md">
+            <Button asChild>
               <Link href="/dashboard">{t('connect.openDashboard')}</Link>
             </Button>
-            <Button asChild variant="outline" className="rounded-md">
+            <Button asChild variant="outline">
               <Link href="https://www.linkedin.com/jobs/">{t('connect.openLinkedinJobs')}</Link>
             </Button>
           </div>

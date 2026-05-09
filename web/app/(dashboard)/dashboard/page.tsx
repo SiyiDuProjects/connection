@@ -377,8 +377,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-[calc(100dvh-64px)] overflow-y-auto px-6 py-3">
-      <section className="mx-auto grid min-h-[calc(100dvh-88px)] max-w-[1240px] grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[304px_minmax(0,1fr)]">
+    <main className="min-h-[calc(100dvh-64px)] overflow-y-auto p-6">
+      <section className="mx-auto grid min-h-[calc(100dvh-112px)] max-w-[1240px] grid-cols-1 gap-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[304px_minmax(0,1fr)]">
         <DashboardSidebar
           account={data}
           inviteCopying={inviteCopying}
@@ -387,13 +387,13 @@ export default function DashboardPage() {
         />
 
         <section className="flex min-h-0 flex-col overflow-visible">
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
-            <section className="rounded-[8px] border border-slate-200 bg-white/80 px-3 pb-0 pt-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-              <div className="mb-2">
+          <div className="flex min-h-0 flex-1 flex-col gap-4">
+            <section className="rounded-[8px] bg-white px-4 pb-0 pt-4 shadow-[0_18px_70px_rgba(15,23,42,0.04)]">
+              <div className="mb-3">
                 <h2 className="text-base font-semibold text-slate-950">Resume</h2>
               </div>
 
-              <div className="-mx-3 flex min-w-0 items-center justify-between gap-4 px-3 py-2">
+              <div className="-mx-4 flex min-w-0 items-center justify-between gap-4 px-4 py-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center text-slate-700">
                     <FileText className="h-6 w-6" aria-hidden="true" />
@@ -416,7 +416,7 @@ export default function DashboardPage() {
                 </div>
                 <label
                   aria-disabled={resumeSaving || !accountSettings}
-                  className={`inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-[#f9f9f9] hover:text-slate-950 ${
+                  className={`inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-[8px] bg-white text-slate-600 transition-colors hover:bg-[#f9f9f9] hover:text-slate-950 ${
                     resumeSaving || !accountSettings ? 'pointer-events-none opacity-60' : ''
                   }`}
                   title={settings?.resumeFileName ? 'Replace resume' : 'Upload resume'}
@@ -437,7 +437,7 @@ export default function DashboardPage() {
               ) : null}
             </section>
 
-            <section className="rounded-[8px] border border-slate-200 bg-white/80 px-3 pb-0 pt-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+            <section className="rounded-[8px] bg-white px-4 pb-0 pt-4 shadow-[0_18px_70px_rgba(15,23,42,0.04)]">
               <div className="mb-3">
                 <h2 className="text-base font-semibold text-slate-950">Outreach preferences</h2>
               </div>
@@ -497,7 +497,7 @@ export default function DashboardPage() {
 
             <section
               id="personal-info"
-              className="rounded-[8px] border border-slate-200 bg-white/80 px-3 pb-0 pt-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl"
+              className="rounded-[8px] bg-white px-4 pb-0 pt-4 shadow-[0_18px_70px_rgba(15,23,42,0.04)]"
             >
               <div>
                 <div className="mb-3">
@@ -643,7 +643,7 @@ function PreferenceRow({
   if (isSelectPreference(field)) {
     return (
       <div
-        className={`relative z-0 min-h-11 px-2 py-2 ${
+        className={`relative z-0 -mx-4 min-h-11 px-4 py-3 ${
           last ? '' : 'border-b border-slate-200'
         }`}
       >
@@ -665,7 +665,7 @@ function PreferenceRow({
   if (editing) {
     return (
       <div
-        className={`relative z-[90] min-h-11 px-2 py-2 ${
+        className={`relative z-[90] -mx-4 min-h-11 px-4 py-3 ${
           last ? '' : 'border-b border-slate-200'
         }`}
       >
@@ -686,7 +686,7 @@ function PreferenceRow({
 
   return (
     <div
-      className={`relative z-0 min-h-11 px-2 py-2 ${
+      className={`relative z-0 -mx-4 min-h-11 px-4 py-3 ${
         last ? '' : 'border-b border-slate-200'
       }`}
     >
@@ -711,7 +711,7 @@ function EditableValue({
     <button
       type="button"
       onClick={onEdit}
-      className="flex min-h-9 w-full items-center rounded-[8px] p-2 text-left transition-colors hover:bg-[#f9f9f9] focus:outline-none"
+      className="flex min-h-11 w-full items-center rounded-[8px] p-2 text-left transition-colors hover:bg-[#f9f9f9] focus:outline-none"
     >
       <span className={`block min-w-0 text-sm font-medium text-slate-950 ${multiline ? 'whitespace-pre-wrap leading-5' : 'truncate'}`}>
         {value}
@@ -739,14 +739,14 @@ function PersonalInfoField({
 }) {
   return (
     <div
-      className={`min-h-11 px-2 py-2 ${
+      className={`-mx-4 min-h-11 px-4 py-3 ${
         last ? '' : 'border-b border-slate-200'
       }`}
     >
       <p className="text-xs font-semibold text-slate-500">{label}</p>
       <div className="mt-1">
         {editing ? (
-          <div className="flex min-h-9 w-full flex-col justify-center rounded-[8px] p-2">{children}</div>
+          <div className="flex min-h-11 w-full flex-col justify-center rounded-[8px] p-2">{children}</div>
         ) : (
           <EditableValue value={value} multiline={multiline} onEdit={onEdit} />
         )}
@@ -803,7 +803,7 @@ function InlinePreferenceEditor({
   }
 
   return (
-    <div className="flex min-h-9 w-full items-center rounded-[8px] p-2">
+    <div className="flex min-h-11 w-full items-center rounded-[8px] p-2">
       <input
         autoFocus
         value={value}
@@ -844,7 +844,7 @@ function InlineSelect({
           type="button"
           aria-pressed={optionValue === value}
           onClick={() => onSave(optionValue)}
-          className={`flex min-h-9 min-w-0 items-center justify-center truncate rounded-[8px] p-2 text-sm font-semibold transition-colors focus:outline-none ${
+          className={`flex min-h-11 min-w-0 items-center justify-center truncate rounded-[8px] p-2 text-sm font-semibold transition-colors focus:outline-none ${
             optionValue === value
               ? 'bg-[#f3f3f3] text-slate-950'
               : 'bg-transparent text-neutral-500 hover:bg-[#f9f9f9] hover:text-neutral-950 disabled:opacity-60'
@@ -865,7 +865,7 @@ function ResolveOptions({
   onSelect: (item: ResolvedItem) => void;
 }) {
   return (
-    <div className="mt-2 overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+    <div className="mt-2 overflow-hidden rounded-[8px] bg-white">
       {items.map((item) => (
         <button
           key={`${item.type}-${item.id}`}

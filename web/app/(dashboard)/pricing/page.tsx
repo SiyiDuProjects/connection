@@ -57,12 +57,12 @@ export default async function PricingPage() {
   const plusPrice = prices.find((price) => price.productId === plusPlan?.id);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
+    <main className="mx-auto max-w-5xl bg-background px-4 py-14 text-foreground sm:px-6 lg:px-8">
       <div className="mb-10 max-w-2xl">
-        <h1 className="text-4xl font-semibold tracking-tight text-gray-950">
+        <h1 className="text-4xl font-semibold tracking-tight text-foreground">
           {t('pricing.title')}
         </h1>
-        <p className="mt-4 text-gray-600">
+        <p className="mt-4 text-base font-medium leading-7 text-muted-foreground">
           {t('pricing.subtitle')}
         </p>
       </div>
@@ -109,28 +109,28 @@ function PricingCard({
     translate(language, key, values);
 
   return (
-    <section className="border border-gray-200 bg-white p-6 shadow-sm">
+    <section className="apple-card p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-medium text-gray-950">{name}</h2>
-          <p className="mt-2 text-sm text-gray-600">{t(copy.audienceKey as Parameters<typeof translate>[1])}</p>
+          <h2 className="text-2xl font-semibold text-foreground">{name}</h2>
+          <p className="mt-2 text-sm font-medium leading-5 text-muted-foreground">{t(copy.audienceKey as Parameters<typeof translate>[1])}</p>
         </div>
-        <p className="rounded-md bg-gray-950 px-3 py-1.5 text-sm font-medium text-white">
+        <p className="rounded-full bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground">
           {t(copy.creditsKey as Parameters<typeof translate>[1])}
         </p>
       </div>
-      <p className="mt-7 text-4xl font-medium text-gray-950">
+      <p className="mt-7 text-4xl font-semibold text-foreground">
         {configured ? `$${price! / 100}` : t('pricing.configuring')}
-        {configured ? <span className="text-base font-normal text-gray-600"> / {interval}</span> : null}
+        {configured ? <span className="text-base font-medium text-muted-foreground"> / {interval}</span> : null}
       </p>
-      <p className="mt-2 text-sm text-gray-500">
+      <p className="mt-2 text-sm font-medium text-muted-foreground">
         {configured && trialDays ? t('pricing.trial', { days: trialDays }) : t('pricing.unavailable')}
       </p>
       <ul className="mt-7 space-y-3">
         {copy.features.map((feature) => (
           <li key={feature} className="flex items-start gap-2">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-gray-950" />
-            <span className="text-sm text-gray-700">{t(feature as Parameters<typeof translate>[1])}</span>
+            <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <span className="text-sm font-medium leading-5 text-foreground">{t(feature as Parameters<typeof translate>[1])}</span>
           </li>
         ))}
       </ul>
@@ -140,7 +140,7 @@ function PricingCard({
           <SubmitButton />
         </form>
       ) : (
-        <Button type="button" disabled variant="outline" className="mt-8 w-full rounded-md">
+        <Button type="button" disabled variant="outline" className="mt-8 w-full">
           {t('pricing.configureStripe')}
         </Button>
       )}

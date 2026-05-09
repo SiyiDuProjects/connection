@@ -64,8 +64,8 @@ export default function RecentOutreachPage() {
   }
 
   return (
-    <main className="min-h-[calc(100dvh-64px)] overflow-y-auto px-6 py-3">
-      <section className="mx-auto grid min-h-[calc(100dvh-88px)] max-w-[1240px] grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[304px_minmax(0,1fr)]">
+    <main className="min-h-[calc(100dvh-64px)] overflow-y-auto p-6">
+      <section className="mx-auto grid min-h-[calc(100dvh-112px)] max-w-[1240px] grid-cols-1 gap-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[304px_minmax(0,1fr)]">
         <DashboardSidebar
           account={data}
           inviteCopying={inviteCopying}
@@ -74,7 +74,7 @@ export default function RecentOutreachPage() {
         />
 
         <section className="flex min-h-0 flex-col overflow-visible">
-          <section className="rounded-[8px] border border-slate-200 bg-white/80 p-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+          <section className="rounded-[8px] bg-white p-4 shadow-[0_18px_70px_rgba(15,23,42,0.04)]">
             <h2 className="text-base font-semibold text-slate-950">Recent outreach</h2>
             <RecentOutreachList outreach={outreach} />
           </section>

@@ -18,7 +18,7 @@ export function LanguageSwitcher() {
     <Button
       type="button"
       variant="ghost"
-      className="rounded-md px-2"
+      className="px-4"
       onClick={toggleLanguage}
       aria-label="Switch language"
     >

@@ -39,7 +39,7 @@ export default function DashboardLayout({
   }, [data, pathname, router]);
 
   return (
-    <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.10),transparent_40%),#F8FAFC] text-slate-950">
+    <div className="h-screen overflow-hidden bg-background text-foreground">
       <AppHeader account={data} />
 
       {children}

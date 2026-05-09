@@ -54,7 +54,7 @@ export default function SecurityPage() {
         </h1>
 
         <div className="space-y-4">
-          <Card className="rounded-[8px] border-gray-200 shadow-none">
+          <Card>
             <CardHeader>
               <CardTitle>{t('general.language')}</CardTitle>
             </CardHeader>
@@ -94,7 +94,7 @@ export default function SecurityPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-[8px] border-gray-200 shadow-none">
+          <Card>
             <CardHeader>
               <CardTitle>{t('security.password')}</CardTitle>
             </CardHeader>
@@ -173,7 +173,7 @@ export default function SecurityPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-[8px] border-gray-200 shadow-none">
+          <Card>
             <CardHeader>
               <CardTitle>Log out</CardTitle>
             </CardHeader>
@@ -185,7 +185,7 @@ export default function SecurityPage() {
                 type="button"
                 onClick={handleSignOut}
                 variant="outline"
-                className="border-gray-200 bg-white text-gray-950 hover:bg-gray-50"
+                className="bg-white text-gray-950 hover:bg-gray-50"
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 Log out
@@ -193,7 +193,7 @@ export default function SecurityPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-[8px] border-gray-200 shadow-none">
+          <Card>
             <CardHeader>
               <CardTitle>{t('security.deleteAccount')}</CardTitle>
             </CardHeader>

@@ -35,9 +35,9 @@ type HeaderAccount = {
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 const actionClass =
-  'inline-flex h-10 items-center justify-center rounded-[8px] px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-[#f9f9f9] hover:text-slate-950';
-const iconActionClass = cn(actionClass, 'w-10 px-0');
-const selectedActionClass = 'bg-[#f3f3f3] text-slate-950';
+  'inline-flex min-h-11 items-center justify-center rounded-full px-4 text-sm font-semibold text-muted-foreground transition-[background,color,transform] duration-200 ease-out hover:bg-secondary hover:text-foreground active:scale-[0.98]';
+const iconActionClass = cn(actionClass, 'w-11 px-0');
+const selectedActionClass = 'bg-secondary text-foreground';
 
 export function AppHeader({
   account,
@@ -57,13 +57,13 @@ export function AppHeader({
   if (hideOnDashboard && pathname.startsWith('/dashboard')) return null;
 
   return (
-    <header className={cn('h-16', className)}>
+    <header className={cn('h-16 bg-background', className)}>
       <div className={cn('mx-auto flex h-full max-w-[1240px] items-center justify-between gap-5 px-6', innerClassName)}>
         <Link href="/" className="flex cursor-pointer items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-slate-950 text-lg font-semibold text-white">
-            G
+          <span className="flex h-9 w-9 items-center justify-center rounded-[11px] bg-primary text-lg font-semibold text-primary-foreground">
+            R
           </span>
-          <span className="text-xl font-semibold text-slate-950">Reachard</span>
+          <span className="text-xl font-semibold text-foreground">Reachard</span>
         </Link>
 
         <HeaderActions account={account} showCredits={showCredits} />
@@ -93,7 +93,7 @@ function HeaderActions({
         </Link>
         <Link
           href="/sign-up"
-          className={cn(actionClass, 'bg-slate-950 text-white hover:bg-slate-800 hover:text-white')}
+          className={cn(actionClass, 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground')}
         >
           <Chrome className="h-4 w-4" />
           Add to Chrome
@@ -116,8 +116,8 @@ function HeaderActions({
 
 function CreditsLink({ value }: { value?: number }) {
   return (
-    <Link href="/pricing" className={cn(actionClass, 'text-slate-950')}>
-      <Bolt className="h-4 w-4 text-amber-500" />
+    <Link href="/pricing" className={cn(actionClass, 'text-foreground')}>
+      <Bolt className="h-4 w-4 text-primary" />
       {formatNumber(value)} credits
     </Link>
   );
@@ -157,23 +157,23 @@ function AccountMenu({ user }: { user: HeaderUser }) {
           className={cn(iconActionClass, selectedActionClass)}
           aria-label="Account menu"
         >
-          <Avatar className="size-8 rounded-[8px]">
+          <Avatar className="size-8 rounded-[11px]">
             <AvatarImage alt={user.name || ''} />
-            <AvatarFallback className="rounded-[8px] bg-transparent text-sm font-semibold text-slate-700">
+            <AvatarFallback className="rounded-[11px] bg-transparent text-sm font-semibold text-foreground">
               {initials(user)}
             </AvatarFallback>
           </Avatar>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44 rounded-[8px] border-slate-200 p-2 shadow-[0_18px_50px_rgba(15,23,42,0.14)]">
-        <DropdownMenuItem asChild className="h-10 cursor-pointer rounded-[8px] px-3 text-sm font-semibold text-slate-700 focus:bg-[#f9f9f9] focus:text-slate-950">
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuItem asChild className="cursor-pointer">
           <Link href="/dashboard">
             <Home className="mr-2 h-4 w-4" />
             <span>{t('nav.dashboard')}</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className="h-10 cursor-pointer rounded-[8px] px-3 text-sm font-semibold text-slate-700 focus:bg-[#f9f9f9] focus:text-slate-950"
+          className="cursor-pointer"
           onSelect={(event) => {
             event.preventDefault();
             handleSignOut();
@@ -194,7 +194,7 @@ function displayName(user?: HeaderUser) {
 
 function initials(user?: HeaderUser) {
   const value = displayName(user);
-  if (!value) return 'G';
+  if (!value) return 'R';
   return value
     .split(/[ @.]+/)
     .filter(Boolean)

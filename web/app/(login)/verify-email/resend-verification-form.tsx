@@ -21,7 +21,7 @@ export function ResendVerificationForm({ email }: { email: string }) {
       <div>
         <Label
           htmlFor="email"
-          className="block text-sm font-medium text-gray-700"
+          className="block text-sm font-semibold text-muted-foreground"
         >
           {t('login.email')}
         </Label>
@@ -34,20 +34,20 @@ export function ResendVerificationForm({ email }: { email: string }) {
             defaultValue={state.email || email}
             required
             maxLength={255}
-            className="relative block w-full appearance-none rounded-md border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-gray-950 focus:outline-none focus:ring-gray-950 sm:text-sm"
+            className="relative block w-full appearance-none focus:z-10 sm:text-sm"
             placeholder={t('login.emailPlaceholder')}
           />
         </div>
       </div>
 
-      {state.error && <div className="text-red-500 text-sm">{state.error}</div>}
+      {state.error && <div className="text-sm font-medium text-destructive">{state.error}</div>}
       {state.success && (
-        <div className="text-green-600 text-sm">{state.success}</div>
+        <div className="text-sm font-medium text-[#248a3d]">{state.success}</div>
       )}
 
       <Button
         type="submit"
-        className="flex w-full items-center justify-center rounded-md border border-transparent bg-gray-950 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-950 focus:ring-offset-2"
+        className="flex w-full items-center justify-center text-sm"
         disabled={pending}
       >
         {pending ? (

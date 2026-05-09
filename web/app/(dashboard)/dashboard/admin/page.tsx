@@ -176,7 +176,7 @@ export default function AdminPage() {
                 <textarea
                   id="note"
                   name="note"
-                  className="border-input min-h-24 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                  className="min-h-24 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 py-3 text-sm outline-none focus-visible:ring-ring/35 focus-visible:ring-[3px]"
                   placeholder={t('admin.notePlaceholder')}
                 />
               </div>

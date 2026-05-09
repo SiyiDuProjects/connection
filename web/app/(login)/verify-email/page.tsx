@@ -15,32 +15,34 @@ export default async function VerifyEmailPage({
     translate(language, key, values);
 
   return (
-    <div className="flex min-h-[100dvh] flex-col justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+    <div className="flex min-h-[100dvh] flex-col justify-center bg-background px-4 py-12 text-foreground sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-          <MailCheck className="h-12 w-12 text-gray-950" />
+          <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-primary text-primary-foreground">
+            <MailCheck className="h-6 w-6" />
+          </span>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        <h2 className="mt-6 text-center text-3xl font-semibold text-foreground">
           {t('verify.title')}
         </h2>
-        <p className="mt-3 text-center text-sm text-gray-600">
+        <p className="mt-3 text-center text-sm font-medium leading-6 text-muted-foreground">
           {t('verify.sentTo', { email: email || t('verify.yourEmail') })}
         </p>
         {error && (
-          <p className="mt-3 text-center text-sm text-red-500">
+          <p className="mt-3 text-center text-sm font-medium text-destructive">
             {t('verify.invalid')}
           </p>
         )}
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="apple-card p-6">
           <ResendVerificationForm email={email} />
         </div>
         <div className="mt-6 text-center text-sm">
           <Link
             href="/sign-in"
-            className="font-medium text-gray-950 underline-offset-4 hover:underline"
+            className="font-semibold text-primary underline-offset-4 hover:underline"
           >
             {t('verify.back')}
           </Link>

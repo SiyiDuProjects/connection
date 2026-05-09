@@ -32,7 +32,7 @@ export function RecentOutreachList({
 }) {
   if (!outreach.length) {
     return (
-      <div className="mt-3 rounded-[8px] border border-dashed border-slate-200 bg-slate-50/70 p-3">
+      <div className="mt-3 rounded-[8px] bg-white p-3">
         <p className="text-sm font-semibold text-slate-950">No outreach yet.</p>
         <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
           Drafted or unlocked emails will appear here.

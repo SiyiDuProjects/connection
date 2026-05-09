@@ -1,10 +1,5 @@
 # Agent Notes
 
-## UI Style Notes
-
-- Selected buttons should use `#f3f3f3`.
-- Button hover backgrounds should use `#f9f9f9`.
-
 ## Documentation Maintenance
 
 - Keep `README.md` and `AGENTS.md` updated promptly when behavior, setup, deployment, or operational details change.
