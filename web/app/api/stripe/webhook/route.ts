@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
 import { creditLedger, stripeWebhookEvents, teams, teamMembers } from '@/lib/db/schema';
 import { and, eq, sql } from 'drizzle-orm';
+import { handleSuccessfulCheckoutSession } from '@/lib/payments/checkout';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest) {
   });
 
   switch (event.type) {
+    case 'checkout.session.completed':
+      await handleSuccessfulCheckoutSession((event.data.object as Stripe.Checkout.Session).id);
+      break;
     case 'invoice.payment_succeeded':
       await grantRenewalCredits(event.data.object as Stripe.Invoice);
       break;

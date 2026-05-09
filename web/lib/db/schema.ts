@@ -82,16 +82,51 @@ export const friendInvites = pgTable('friend_invites', {
   lastGeneratedAt: timestamp('last_generated_at').notNull().defaultNow(),
 });
 
-export const friendInviteRedemptions = pgTable('friend_invite_redemptions', {
-  id: serial('id').primaryKey(),
-  inviteId: integer('invite_id')
-    .notNull()
-    .references(() => friendInvites.id),
-  invitedUserId: integer('invited_user_id')
-    .notNull()
-    .references(() => users.id),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+export const friendInviteRedemptions = pgTable(
+  'friend_invite_redemptions',
+  {
+    id: serial('id').primaryKey(),
+    inviteId: integer('invite_id')
+      .notNull()
+      .references(() => friendInvites.id),
+    invitedUserId: integer('invited_user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    invitedUserIdUnique: uniqueIndex('friend_invite_redemptions_invited_user_id_unique').on(table.invitedUserId),
+  })
+);
+
+export const friendInviteRewards = pgTable(
+  'friend_invite_rewards',
+  {
+    id: serial('id').primaryKey(),
+    redemptionId: integer('redemption_id')
+      .notNull()
+      .references(() => friendInviteRedemptions.id),
+    inviterUserId: integer('inviter_user_id')
+      .notNull()
+      .references(() => users.id),
+    invitedUserId: integer('invited_user_id')
+      .notNull()
+      .references(() => users.id),
+    checkoutSessionId: text('checkout_session_id').notNull(),
+    invitedSubscriptionId: text('invited_subscription_id').notNull(),
+    stripeCustomerId: text('stripe_customer_id'),
+    stripeCreditBalanceTransactionId: text('stripe_credit_balance_transaction_id'),
+    amount: integer('amount'),
+    currency: varchar('currency', { length: 10 }),
+    status: varchar('status', { length: 40 }).notNull().default('pending'),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    redemptionIdUnique: uniqueIndex('friend_invite_rewards_redemption_id_unique').on(table.redemptionId),
+  })
+);
 
 export const emailVerificationTokens = pgTable('email_verification_tokens', {
   id: serial('id').primaryKey(),
@@ -261,6 +296,21 @@ export const friendInviteRedemptionsRelations = relations(friendInviteRedemption
   }),
 }));
 
+export const friendInviteRewardsRelations = relations(friendInviteRewards, ({ one }) => ({
+  redemption: one(friendInviteRedemptions, {
+    fields: [friendInviteRewards.redemptionId],
+    references: [friendInviteRedemptions.id],
+  }),
+  inviter: one(users, {
+    fields: [friendInviteRewards.inviterUserId],
+    references: [users.id],
+  }),
+  invitedUser: one(users, {
+    fields: [friendInviteRewards.invitedUserId],
+    references: [users.id],
+  }),
+}));
+
 export const extensionApiTokensRelations = relations(
   extensionApiTokens,
   ({ one }) => ({
@@ -297,6 +347,7 @@ export type Invitation = typeof invitations.$inferSelect;
 export type NewInvitation = typeof invitations.$inferInsert;
 export type FriendInvite = typeof friendInvites.$inferSelect;
 export type FriendInviteRedemption = typeof friendInviteRedemptions.$inferSelect;
+export type FriendInviteReward = typeof friendInviteRewards.$inferSelect;
 export type EmailVerificationToken =
   typeof emailVerificationTokens.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;

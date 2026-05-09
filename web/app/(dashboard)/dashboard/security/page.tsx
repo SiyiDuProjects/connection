@@ -47,7 +47,7 @@ export default function SecurityPage() {
   }
 
   return (
-    <section className="h-[calc(100dvh-64px)] overflow-y-auto px-6 py-6 lg:py-8">
+    <section className="min-h-[calc(100dvh-64px)] px-6 py-6 lg:py-8">
       <div className="mx-auto max-w-[760px]">
         <h1 className="mb-5 text-2xl font-semibold leading-tight text-gray-950">
           {t('security.title')}

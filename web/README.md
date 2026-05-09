@@ -9,6 +9,7 @@ Reachard is a SaaS application for finding company contacts from LinkedIn job pa
 - Dashboard pages with CRUD operations on users/teams
 - Basic RBAC with Owner and Member roles
 - Subscription management with Stripe Customer Portal
+- Direct friend-invite rewards: the inviter gets one month of Stripe customer balance credit only after the directly invited user purchases
 - Email/password authentication with email verification and JWTs stored to cookies
 - Global middleware to protect logged-in routes
 - Local middleware to protect Server Actions or validate Zod schemas

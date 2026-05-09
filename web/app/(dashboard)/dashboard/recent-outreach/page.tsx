@@ -64,8 +64,8 @@ export default function RecentOutreachPage() {
   }
 
   return (
-    <main className="min-h-[calc(100dvh-64px)] overflow-y-auto p-6">
-      <section className="mx-auto grid min-h-[calc(100dvh-112px)] max-w-[1240px] grid-cols-1 gap-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[304px_minmax(0,1fr)]">
+    <main className="min-h-[calc(100dvh-64px)] p-6">
+      <section className="mx-auto grid max-w-[1240px] grid-cols-1 gap-4 2xl:grid-cols-[304px_minmax(0,1fr)]">
         <DashboardSidebar
           account={data}
           inviteCopying={inviteCopying}

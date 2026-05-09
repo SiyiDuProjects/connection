@@ -38,6 +38,8 @@ For local development, email verification links are printed to the web server lo
 
 AI drafts open through `mailto:` or a Gmail compose URL. The app does not require Gmail OAuth for v1 and does not track whether a draft was sent or replied to.
 
+Friend invite links are direct-attribution only. A copied dashboard invite link points to `/sign-up?ref=CODE`; the inviter earns one month free only after that directly invited user completes Stripe checkout. If the invited user later invites another buyer, that later purchase rewards the invited user, not the original inviter. Rewards are recorded in `friend_invite_rewards` and applied as Stripe customer balance credit to the inviter, with pending rewards retried after the inviter has a Stripe subscription.
+
 After signing in, open `Dashboard > Extension` and generate an extension API token.
 
 ## Local Server

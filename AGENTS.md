@@ -4,6 +4,14 @@
 
 - Keep `README.md` and `AGENTS.md` updated promptly when behavior, setup, deployment, or operational details change.
 
+## Web App Invite Rewards
+
+- Dashboard friend invite links use direct attribution only: `/sign-up?ref=CODE` records the direct inviter at sign-up.
+- The inviter reward is granted only after the directly invited user completes Stripe checkout.
+- Rewards are not multi-level. If invited user B invites buyer C, C's purchase rewards B, not the original inviter A.
+- One free month is implemented as Stripe customer balance credit for the inviter and tracked in `friend_invite_rewards` to prevent duplicate rewards.
+- If the inviter does not yet have a Stripe customer/subscription, the reward remains pending and is retried after the inviter completes checkout.
+
 ## Production Server
 
 - Host: `49.51.38.235`

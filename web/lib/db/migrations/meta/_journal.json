@@ -71,6 +71,13 @@
       "when": 1778262000000,
       "tag": "0009_user_settings_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778263000000,
+      "tag": "0010_friend_invite_rewards",
+      "breakpoints": true
     }
   ]
 }

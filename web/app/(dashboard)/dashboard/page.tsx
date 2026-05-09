@@ -377,8 +377,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-[calc(100dvh-64px)] overflow-y-auto p-6">
-      <section className="mx-auto grid min-h-[calc(100dvh-112px)] max-w-[1240px] grid-cols-1 gap-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[304px_minmax(0,1fr)]">
+    <main className="min-h-[calc(100dvh-64px)] p-6">
+      <section className="mx-auto grid max-w-[1240px] grid-cols-1 gap-4 2xl:grid-cols-[304px_minmax(0,1fr)]">
         <DashboardSidebar
           account={data}
           inviteCopying={inviteCopying}
@@ -523,7 +523,7 @@ export default function DashboardPage() {
                       }}
                       disabled={personalSaving || !accountSettings}
                       placeholder="Enter your name"
-                      className="h-5 w-full bg-transparent p-0 text-sm font-medium leading-5 text-slate-600 outline-none ring-0 focus:outline-none focus:ring-0"
+                      className="h-5 w-full bg-transparent p-0 text-sm font-semibold leading-5 text-slate-950 outline-none ring-0 focus:outline-none focus:ring-0"
                     />
                   </PersonalInfoField>
 
@@ -552,7 +552,7 @@ export default function DashboardPage() {
                         }}
                         disabled={personalSaving || !accountSettings}
                         placeholder="University of California, Berkeley"
-                        className="h-5 w-full bg-transparent p-0 pr-8 text-sm font-medium leading-5 text-slate-600 outline-none ring-0 focus:outline-none focus:ring-0"
+                        className="h-5 w-full bg-transparent p-0 pr-8 text-sm font-semibold leading-5 text-slate-950 outline-none ring-0 focus:outline-none focus:ring-0"
                       />
                       <button
                         type="button"
@@ -597,7 +597,7 @@ export default function DashboardPage() {
                       }}
                       disabled={personalSaving || !accountSettings}
                       placeholder="Add any personal context that should shape outreach."
-                      className="min-h-5 w-full resize-none bg-transparent p-0 text-sm font-medium leading-5 text-slate-600 outline-none ring-0 focus:outline-none focus:ring-0"
+                      className="min-h-5 w-full resize-none bg-transparent p-0 text-sm font-semibold leading-5 text-slate-950 outline-none ring-0 focus:outline-none focus:ring-0"
                     />
                   </PersonalInfoField>
                 </div>
@@ -713,7 +713,7 @@ function EditableValue({
       onClick={onEdit}
       className="flex min-h-11 w-full items-center rounded-[8px] p-2 text-left transition-colors hover:bg-[#f9f9f9] focus:outline-none"
     >
-      <span className={`block min-w-0 text-sm font-medium text-slate-950 ${multiline ? 'whitespace-pre-wrap leading-5' : 'truncate'}`}>
+      <span className={`block min-w-0 text-sm font-semibold text-slate-950 ${multiline ? 'whitespace-pre-wrap leading-5' : 'truncate'}`}>
         {value}
       </span>
     </button>
@@ -817,7 +817,7 @@ function InlinePreferenceEditor({
           }
           if (event.key === 'Escape') onCancel();
         }}
-        className="h-5 w-full min-w-0 bg-transparent p-0 text-sm font-medium leading-5 text-slate-600 outline-none ring-0 focus:outline-none focus:ring-0"
+        className="h-5 w-full min-w-0 bg-transparent p-0 text-sm font-semibold leading-5 text-slate-950 outline-none ring-0 focus:outline-none focus:ring-0"
         placeholder={field === 'outreachStyleNotes' ? 'Extra style notes' : 'Target roles'}
       />
     </div>

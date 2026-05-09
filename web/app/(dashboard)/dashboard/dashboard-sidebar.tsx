@@ -47,13 +47,13 @@ export function DashboardSidebar({
             {initialsFromName(name)}
           </span>
           <h2 className="mt-2 text-lg font-semibold text-slate-950">{name}</h2>
-          <p className="mt-1 text-sm font-medium text-slate-500">
+          <p className="mt-1 text-sm font-semibold text-slate-600">
             {settings?.school || 'Add school or affiliation'}
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-500">
+          <p className="mt-1 text-sm font-semibold text-slate-600">
             {settings?.region || 'Add region'}
           </p>
-          <p className="mx-auto mt-2 max-w-[210px] text-sm font-medium leading-5 text-slate-500">
+          <p className="mx-auto mt-2 max-w-[210px] text-sm font-semibold leading-5 text-slate-600">
             Interested in <span className="font-semibold text-slate-700">{targetRoles}</span>
           </p>
           <Link
@@ -91,7 +91,7 @@ export function DashboardSidebar({
           <p className="mt-1 text-xl font-semibold leading-tight text-slate-950">
             {formatNumber(account?.credits?.remaining)}
           </p>
-          <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
+          <p className="mt-1 text-sm font-semibold leading-5 text-slate-600">
             Use credits to find contacts and reveal emails.
           </p>
         </div>
@@ -103,7 +103,7 @@ export function DashboardSidebar({
         </Link>
       </section>
 
-      <section className="mt-auto rounded-[8px] bg-white p-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)]">
+      <section className="rounded-[8px] bg-white p-3 shadow-[0_18px_70px_rgba(15,23,42,0.04)]">
         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
           Invite friends
@@ -121,7 +121,7 @@ export function DashboardSidebar({
           {inviteCopying ? 'Copying' : 'Copy invite link'}
         </button>
         {inviteStatus ? (
-          <p className="mt-2 text-sm font-medium text-slate-500">{inviteStatus}</p>
+          <p className="mt-2 text-sm font-semibold text-slate-600">{inviteStatus}</p>
         ) : null}
       </section>
 
@@ -156,7 +156,7 @@ function CareerHubLink({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold">{title}</span>
-        <span className="mt-0.5 block truncate text-sm font-medium text-slate-500">
+        <span className="mt-0.5 block truncate text-sm font-semibold text-slate-600">
           {subtitle}
         </span>
       </span>

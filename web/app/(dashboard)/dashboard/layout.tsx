@@ -39,7 +39,7 @@ export default function DashboardLayout({
   }, [data, pathname, router]);
 
   return (
-    <div className="h-screen overflow-hidden bg-background text-foreground">
+    <div className="min-h-[100dvh] bg-background text-foreground">
       <AppHeader account={data} />
 
       {children}
