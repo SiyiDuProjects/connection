@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Chrome, Copy, ExternalLink, Mail } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 const people = [
   {
@@ -45,24 +44,27 @@ export default function HomePage() {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <section className="mx-auto grid min-h-screen max-w-6xl items-center gap-12 px-4 pb-14 pt-24 sm:px-6 lg:grid-cols-[0.86fr_1.14fr]">
-        <div className="max-w-xl">
-          <h1 className="text-5xl font-semibold leading-none text-foreground sm:text-6xl lg:text-7xl">
+    <main className="min-h-screen bg-white text-foreground">
+      <section className="reachard-mountain-hero flex min-h-screen flex-col items-center overflow-hidden px-4 pb-20 pt-28 text-white sm:px-6 lg:pt-36">
+        <div className="relative z-10 flex max-w-4xl flex-col items-center text-center">
+          <h1 className="hero-title max-w-4xl text-white">
             Your next referral is hiding in the job post.
           </h1>
-          <p className="mt-6 text-xl font-medium leading-8 text-muted-foreground">
+          <p className="hero-subtitle mt-6 max-w-2xl text-white/90">
             Reachard finds the insiders, ranks the strongest paths, and drafts the message that gets you in.
           </p>
-          <Button asChild className="mt-9 px-5">
-            <Link href="/sign-up">
-              <Chrome className="mr-2 h-4 w-4" />
-              Add to Chrome
-            </Link>
-          </Button>
+          <Link href="/sign-up" className="reachard-mountain-button chrome-cta-button mt-9 text-white">
+            <span className="reachard-mountain-button__border" aria-hidden="true" />
+            <span className="relative z-10 inline-flex items-center justify-center gap-[6px]">
+              <Chrome />
+              <span>Add to Chrome</span>
+            </span>
+          </Link>
         </div>
 
-        <BrowserScene onDraftIntro={scrollToDraft} />
+        <div className="relative z-10 mt-14 w-full max-w-6xl lg:mt-[72px]">
+          <BrowserScene onDraftIntro={scrollToDraft} />
+        </div>
       </section>
 
       <section id="docs" className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
@@ -81,7 +83,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={copyDraft}
-              className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-4 text-sm font-semibold text-foreground transition-[background,transform] duration-200 ease-out hover:bg-secondary active:scale-[0.98]"
+              className="button-text inline-flex min-h-11 items-center rounded-full border border-border bg-card px-4 text-foreground transition-[background,transform] duration-200 ease-out hover:bg-secondary active:scale-[0.98]"
             >
               <Copy className="mr-2 h-4 w-4" />
               {copied ? 'Copied' : 'Copy'}
@@ -90,7 +92,7 @@ export default function HomePage() {
               href={gmailUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex min-h-11 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-[background,transform] duration-200 ease-out hover:bg-primary/90 active:scale-[0.98]"
+              className="button-text inline-flex min-h-11 items-center rounded-full bg-primary px-4 text-primary-foreground transition-[background,transform] duration-200 ease-out hover:bg-primary/90 active:scale-[0.98]"
             >
               <ExternalLink className="mr-2 h-4 w-4" />
               Open Gmail
@@ -143,13 +145,13 @@ function LandingFooter() {
 
           {footerSections.map((section) => (
             <nav key={section.title} aria-label={section.title} className="min-w-36">
-              <h2 className="text-sm font-semibold text-foreground">{section.title}</h2>
+              <h2 className="nav-link text-foreground">{section.title}</h2>
               <div className="mt-4 flex flex-col items-start gap-3">
                 {section.links.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                    className="nav-link text-muted-foreground transition-colors hover:text-foreground"
                   >
                     {item.label}
                   </Link>
@@ -159,7 +161,7 @@ function LandingFooter() {
           ))}
         </div>
 
-        <div className="flex flex-col gap-3 pt-5 text-sm font-medium text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="secondary flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p>Copyright 2026 Reachard. All rights reserved.</p>
           <p>Built for focused outreach from LinkedIn job pages.</p>
         </div>
@@ -170,20 +172,20 @@ function LandingFooter() {
 
 function BrowserScene({ onDraftIntro }: { onDraftIntro: () => void }) {
   return (
-    <div className="rounded-[18px] border border-border bg-card p-3 shadow-apple-float">
-      <div className="mb-3 flex h-8 items-center gap-2 rounded-[12px] bg-card px-3">
+    <div className="rounded-[18px] border border-white/55 bg-white/55 p-3 shadow-[0_28px_90px_rgba(30,80,170,0.22)] backdrop-blur-xl">
+      <div className="mb-3 flex h-8 items-center gap-2 rounded-[12px] bg-white/55 px-3">
         <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
         <span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
         <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
-        <div className="ml-4 flex-1 rounded-full bg-secondary px-3 py-1 text-xs font-medium text-muted-foreground">
+        <div className="secondary ml-4 flex-1 rounded-full bg-secondary px-3 py-1">
           linkedin.com/jobs/view/senior-product-manager
         </div>
       </div>
       <div className="grid min-h-[500px] gap-3 overflow-hidden rounded-[14px] bg-secondary p-4 lg:grid-cols-[1fr_360px]">
         <div className="rounded-[14px] bg-card p-7">
-          <p className="text-sm font-medium text-muted-foreground">LinkedIn job post</p>
-          <h2 className="mt-10 text-3xl font-semibold text-foreground">Senior Product Manager</h2>
-          <p className="mt-2 text-base font-medium text-muted-foreground">Stripe - San Francisco</p>
+          <p className="label">LinkedIn job post</p>
+          <h2 className="section-title mt-10">Senior Product Manager</h2>
+          <p className="secondary mt-2">Stripe - San Francisco</p>
           <div className="mt-10 h-3 w-4/5 rounded-full bg-secondary" />
           <div className="mt-3 h-3 w-2/3 rounded-full bg-secondary" />
           <div className="mt-3 h-3 w-3/4 rounded-full bg-secondary" />
@@ -193,18 +195,18 @@ function BrowserScene({ onDraftIntro }: { onDraftIntro: () => void }) {
           <div className="mb-8 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-primary text-xs font-semibold text-white">R</span>
-              <span className="font-medium">Reachard</span>
+              <span className="font-medium tracking-[-0.015em] text-white">Reachard</span>
             </div>
-            <span className="text-xs font-medium text-white/55">job - people - outreach</span>
+            <span className="card-text">job - people - outreach</span>
           </div>
 
-          <p className="text-sm font-medium text-white/55">Best match</p>
+          <p className="card-text">Best match</p>
           <div className="mt-4 space-y-4">
             {people.map((person) => (
               <article key={person.name} className="rounded-[12px] bg-white/[0.08] p-4">
-                <h3 className="text-base font-medium text-white">{person.name}</h3>
-                <p className="mt-1 text-sm font-medium text-white/55">{person.role}</p>
-                <div className="mt-4 space-y-1 text-sm font-medium text-white/75">
+                <h3 className="text-[15px] font-medium leading-[1.45] tracking-[-0.015em] text-white">{person.name}</h3>
+                <p className="card-text mt-1">{person.role}</p>
+                <div className="card-text mt-4 space-y-1">
                   {person.reasons.map((reason) => (
                     <p key={reason}>{reason}</p>
                   ))}
@@ -213,14 +215,14 @@ function BrowserScene({ onDraftIntro }: { onDraftIntro: () => void }) {
                   <button
                     type="button"
                     onClick={onDraftIntro}
-                    className="mt-5 inline-flex min-h-11 items-center rounded-full bg-white px-4 text-sm font-semibold text-[#1d1d1f] transition-transform duration-200 ease-out active:scale-[0.98]"
+                    className="button-text mt-5 inline-flex min-h-11 items-center rounded-full bg-white px-4 text-[#1d1d1f] transition-transform duration-200 ease-out active:scale-[0.98]"
                   >
                     Draft intro
                   </button>
                 ) : (
                   <Link
                     href="/sign-up"
-                    className="mt-5 inline-flex min-h-11 items-center rounded-full bg-white px-4 text-sm font-semibold text-[#1d1d1f] transition-transform duration-200 ease-out active:scale-[0.98]"
+                    className="button-text mt-5 inline-flex min-h-11 items-center rounded-full bg-white px-4 text-[#1d1d1f] transition-transform duration-200 ease-out active:scale-[0.98]"
                   >
                     View contact
                   </Link>

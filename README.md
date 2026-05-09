@@ -42,6 +42,22 @@ Friend invite links are direct-attribution only. A copied dashboard invite link 
 
 After signing in, open `Dashboard > Extension` and generate an extension API token.
 
+### Landing Hero Background
+
+The landing page reads its hero image from:
+
+```powershell
+web/public/images/home/hero-background.png
+```
+
+To try a different image without editing CSS, run:
+
+```powershell
+.\scripts\set-home-hero-background.cmd "C:\path\to\image.png"
+```
+
+The script copies the source image into the fixed public path and leaves the source file in place. In local dev, refresh the browser to preview; run a full build/screenshot only after choosing the final image.
+
 ## Local Server
 
 ```powershell

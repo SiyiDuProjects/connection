@@ -12,6 +12,12 @@
 - One free month is implemented as Stripe customer balance credit for the inviter and tracked in `friend_invite_rewards` to prevent duplicate rewards.
 - If the inviter does not yet have a Stripe customer/subscription, the reward remains pending and is retried after the inviter completes checkout.
 
+## Web App Landing Hero
+
+- The landing hero background uses the fixed public asset `web/public/images/home/hero-background.png`.
+- To try a new hero image, run `.\scripts\set-home-hero-background.cmd "C:\path\to\image.png"` from the repo root. The script copies the source into the fixed asset path and leaves the source file in place.
+- During visual iteration, refresh the local browser after swapping the file. Save full build/screenshot verification for the selected final image unless code or CSS changed.
+
 ## Production Server
 
 - Host: `49.51.38.235`

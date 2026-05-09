@@ -34,21 +34,36 @@ type HeaderAccount = {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-const actionClass =
-  'inline-flex min-h-11 items-center justify-center rounded-full px-4 text-sm font-semibold text-muted-foreground transition-[background,color,transform] duration-200 ease-out hover:bg-secondary hover:text-foreground active:scale-[0.98]';
-const iconActionClass = cn(actionClass, 'w-11 px-0');
-const selectedActionClass = 'bg-secondary text-foreground';
+type HeaderVariant = 'default' | 'hero';
+
+const baseActionClass =
+  'nav-link inline-flex min-h-11 items-center justify-center rounded-full px-4 transition-[background,color,transform] duration-200 ease-out active:scale-[0.98]';
+
+function getActionClass(variant: HeaderVariant) {
+  return cn(
+    baseActionClass,
+    variant === 'hero'
+      ? 'text-white/90 hover:bg-white/15 hover:text-white'
+      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+  );
+}
+
+function getSelectedActionClass(variant: HeaderVariant) {
+  return variant === 'hero' ? 'bg-white/15 text-white' : 'bg-secondary text-foreground';
+}
 
 export function AppHeader({
   account,
   showCredits = false,
   hideOnDashboard = false,
+  variant = 'default',
   className,
   innerClassName
 }: {
   account?: HeaderAccount;
   showCredits?: boolean;
   hideOnDashboard?: boolean;
+  variant?: HeaderVariant;
   className?: string;
   innerClassName?: string;
 }) {
@@ -57,16 +72,25 @@ export function AppHeader({
   if (hideOnDashboard && pathname.startsWith('/dashboard')) return null;
 
   return (
-    <header className={cn('h-16 bg-background', className)}>
+    <header className={cn('h-16 bg-background', variant === 'hero' && 'bg-transparent text-white', className)}>
       <div className={cn('mx-auto flex h-full max-w-[1240px] items-center justify-between gap-5 px-6', innerClassName)}>
         <Link href="/" className="flex cursor-pointer items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-[11px] bg-primary text-lg font-semibold text-primary-foreground">
+          <span
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-[11px] text-lg font-semibold',
+              variant === 'hero'
+                ? 'bg-white/95 text-[#15814e] shadow-[0_12px_30px_rgba(23,129,78,0.2)]'
+                : 'bg-primary text-primary-foreground'
+            )}
+          >
             R
           </span>
-          <span className="text-xl font-semibold text-foreground">Reachard</span>
+          <span className={cn('text-xl font-semibold', variant === 'hero' ? 'text-white' : 'text-foreground')}>
+            Reachard
+          </span>
         </Link>
 
-        <HeaderActions account={account} showCredits={showCredits} />
+        <HeaderActions account={account} showCredits={showCredits} variant={variant} />
       </div>
     </header>
   );
@@ -74,16 +98,19 @@ export function AppHeader({
 
 function HeaderActions({
   account,
-  showCredits
+  showCredits,
+  variant
 }: {
   account?: HeaderAccount;
   showCredits: boolean;
+  variant: HeaderVariant;
 }) {
   const { data: userData } = useSWR<HeaderUser | null>(
     account?.user ? null : '/api/user',
     fetcher
   );
   const user = account?.user || userData;
+  const actionClass = getActionClass(variant);
 
   if (!user) {
     return (
@@ -93,10 +120,15 @@ function HeaderActions({
         </Link>
         <Link
           href="/sign-up"
-          className={cn(actionClass, 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground')}
+          className={cn(
+            'chrome-cta-button rounded-[10px] transition-[background,color,transform] duration-200 ease-out active:scale-[0.98]',
+            variant === 'hero'
+              ? 'bg-white text-[#1d1d1f] shadow-[0_14px_30px_rgba(23,129,78,0.14)] hover:bg-white/90 hover:text-[#1d1d1f]'
+              : 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+          )}
         >
-          <Chrome className="h-4 w-4" />
-          Add to Chrome
+          <Chrome />
+          <span>Add to Chrome</span>
         </Link>
       </div>
     );
@@ -106,41 +138,43 @@ function HeaderActions({
     <>
       <ExtensionSessionBridge user={user} />
       <div className="flex items-center gap-2">
-        {showCredits ? <CreditsLink value={account?.credits?.remaining} /> : null}
-        <SettingsLink />
-        <AccountMenu user={user} />
+        {showCredits ? <CreditsLink value={account?.credits?.remaining} variant={variant} /> : null}
+        <SettingsLink variant={variant} />
+        <AccountMenu user={user} variant={variant} />
       </div>
     </>
   );
 }
 
-function CreditsLink({ value }: { value?: number }) {
+function CreditsLink({ value, variant }: { value?: number; variant: HeaderVariant }) {
   return (
-    <Link href="/pricing" className={cn(actionClass, 'text-foreground')}>
-      <Bolt className="h-4 w-4 text-primary" />
+    <Link href="/pricing" className={cn(getActionClass(variant), variant === 'default' && 'text-foreground')}>
+      <Bolt className={cn('h-4 w-4', variant === 'hero' ? 'text-white' : 'text-primary')} />
       {formatNumber(value)} credits
     </Link>
   );
 }
 
-function SettingsLink() {
+function SettingsLink({ variant }: { variant: HeaderVariant }) {
   const pathname = usePathname();
   const active = pathname.startsWith('/dashboard/security');
+  const iconActionClass = cn(getActionClass(variant), 'w-11 px-0');
 
   return (
     <Link
       href="/dashboard/security"
       aria-label="Settings"
-      className={cn(iconActionClass, active && selectedActionClass)}
+      className={cn(iconActionClass, active && getSelectedActionClass(variant))}
     >
       <Settings className="h-4 w-4" />
     </Link>
   );
 }
 
-function AccountMenu({ user }: { user: HeaderUser }) {
+function AccountMenu({ user, variant }: { user: HeaderUser; variant: HeaderVariant }) {
   const router = useRouter();
   const { t } = useI18n();
+  const iconActionClass = cn(getActionClass(variant), 'w-11 px-0');
 
   async function handleSignOut() {
     await clearExtensionSessionBeforeSignOut();
@@ -154,12 +188,17 @@ function AccountMenu({ user }: { user: HeaderUser }) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className={cn(iconActionClass, selectedActionClass)}
+          className={cn(iconActionClass, getSelectedActionClass(variant))}
           aria-label="Account menu"
         >
           <Avatar className="size-8 rounded-[11px]">
             <AvatarImage alt={user.name || ''} />
-            <AvatarFallback className="rounded-[11px] bg-transparent text-sm font-semibold text-foreground">
+            <AvatarFallback
+              className={cn(
+                'rounded-[11px] bg-transparent text-sm font-semibold',
+                variant === 'hero' ? 'text-white' : 'text-foreground'
+              )}
+            >
               {initials(user)}
             </AvatarFallback>
           </Avatar>
