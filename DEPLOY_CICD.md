@@ -23,7 +23,7 @@ You can also run it manually from GitHub Actions with `workflow_dispatch`.
 
 ## Required GitHub Secrets
 
-In GitHub repo settings, add:
+In GitHub organization or repository settings, add these Actions secrets. If they live at the organization level, make sure this repository is allowed to access them:
 
 ```text
 SSH_HOST=your_server_ip_or_hostname
@@ -31,7 +31,7 @@ SSH_PORT=22
 SSH_USER=your_deploy_user
 SSH_KEY=private SSH key for that deploy user
 DEPLOY_PATH=/opt/connection/server
-COMPOSE_PATH=/root/muxing
+COMPOSE_PATH=/home/ubuntu/muxing
 PUBLIC_HEALTH_URL=https://contacts.reachard.studio/health
 ```
 
@@ -47,7 +47,7 @@ sudo chown -R deployer:deployer /opt/connection
 nano /opt/connection/server/.env
 ```
 
-If your current Compose project lives in `/root/muxing`, make sure the Compose file contains this service:
+If your current Compose project lives in `/home/ubuntu/muxing`, make sure the Compose file contains this service:
 
 ```yaml
   connection_contacts:
@@ -62,9 +62,9 @@ If your current Compose project lives in `/root/muxing`, make sure the Compose f
 Run the service once manually before relying on CI/CD:
 
 ```bash
-cd /root/muxing
-docker compose up -d --build connection_contacts
-docker logs --tail=80 connection_contacts
+cd /home/ubuntu/muxing
+sudo docker compose up -d --build connection_contacts
+sudo docker logs --tail=80 connection_contacts
 curl http://localhost:8787/health
 ```
 
@@ -76,7 +76,7 @@ The server must already have:
 Docker
 Docker Compose
 cloudflared tunnel
-~/muxing/docker-compose.yml with connection_contacts service
+/home/ubuntu/muxing/docker-compose.yml with connection_contacts service
 /opt/connection/server/.env
 ```
 
@@ -86,9 +86,12 @@ Your production `.env` should contain:
 PORT=8787
 WEB_BASE_URL=https://reachard.studio
 POSTGRES_URL=postgresql://...
-CONTACT_PROVIDER=explorium
+CONTACT_PROVIDER=rapidapi
 APOLLO_MOCK=false
-EXPLORIUM_API_KEY=your_explorium_api_key
+RAPIDAPI_KEY=your_rapidapi_key
+RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
+RAPIDAPI_METADATA_HOST=z-real-time-linkedin-scraper-api1.p.rapidapi.com
+APOLLO_API_KEY=your_apollo_api_key
 EXTENSION_ORIGIN=
 GMAIL_SUBJECT_PREFIX=Quick question from a Berkeley student
 RATE_LIMIT_WINDOW_MS=60000
@@ -185,4 +188,4 @@ The workflow will deploy automatically. Changes under `extension/**` or `web/**`
 - If `Configure SSH` fails, check `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_KEY`, and the deploy user's `authorized_keys`.
 - If `Sync server files` fails, check `DEPLOY_PATH` permissions.
 - If `Rebuild container` fails, SSH into the VPS and run `docker compose config` inside `COMPOSE_PATH`.
-- If `Health check` fails, check `PUBLIC_HEALTH_URL`, Cloudflare Tunnel routing, and `docker logs connection_contacts`.
+- If `Health check` fails, check `PUBLIC_HEALTH_URL`, Cloudflare Tunnel routing, and `sudo docker logs connection_contacts`.

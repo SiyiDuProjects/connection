@@ -49,17 +49,21 @@ npm install
 npm run dev
 ```
 
-Set `POSTGRES_URL` to the same database used by `web/`, then set the provider API key in `server/.env`. The example config uses Explorium:
+Set `POSTGRES_URL` to the same database used by `web/`, then set the provider API keys in `server/.env`. The production contact pipeline uses RapidAPI for search and Apollo for on-demand email reveal:
 
 ```powershell
 POSTGRES_URL=postgresql://...
-CONTACT_PROVIDER=explorium
-EXPLORIUM_API_KEY=your-key
-EXPLORIUM_SEARCH_MODE=preview
-EXPLORIUM_SEARCH_LIMIT=5
+CONTACT_PROVIDER=rapidapi
+RAPIDAPI_KEY=your-rapidapi-key
+RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
+RAPIDAPI_METADATA_HOST=z-real-time-linkedin-scraper-api1.p.rapidapi.com
+APOLLO_API_KEY=your-apollo-key
+CONTACT_SEARCH_CREDITS=0
+CONTACT_REVEAL_CREDITS=1
+EMAIL_DRAFT_CREDITS=0
 ```
 
-`EXPLORIUM_SEARCH_MODE=preview` and `EXPLORIUM_SEARCH_LIMIT=5` keep the initial contact search cheap. User-facing Contact Kits are consumed when a contact is unlocked, not when search preview or the included outreach draft runs.
+Search preview and the included outreach draft do not consume Contact Kits. Revealing an email consumes one Contact Kit through Apollo `people/match`.
 
 ## Chrome Extension
 

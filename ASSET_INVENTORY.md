@@ -8,7 +8,7 @@ This file is a working inventory for the `connection` project. Do not put secret
 
 | Asset | Confirmed value | Owner / platform | Status | Notes |
 | --- | --- | --- | --- | --- |
-| Git repository | `https://github.com/SiyiDu/connection.git` | GitHub | Confirmed locally | Source of truth for `extension/`, `server/`, and `web/`. |
+| Git repository | Organization-owned `connection` repo | GitHub | Transfer confirmed by owner; local remote needs update | Source of truth for `extension/`, `server/`, and `web/`. |
 | Web app | `web/` | Vercel recommended | Needs dashboard confirmation | Next.js SaaS app. Deploy root should be `web`. |
 | Contacts API | `server/` | VPS + Docker Compose | Needs VPS confirmation | Express API, expected local port `8787`. |
 | Browser extension | `extension/` | Chrome unpacked / Chrome Web Store later | Local confirmed | Defaults to `https://contacts.reachard.studio` API and `https://reachard.studio` web app. |
@@ -63,12 +63,12 @@ Chrome Extension on LinkedIn
 | `PORT` | Yes | VPS env file | Expected `8787`. |
 | `WEB_BASE_URL` | Yes | VPS env file | Should be final web app URL, not the API URL. |
 | `POSTGRES_URL` | Yes | VPS env file | Same Neon database as web. |
-| `CONTACT_PROVIDER` | Yes | VPS env file | Recommended `explorium`; `apollo` only if API access works. |
-| `APOLLO_API_KEY` | Provider-dependent | VPS env file | Rotate if exposed. |
+| `CONTACT_PROVIDER` | Yes | VPS env file | Production should be `rapidapi`. |
+| `RAPIDAPI_KEY` | Yes for production search | VPS env file | Used by RapidAPI people search and metadata lookup. |
+| `RAPIDAPI_PEOPLE_HOST` | Yes for production search | VPS env file | Expected `fresh-linkedin-scraper-api.p.rapidapi.com`. |
+| `RAPIDAPI_METADATA_HOST` | Yes for production metadata lookup | VPS env file | Expected `z-real-time-linkedin-scraper-api1.p.rapidapi.com`. |
+| `APOLLO_API_KEY` | Yes for email reveal | VPS env file | Required by Reveal email via Apollo `people/match`; rotate if exposed. |
 | `APOLLO_MOCK` | Yes | VPS env file | Production should usually be `false`. |
-| `EXPLORIUM_API_KEY` | Provider-dependent | VPS env file | Needed when `CONTACT_PROVIDER=explorium`. |
-| `EXPLORIUM_SEARCH_MODE` | Optional | VPS env file | `preview` keeps searches cheaper. |
-| `EXPLORIUM_SEARCH_LIMIT` | Optional | VPS env file | Example value: `5`. |
 | `EXTENSION_ORIGIN` | Optional | VPS env file | Real value should be `chrome-extension://<extension-id>` if enforced. |
 | `RATE_LIMIT_WINDOW_MS` | Optional | VPS env file | Example value: `60000`. |
 | `RATE_LIMIT_MAX` | Optional | VPS env file | Example value: `60`. |
@@ -80,13 +80,13 @@ Chrome Extension on LinkedIn
 
 | Secret | Required | Purpose | Dashboard check |
 | --- | --- | --- | --- |
-| `SSH_HOST` | Yes | VPS hostname/IP | GitHub repo settings. |
-| `SSH_PORT` | Optional | SSH port, default `22` | GitHub repo settings. |
-| `SSH_USER` | Yes | Deploy user | GitHub repo settings and VPS. |
+| `SSH_HOST` | Yes | VPS hostname/IP | GitHub organization or repo settings. |
+| `SSH_PORT` | Optional | SSH port, default `22` | GitHub organization or repo settings. |
+| `SSH_USER` | Yes | Deploy user | GitHub organization or repo settings and VPS. |
 | `SSH_KEY` | Yes | Private key for deploy user | Rotate if exposed. |
-| `DEPLOY_PATH` | Yes | Expected `/opt/connection/server` | GitHub repo settings and VPS. |
-| `COMPOSE_PATH` | Yes | Expected `/root/muxing` or actual compose dir | GitHub repo settings and VPS. |
-| `PUBLIC_HEALTH_URL` | Yes | Expected `https://contacts.reachard.studio/health` | GitHub repo settings. |
+| `DEPLOY_PATH` | Yes | Expected `/opt/connection/server` | GitHub organization or repo settings and VPS. |
+| `COMPOSE_PATH` | Yes | Expected `/home/ubuntu/muxing` or actual compose dir | GitHub organization or repo settings and VPS. |
+| `PUBLIC_HEALTH_URL` | Yes | Expected `https://contacts.reachard.studio/health` | GitHub organization or repo settings. |
 
 ## Dashboard Checklist
 
