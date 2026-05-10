@@ -511,10 +511,10 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-[calc(100dvh-64px)] bg-[#f5f5f7] px-6 pb-12 pt-4">
-      <section className="mx-auto max-w-[900px] pb-3 pt-6">
+    <main className="min-h-[calc(100dvh-64px)] bg-[#f5f5f7] px-6 py-6 lg:py-8">
+      <section className="mx-auto max-w-[760px]">
         <div>
-          <h1 className="text-[40px] font-semibold leading-[1.12] text-[#1d1d1f]">
+          <h1 className="page-title mb-5">
             Hi, {firstName}
           </h1>
         </div>
@@ -528,14 +528,21 @@ export default function DashboardPage() {
         onCopyInviteLink={copyInviteLink}
       />
 
-      <section id="recent-outreach" className="mx-auto mt-8 max-w-[900px] rounded-[18px] bg-white px-6 py-10 sm:px-11">
+      <section id="recent-outreach" className="mx-auto mt-4 max-w-[760px] rounded-[16px] border border-border bg-card px-6 py-6 shadow-apple-card">
         <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
-          <h2 className="text-[21px] font-semibold leading-[1.2] text-[#1d1d1f]">
+          <h2 className="section-title">
             Recent Outreach
           </h2>
           <RecentOutreachList outreach={outreach} plain />
         </div>
       </section>
+
+      <DashboardCard id="plan" title="Plan">
+        <SettingsItem title="Credits">
+          <p>{formatNumber(data?.credits?.remaining)} remaining</p>
+          <p>Use credits to reveal emails and unlock contact details.</p>
+        </SettingsItem>
+      </DashboardCard>
 
       <DashboardCard id="profile" title="Profile">
         <div className="space-y-9">
@@ -582,19 +589,12 @@ export default function DashboardPage() {
         </SettingsItem>
       </DashboardCard>
 
-      <DashboardCard id="plan" title="Plan">
-        <SettingsItem title="Credits">
-          <p>{formatNumber(data?.credits?.remaining)} remaining</p>
-          <p>Use credits to reveal emails and unlock contact details.</p>
-        </SettingsItem>
-      </DashboardCard>
-
       <DashboardCard id="account" title="Account">
         <SettingsItem title={data?.user?.email || 'Reachard account'}>
-          <p>
-            This is the account Reachard uses for dashboard access, profile setup, and extension sessions.
-          </p>
-          <p>Extension: {data?.extension?.connected ? 'Connected' : 'Not connected'}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span>Extension</span>
+            <ExtensionStatus connected={Boolean(data?.extension?.connected)} />
+          </div>
         </SettingsItem>
       </DashboardCard>
 
@@ -699,12 +699,12 @@ function InviteFriendBanner({
   onCopyInviteLink: () => void;
 }) {
   return (
-    <section className="mx-auto mt-8 max-w-[900px] rounded-[18px] bg-white px-6 py-9 sm:px-11">
-      <p className="flex items-center gap-3 text-[24px] font-semibold leading-tight text-[#1d1d1f]">
+    <section className="mx-auto mt-4 max-w-[760px] rounded-[16px] border border-border bg-card px-6 py-6 shadow-apple-card">
+      <p className="section-title flex items-center gap-3">
         <Info className="h-6 w-6 shrink-0 stroke-[2.1]" aria-hidden="true" />
         Invite a friend
       </p>
-      <p className="mt-6 max-w-[760px] text-[21px] font-normal leading-[1.55] text-[#6e6e73]">
+      <p className="secondary mt-3 max-w-[620px]">
         Invite a friend to purchase Reachard and get one month free.
       </p>
       <button
@@ -725,23 +725,23 @@ function InviteFriendBanner({
 function SectionIndex() {
   const items = [
     { label: 'Recent', href: '#recent-outreach', icon: History },
+    { label: 'Plan', href: '#plan', icon: CreditCard },
     { label: 'Profile', href: '#profile', icon: UserRound },
     { label: 'Resume', href: '#resume', icon: FileText },
-    { label: 'Plan', href: '#plan', icon: CreditCard },
     { label: 'Account', href: '#account', icon: ShieldCheck }
   ];
 
   return (
-    <nav className="mx-auto mt-8 flex max-w-[900px] flex-wrap items-start justify-center gap-x-11 gap-y-6" aria-label="Dashboard sections">
+    <nav className="mx-auto mt-4 flex max-w-[760px] flex-wrap items-start justify-center gap-x-7 gap-y-4" aria-label="Dashboard sections">
       {items.map((item) => {
         const Icon = item.icon;
         return (
           <a
             key={item.href}
             href={item.href}
-            className="group flex min-w-[88px] flex-col items-center gap-3 text-center text-[17px] font-normal leading-tight text-[#1d1d1f]"
+            className="group flex min-w-[68px] flex-col items-center gap-2 text-center text-[14px] font-normal leading-tight text-[#1d1d1f]"
           >
-            <Icon className="h-12 w-12 text-[#6e6e73] transition-colors group-hover:text-[#1d1d1f]" strokeWidth={1.8} aria-hidden="true" />
+            <Icon className="h-8 w-8 text-[#6e6e73] transition-colors group-hover:text-[#1d1d1f]" strokeWidth={1.8} aria-hidden="true" />
             <span>{item.label}</span>
           </a>
         );
@@ -760,12 +760,32 @@ function DashboardCard({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="mx-auto mt-8 max-w-[900px] scroll-mt-8 rounded-[18px] bg-white px-6 py-10 sm:px-11">
-      <h2 className="text-[28px] font-semibold leading-[1.15] text-[#1d1d1f]">
+    <section id={id} className="mx-auto mt-4 max-w-[760px] scroll-mt-8 rounded-[16px] border border-border bg-card px-6 py-6 shadow-apple-card">
+      <h2 className="section-title">
         {title}
       </h2>
-      <div className="mt-9">{children}</div>
+      <div className="mt-6">{children}</div>
     </section>
+  );
+}
+
+function ExtensionStatus({ connected }: { connected: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold leading-none ${
+        connected
+          ? 'bg-[#e8f8f3] text-[#08745f]'
+          : 'bg-[#f5f5f7] text-[#6e6e73]'
+      }`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          connected ? 'bg-[#12b886]' : 'bg-[#8e8e93]'
+        }`}
+        aria-hidden="true"
+      />
+      {connected ? 'Connected' : 'Not connected'}
+    </span>
   );
 }
 
@@ -778,7 +798,7 @@ function SettingsSection({
 }) {
   return (
     <section className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
-      <h2 className="text-[21px] font-semibold leading-[1.2] text-[#1d1d1f]">
+      <h2 className="section-title">
         {title}
       </h2>
       <div className="space-y-7">{children}</div>

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Chrome, Copy, ExternalLink, Mail } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
 
 const people = [
   {
@@ -19,6 +20,7 @@ const people = [
 
 export default function HomePage() {
   const [copied, setCopied] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
   const draftBody = useMemo(
     () =>
       "Hi Jenny -\n\nI'm a Berkeley student interested in product and payments infrastructure. I saw Stripe's Senior Product Manager role and wanted to ask one thoughtful question about the team.",
@@ -48,22 +50,52 @@ export default function HomePage() {
       <section className="reachard-mountain-hero flex min-h-screen flex-col items-center overflow-hidden px-4 pb-20 pt-28 text-white sm:px-6 lg:pt-36">
         <div className="relative z-10 flex max-w-4xl flex-col items-center text-center">
           <h1 className="hero-title max-w-4xl text-white">
-            Your next referral is hiding in the job post.
+            <WordReveal
+              lines={['Your next referral is', 'hiding in the job post.']}
+              reduceMotion={shouldReduceMotion}
+            />
           </h1>
-          <p className="hero-subtitle mt-6 max-w-2xl text-white/90">
+          <motion.p
+            className="hero-subtitle mt-6 max-w-2xl text-white/90"
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={spring490(1.2)}
+          >
             Reachard finds the insiders, ranks the strongest paths, and drafts the message that gets you in.
-          </p>
-          <Link href="/sign-up" className="reachard-mountain-button chrome-cta-button mt-9 text-white">
-            <span className="reachard-mountain-button__border" aria-hidden="true" />
-            <span className="relative z-10 inline-flex items-center justify-center gap-[6px]">
-              <Chrome />
-              <span>Add to Chrome</span>
-            </span>
-          </Link>
+          </motion.p>
+          <motion.div
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={spring490(1.3)}
+          >
+            <Link href="/sign-up" className="reachard-mountain-button chrome-cta-button mt-9 text-white">
+              <span className="reachard-mountain-button__border" aria-hidden="true" />
+              <span className="relative z-10 inline-flex items-center justify-center gap-[6px]">
+                <Chrome />
+                <span>Add to Chrome</span>
+              </span>
+            </Link>
+          </motion.div>
         </div>
 
-        <div className="relative z-10 mt-14 w-full max-w-6xl lg:mt-[72px]">
-          <BrowserScene onDraftIntro={scrollToDraft} />
+        <div className="relative z-10 mt-14 w-full max-w-6xl lg:mt-[72px]" style={{ perspective: 800 }}>
+          <motion.div
+            initial={shouldReduceMotion ? false : { opacity: 0, z: 100, y: 200 }}
+            animate={{ opacity: 1, z: 0, y: 0 }}
+            transition={
+              shouldReduceMotion
+                ? { duration: 0 }
+                : {
+                    delay: 1.5,
+                    z: { type: 'spring', stiffness: 400, damping: 120, mass: 3, delay: 1.5 },
+                    y: { type: 'spring', stiffness: 200, damping: 40, delay: 1.5 },
+                    opacity: { duration: 0.5, delay: 1.5 }
+                  }
+            }
+            style={{ transformStyle: 'preserve-3d' }}
+          >
+            <BrowserScene onDraftIntro={scrollToDraft} reduceMotion={shouldReduceMotion} />
+          </motion.div>
         </div>
       </section>
 
@@ -103,6 +135,46 @@ export default function HomePage() {
 
       <LandingFooter />
     </main>
+  );
+}
+
+function spring490(delay: number) {
+  return { type: 'spring' as const, stiffness: 490, damping: 130, delay };
+}
+
+function WordReveal({ lines, reduceMotion }: { lines: string[]; reduceMotion: boolean | null }) {
+  return (
+    <>
+      {lines.map((line, lineIndex) => {
+        const words = line.split(' ');
+        const lineDelay = lineIndex === 0 ? 0 : 0.5;
+
+        return (
+          <span
+            key={line}
+            className={`hero-reveal-line ${lineIndex > 0 ? 'hero-reveal-line--second' : ''}`}
+          >
+            {words.map((word, wordIndex) => (
+              <span key={`${word}-${wordIndex}`}>
+                <motion.span
+                  className="inline-block"
+                  initial={reduceMotion ? false : { y: '1.45em' }}
+                  animate={{ y: 0 }}
+                  transition={
+                    reduceMotion
+                      ? { duration: 0 }
+                      : { type: 'spring', stiffness: 900, damping: 70, delay: lineDelay + wordIndex * 0.1 }
+                  }
+                >
+                  {word}
+                </motion.span>
+                {wordIndex < words.length - 1 ? ' ' : null}
+              </span>
+            ))}
+          </span>
+        );
+      })}
+    </>
   );
 }
 
@@ -170,28 +242,43 @@ function LandingFooter() {
   );
 }
 
-function BrowserScene({ onDraftIntro }: { onDraftIntro: () => void }) {
+function BrowserScene({ onDraftIntro, reduceMotion }: { onDraftIntro: () => void; reduceMotion: boolean | null }) {
   return (
     <div className="rounded-[18px] border border-white/55 bg-white/55 p-3 shadow-[0_28px_90px_rgba(30,80,170,0.22)] backdrop-blur-xl">
-      <div className="mb-3 flex h-8 items-center gap-2 rounded-[12px] bg-white/55 px-3">
+      <motion.div
+        className="mb-3 flex h-8 items-center gap-2 rounded-[12px] bg-white/55 px-3"
+        initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={spring490(1.7)}
+      >
         <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
         <span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
         <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
         <div className="secondary ml-4 flex-1 rounded-full bg-secondary px-3 py-1">
           linkedin.com/jobs/view/senior-product-manager
         </div>
-      </div>
+      </motion.div>
       <div className="grid min-h-[500px] gap-3 overflow-hidden rounded-[14px] bg-secondary p-4 lg:grid-cols-[1fr_360px]">
-        <div className="rounded-[14px] bg-card p-7">
+        <motion.div
+          className="rounded-[14px] bg-card p-7"
+          initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring490(1.8)}
+        >
           <p className="label">LinkedIn job post</p>
           <h2 className="section-title mt-10">Senior Product Manager</h2>
           <p className="secondary mt-2">Stripe - San Francisco</p>
           <div className="mt-10 h-3 w-4/5 rounded-full bg-secondary" />
           <div className="mt-3 h-3 w-2/3 rounded-full bg-secondary" />
           <div className="mt-3 h-3 w-3/4 rounded-full bg-secondary" />
-        </div>
+        </motion.div>
 
-        <aside className="rounded-[14px] bg-[#1c1c1e] p-5 text-white shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+        <motion.aside
+          className="rounded-[14px] bg-[#1c1c1e] p-5 text-white shadow-[0_20px_60px_rgba(0,0,0,0.18)]"
+          initial={reduceMotion ? false : { opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={reduceMotion ? { duration: 0 } : { scale: { duration: 0.5, ease: [0.4, 0, 0, 1], delay: 1.9 }, opacity: { duration: 0.5, ease: [0.4, 0, 0, 1], delay: 1.9 } }}
+        >
           <div className="mb-8 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-primary text-xs font-semibold text-white">R</span>
@@ -230,7 +317,7 @@ function BrowserScene({ onDraftIntro }: { onDraftIntro: () => void }) {
               </article>
             ))}
           </div>
-        </aside>
+        </motion.aside>
       </div>
     </div>
   );

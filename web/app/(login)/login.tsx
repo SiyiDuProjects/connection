@@ -150,8 +150,8 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
   }
 
   return (
-    <main className="flex min-h-[100dvh] flex-col bg-white text-[#1d1d1f]">
-      <AppHeader className="shrink-0 bg-white" />
+    <main className="flex min-h-[100dvh] flex-col bg-[#f5f5f7] text-[#1d1d1f]">
+      <AppHeader className="shrink-0 bg-[#f5f5f7]" />
       <section className="mx-auto flex w-full max-w-[480px] flex-1 flex-col items-center px-6 pt-4 sm:pt-12">
         <h1 className="text-center text-[28px] font-semibold leading-tight tracking-normal text-[#424245]">
           {title}
