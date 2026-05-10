@@ -192,14 +192,22 @@
 }
 
 .reachard-mountain-hero {
-  background-image:
-    radial-gradient(87.76% 87.72% at 50% 9.2%, rgb(255 255 255 / 0) 41.36%, #ffffff 71.93%),
-    url("/images/home/hero-background.png");
+  background-image: url("/images/home/hero-background.png");
   background-position: top center;
   background-repeat: no-repeat;
   background-size: max(100vw, 100rem);
   isolation: isolate;
   position: relative;
+}
+
+.reachard-mountain-hero::before {
+  background: radial-gradient(140% 92% at 50% -18%, rgb(255 255 255 / 0) 76%, rgb(255 255 255 / 0.5) 94%, #ffffff 112%);
+  content: "";
+  height: 100vh;
+  inset: 0 0 auto;
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
 }
 
 .reachard-mountain-button {
@@ -260,11 +268,13 @@
 
 @media (max-width: 768px) {
   .reachard-mountain-hero {
-    background-image:
-      radial-gradient(187.39% 86.87% at 50% 13.13%, rgb(233 255 205 / 0.18) 18%, rgb(121 186 103 / 0.24) 47%, #ffffff 100%),
-      url("/images/home/hero-background.png");
+    background-image: url("/images/home/hero-background.png");
     background-position: top center;
     background-size: cover;
+  }
+
+  .reachard-mountain-hero::before {
+    background: radial-gradient(190% 88% at 50% -16%, rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.54) 94%, #ffffff 112%);
   }
 }
 
@@ -274,8 +284,20 @@
   font-weight: 500;
   letter-spacing: -1px;
   line-height: 1.02;
-  text-shadow: 0 8px 28px rgb(27 91 49 / 0.2);
+  text-shadow: none;
   text-wrap: balance;
+}
+
+.hero-reveal-line {
+  display: block;
+  height: 1.12em;
+  line-height: 1.02;
+  overflow: hidden;
+}
+
+.hero-reveal-line--second {
+  height: 1.34em;
+  margin-top: 0.02em;
 }
 
 .hero-subtitle {
@@ -284,7 +306,7 @@
   font-weight: 500;
   letter-spacing: -0.02em;
   line-height: 1.4;
-  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.01);
+  text-shadow: none;
 }
 
 .nav-link {
