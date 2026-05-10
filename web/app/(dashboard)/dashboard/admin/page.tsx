@@ -83,10 +83,10 @@ export default function AdminPage() {
   if (data?.error) {
     return (
       <section className="flex-1 p-4 lg:p-8">
-        <h1 className="text-lg lg:text-2xl font-medium mb-6">{t('nav.admin')}</h1>
+        <h1 className="page-title mb-6">{t('nav.admin')}</h1>
         <Card>
           <CardContent>
-            <p className="text-sm text-muted-foreground">{data.error}</p>
+            <p className="secondary">{data.error}</p>
           </CardContent>
         </Card>
       </section>
@@ -95,7 +95,7 @@ export default function AdminPage() {
 
   return (
     <section className="flex-1 p-4 lg:p-8">
-      <h1 className="text-lg lg:text-2xl font-medium mb-6">{t('nav.admin')}</h1>
+      <h1 className="page-title mb-6">{t('nav.admin')}</h1>
 
       <div className="grid gap-4 md:grid-cols-4 mb-8">
         <MetricCard label={t('admin.users')} value={data?.summary.totalUsers} />
@@ -116,7 +116,7 @@ export default function AdminPage() {
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t('admin.searchEmail')}
               />
-              <Button type="submit" variant="outline">{t('admin.search')}</Button>
+              <Button type="submit" variant="outline" className="button-text">{t('admin.search')}</Button>
             </form>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -176,12 +176,12 @@ export default function AdminPage() {
                 <textarea
                   id="note"
                   name="note"
-                  className="min-h-24 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 py-3 text-sm outline-none focus-visible:ring-ring/35 focus-visible:ring-[3px]"
+                  className="value min-h-24 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 py-3 outline-none focus-visible:ring-ring/35 focus-visible:ring-[3px]"
                   placeholder={t('admin.notePlaceholder')}
                 />
               </div>
-              <Button type="submit">{t('admin.grantCredits')}</Button>
-              <p className="text-sm text-muted-foreground">{status}</p>
+              <Button type="submit" className="button-text">{t('admin.grantCredits')}</Button>
+              <p className="secondary">{status}</p>
             </form>
           </CardContent>
         </Card>
@@ -229,7 +229,7 @@ function MetricCard({ label, value }: { label: string; value?: number }) {
         <CardTitle>{label}</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-3xl font-semibold">{value ?? '...'}</p>
+        <p className="page-title">{value ?? '...'}</p>
       </CardContent>
     </Card>
   );

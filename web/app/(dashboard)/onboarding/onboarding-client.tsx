@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Check, FileText, Loader2, Pencil, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 type OnboardingValues = {
   name: string;
@@ -39,7 +41,11 @@ type SearchPreferences = {
   };
 };
 
-const steps = ['Personal', 'Outreach'];
+const controlClass =
+  'h-14 rounded-[12px] border border-transparent bg-transparent px-4 text-[17px] font-normal leading-none text-[#1d1d1f] shadow-[inset_0_0_0_1px_#86868b] placeholder:text-[#6e6e73] transition-shadow duration-150 ease-out focus-visible:bg-transparent focus-visible:ring-0 focus-visible:shadow-[inset_0_0_0_2px_#0071e3] md:text-[17px]';
+const textareaClass =
+  'w-full rounded-[12px] border border-transparent bg-transparent px-4 py-4 text-[17px] font-normal leading-6 text-[#1d1d1f] shadow-[inset_0_0_0_1px_#86868b] placeholder:text-[#6e6e73] outline-none transition-shadow duration-150 ease-out focus:ring-0 focus:shadow-[inset_0_0_0_2px_#0071e3]';
+const sectionDivider = 'border-t border-[#d2d2d7] pt-8';
 
 export function OnboardingClient({
   initial,
@@ -49,18 +55,15 @@ export function OnboardingClient({
   redirectTo: string;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
   const [values, setValues] = useState<OnboardingValues>(initial);
   const [status, setStatus] = useState('');
-  const [resolveStatus, setResolveStatus] = useState('');
   const [resolving, setResolving] = useState<'school' | 'region' | ''>('');
   const [schoolOptions, setSchoolOptions] = useState<ResolvedItem[]>([]);
   const [regionOptions, setRegionOptions] = useState<ResolvedItem[]>([]);
   const [saving, setSaving] = useState(false);
   const missing = useMemo(() => validate(values), [values]);
-  const canContinue = step === 0
-    ? !missing.some((field) => ['name', 'region', 'school', 'background'].includes(field))
-    : missing.length === 0;
+  const canContinue = missing.length === 0;
+  const nameParts = splitName(values.name);
 
   function update(name: Exclude<keyof OnboardingValues, 'defaultSearchPreferences'>, value: string) {
     setValues((current) => {
@@ -84,11 +87,10 @@ export function OnboardingClient({
   async function resolveField(type: 'school' | 'region') {
     const query = (type === 'school' ? values.school : values.region).trim();
     if (query.length < 2) {
-      setResolveStatus('Enter at least 2 characters before confirming.');
       return;
     }
     setResolving(type);
-    setResolveStatus('');
+    setStatus('');
     if (type === 'school') setSchoolOptions([]);
     else setRegionOptions([]);
 
@@ -97,14 +99,14 @@ export function OnboardingClient({
     const payload = await response.json().catch(() => ({}));
     setResolving('');
     if (!response.ok || !payload.ok) {
-      setResolveStatus(payload.error || `Could not confirm ${type}.`);
+      setStatus(payload.error || `Could not confirm ${type}.`);
       return;
     }
 
     const items = Array.isArray(payload.items) ? payload.items : [];
     if (type === 'school') setSchoolOptions(items);
     else setRegionOptions(items);
-    setResolveStatus(items.length ? `Choose the matching ${type}.` : `No ${type} matches found.`);
+    if (!items.length) setStatus(`No ${type} matches found.`);
   }
 
   function selectResolved(type: 'school' | 'region', item: ResolvedItem) {
@@ -120,7 +122,14 @@ export function OnboardingClient({
     }));
     if (type === 'school') setSchoolOptions([]);
     else setRegionOptions([]);
-    setResolveStatus(`${item.label} confirmed.`);
+    setStatus('');
+  }
+
+  function updateNamePart(part: 'first' | 'last', value: string) {
+    const current = splitName(values.name);
+    const first = part === 'first' ? value : current.first;
+    const last = part === 'last' ? value : current.last;
+    update('name', [first.trim(), last.trim()].filter(Boolean).join(' '));
   }
 
   async function importResumeFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -180,132 +189,128 @@ export function OnboardingClient({
   }
 
   return (
-    <main className="min-h-screen bg-[#f5f5f7] px-4 py-10 text-slate-950">
-      <section className="mx-auto max-w-3xl">
-        <div className="mb-7">
-          <p className="text-sm font-semibold text-indigo-600">Reachard setup</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-normal">Build your outreach profile</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Add the personal context and outreach defaults Reachard needs before drafting.
+    <main className="min-h-screen bg-white px-4 pb-16 pt-20 text-[#1d1d1f]">
+      <section className="mx-auto max-w-[680px]">
+        <div className="mx-auto mt-11 max-w-[560px] text-center">
+          <h1 className="text-[40px] font-semibold leading-[1.1] tracking-normal text-[#1d1d1f] sm:text-[44px]">
+            Build your outreach profile
+          </h1>
+          <p className="mt-4 text-[19px] leading-7 text-[#1d1d1f]">
+            Add the details Reachard uses to draft more personal outreach.
           </p>
         </div>
 
-        <div className="mb-5 grid grid-cols-2 gap-2">
-          {steps.map((label, index) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => setStep(index)}
-              className={`min-h-11 rounded-[8px] text-sm font-semibold transition-colors duration-300 ease-out ${
-                step === index ? 'bg-slate-950 text-white' : 'bg-white text-slate-600'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="rounded-[8px] bg-white p-6 shadow-sm">
-          {step === 0 ? (
-            <div className="space-y-5">
-              <Field label="Name" required>
-                <Input value={values.name} onChange={(event) => update('name', event.target.value)} placeholder="Alex Chen" />
-              </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Region" required>
-                  <ResolveInput
-                    value={values.region}
-                    onChange={(value) => update('region', value)}
-                    onResolve={() => resolveField('region')}
-                    resolving={resolving === 'region'}
-                    verified={values.defaultSearchPreferences.region?.label === values.region}
-                    placeholder="San Francisco Bay Area"
-                  />
-                  <ResolveOptions items={regionOptions} onSelect={(item) => selectResolved('region', item)} />
+        <div className="mx-auto mt-8 max-w-[516px]">
+          <div className="space-y-8">
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="First name" required>
+                  <Input value={nameParts.first} onChange={(event) => updateNamePart('first', event.target.value)} placeholder="First name" className={controlClass} />
                 </Field>
-                <Field label="School or affiliation" required>
-                  <ResolveInput
-                    value={values.school}
-                    onChange={(value) => update('school', value)}
-                    onResolve={() => resolveField('school')}
-                    resolving={resolving === 'school'}
-                    verified={values.defaultSearchPreferences.school?.label === values.school}
-                    placeholder="UC Berkeley"
-                  />
-                  <ResolveOptions items={schoolOptions} onSelect={(item) => selectResolved('school', item)} />
+                <Field label="Last name" required>
+                  <Input value={nameParts.last} onChange={(event) => updateNamePart('last', event.target.value)} placeholder="Last name" className={controlClass} />
                 </Field>
               </div>
-              {resolveStatus ? <p className="text-sm font-medium text-slate-500">{resolveStatus}</p> : null}
+              <Field label="School or affiliation" required>
+                <ResolveInput
+                  value={values.school}
+                  onChange={(value) => update('school', value)}
+                  onResolve={() => resolveField('school')}
+                  resolving={resolving === 'school'}
+                  verified={values.defaultSearchPreferences.school?.label === values.school}
+                  placeholder="School or affiliation"
+                />
+                <ResolveOptions items={schoolOptions} onSelect={(item) => selectResolved('school', item)} />
+              </Field>
+              <Field label="Region">
+                <ResolveInput
+                  value={values.region}
+                  onChange={(value) => update('region', value)}
+                  onResolve={() => resolveField('region')}
+                  resolving={resolving === 'region'}
+                  verified={Boolean(values.region) && values.defaultSearchPreferences.region?.label === values.region}
+                  placeholder="Region"
+                />
+                <ResolveOptions items={regionOptions} onSelect={(item) => selectResolved('region', item)} />
+              </Field>
               <Field label="Extra personal info">
                 <textarea
                   value={values.senderProfile}
                   onChange={(event) => update('senderProfile', event.target.value)}
-                  className="min-h-28 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 py-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35"
-                  placeholder="A truthful short summary of your education, projects, internships, skills, and focus."
+                  className={cn(textareaClass, 'min-h-28')}
+                  placeholder="Extra personal info"
                 />
               </Field>
               <Field label="Resume">
-                <div className="rounded-[8px] bg-white p-3">
-                  <p className="text-sm font-semibold text-slate-950">
-                    {values.resumeFileName || 'No resume added'}
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-slate-500">
-                    {values.resumeUploadedAt ? `Stored ${formatDateTime(values.resumeUploadedAt)}` : 'Add a resume file to improve outreach drafts'}
-                  </p>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <Input type="file" accept=".txt,.md,.rtf,.pdf,.doc,.docx" onChange={importResumeFile} className="max-w-sm" />
-                  {values.resumeFileName ? (
-                    <Button type="button" variant="ghost" onClick={clearResume} className="min-h-11 px-4">
-                      Clear
-                    </Button>
-                  ) : null}
+                <div className="flex min-h-14 min-w-0 items-center justify-between gap-4 rounded-[12px] border border-transparent bg-transparent px-4 py-3 shadow-[inset_0_0_0_1px_#86868b]">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center text-[#6e6e73]">
+                      <FileText className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <p className="truncate text-[15px] font-semibold text-[#1d1d1f]">
+                          {values.resumeFileName || 'No resume added'}
+                        </p>
+                        {values.resumeFileName ? (
+                          <span className="rounded-full bg-[#f5f5f7] px-2.5 py-1 text-xs font-semibold text-[#3a3a3c]">
+                            Default
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-[13px] font-normal text-[#6e6e73]">
+                        {values.resumeUploadedAt ? `Stored ${formatDateTime(values.resumeUploadedAt)}` : 'Add a resume file to improve outreach drafts'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {values.resumeFileName ? (
+                      <button type="button" onClick={clearResume} className="text-sm font-medium text-[#6e6e73] transition-colors hover:text-[#1d1d1f]">
+                        Clear
+                      </button>
+                    ) : null}
+                    <label className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#86868b] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]" title={values.resumeFileName ? 'Replace resume' : 'Upload resume'}>
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                      <span className="sr-only">{values.resumeFileName ? 'Replace resume' : 'Upload resume'}</span>
+                      <input
+                        type="file"
+                        accept=".txt,.md,.rtf,.pdf,.doc,.docx"
+                        onChange={importResumeFile}
+                        className="sr-only"
+                      />
+                    </label>
+                  </div>
                 </div>
               </Field>
             </div>
-          ) : (
-            <div className="space-y-5">
+
+            <div className={cn(sectionDivider, 'space-y-3')}>
+              <h2 className="text-[21px] font-semibold leading-6 text-[#1d1d1f]">Outreach</h2>
               <Field label="Target roles" required>
-                <Input value={values.targetRole} onChange={(event) => update('targetRole', event.target.value)} placeholder="Software Engineer Intern, Product Manager, Data Analyst" />
+                <Input value={values.targetRole} onChange={(event) => update('targetRole', event.target.value)} placeholder="Target roles" className={controlClass} />
               </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <SelectField label="Outreach length" value={values.outreachLength} onChange={(value) => update('outreachLength', value)}>
-                  <option value="short">Short</option>
-                  <option value="concise">Concise</option>
-                  <option value="detailed">Detailed</option>
-                </SelectField>
-                <SelectField label="Outreach goal" value={values.outreachGoal} onChange={(value) => update('outreachGoal', value)}>
-                  <option value="advice">Ask advice</option>
-                  <option value="referral">Explore referral</option>
-                  <option value="intro">Request intro</option>
-                </SelectField>
-              </div>
               <Field label="Extra style notes">
                 <textarea
                   value={values.outreachStyleNotes}
                   onChange={(event) => update('outreachStyleNotes', event.target.value.slice(0, 500))}
-                  className="min-h-24 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 py-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35"
-                  placeholder="Example: sound less formal, mention curiosity about product work."
+                  className={cn(textareaClass, 'min-h-24')}
+                  placeholder="Extra style notes"
                 />
               </Field>
             </div>
-          )}
+          </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
-            <p className="text-sm text-slate-500">{status || (missing.length ? `${missing.length} required item${missing.length === 1 ? '' : 's'} remaining.` : 'Ready to save.')}</p>
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[#d2d2d7] pt-6">
+            <p className="text-sm text-[#6e6e73]">{status || (missing.length ? `${missing.length} required item${missing.length === 1 ? '' : 's'} remaining.` : 'Ready to save.')}</p>
             <div className="flex gap-3">
-              <Button type="button" variant="outline" disabled={step === 0 || saving} onClick={() => setStep(0)}>
-                Back
+              <Button
+                type="button"
+                disabled={!canContinue || saving}
+                onClick={submit}
+                className="min-h-10 rounded-full bg-[#0071e3] px-5 text-white hover:bg-[#0077ed]"
+              >
+                {saving ? 'Saving...' : 'Finish setup'}
               </Button>
-              {step === 0 ? (
-                <Button type="button" disabled={!canContinue || saving} onClick={() => setStep(1)}>
-                  Continue
-                </Button>
-              ) : (
-                <Button type="button" disabled={!canContinue || saving} onClick={submit}>
-                  {saving ? 'Saving...' : 'Finish setup'}
-                </Button>
-              )}
             </div>
           </div>
         </div>
@@ -316,8 +321,8 @@ export function OnboardingClient({
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
-    <div className="space-y-2">
-      <Label>{label}{required ? ' *' : ''}</Label>
+    <div>
+      <Label className="sr-only">{label}{required ? ' required' : ''}</Label>
       {children}
     </div>
   );
@@ -339,11 +344,24 @@ function ResolveInput({
   placeholder: string;
 }) {
   return (
-    <div className="flex gap-2">
-      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
-      <Button type="button" variant="outline" className="min-h-11 shrink-0" onClick={onResolve} disabled={resolving}>
-        {resolving ? 'Checking...' : verified ? 'Verified' : 'Confirm'}
-      </Button>
+    <div className="relative">
+      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={cn(controlClass, 'pr-12')} />
+      <button
+        type="button"
+        className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-[#86868b] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f] disabled:opacity-60"
+        onClick={onResolve}
+        disabled={resolving}
+        title={verified ? 'Verified' : 'Search'}
+      >
+        {resolving ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        ) : verified ? (
+          <Check className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <Search className="h-4 w-4" aria-hidden="true" />
+        )}
+        <span className="sr-only">{verified ? 'Verified' : 'Search'}</span>
+      </button>
     </div>
   );
 }
@@ -357,49 +375,36 @@ function ResolveOptions({
 }) {
   if (!items.length) return null;
   return (
-    <div className="mt-2 overflow-hidden rounded-[8px] bg-white">
+    <div className="mt-2 overflow-hidden rounded-[12px] border border-[#d2d2d7] bg-white">
       {items.map((item) => (
         <button
           key={`${item.type}-${item.id}`}
           type="button"
           onClick={() => onSelect(item)}
-          className="block w-full border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+          className="block w-full border-b border-[#f5f5f7] px-3 py-2 text-left last:border-b-0 hover:bg-[#f5f5f7]"
         >
-          <span className="block text-sm font-semibold text-slate-900">{item.label}</span>
-          {item.subtitle ? <span className="block text-xs font-medium text-slate-500">{item.subtitle}</span> : null}
+          <span className="block text-sm font-semibold text-[#1d1d1f]">{item.label}</span>
+          {item.subtitle ? <span className="block text-xs font-medium text-[#6e6e73]">{item.subtitle}</span> : null}
         </button>
       ))}
     </div>
   );
 }
 
-function SelectField({
-  label,
-  value,
-  onChange,
-  children
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <Field label={label} required>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35">
-        {children}
-      </select>
-    </Field>
-  );
+function splitName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return {
+    first: parts[0] || '',
+    last: parts.slice(1).join(' ')
+  };
 }
 
 function validate(values: OnboardingValues) {
   const missing: string[] = [];
-  if (!values.name.trim()) missing.push('name');
-  if (!values.region.trim() || values.defaultSearchPreferences.region?.label !== values.region) missing.push('region');
+  const name = splitName(values.name);
+  if (!name.first || !name.last) missing.push('name');
   if (!values.school.trim() || values.defaultSearchPreferences.school?.label !== values.school) missing.push('school');
   if (!values.targetRole.trim()) missing.push('targetRole');
-  if (!values.outreachGoal.trim()) missing.push('outreachGoal');
   if (!values.senderProfile.trim() && !values.resumeContext.trim()) missing.push('background');
   return missing;
 }

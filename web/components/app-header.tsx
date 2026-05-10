@@ -3,20 +3,13 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { Bolt, Chrome, Home, LogOut, Settings } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+import { Bolt, ChevronDown, Chrome } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { signOut } from '@/app/(login)/actions';
 import {
   ExtensionSessionBridge,
   clearExtensionSessionBeforeSignOut
 } from '@/components/extension-session-bridge';
-import { useI18n } from '@/components/language-provider';
 import { cn } from '@/lib/utils';
 
 type HeaderUser = {
@@ -48,10 +41,6 @@ function getActionClass(variant: HeaderVariant) {
   );
 }
 
-function getSelectedActionClass(variant: HeaderVariant) {
-  return variant === 'hero' ? 'bg-white/15 text-white' : 'bg-secondary text-foreground';
-}
-
 export function AppHeader({
   account,
   showCredits = false,
@@ -72,20 +61,31 @@ export function AppHeader({
   if (hideOnDashboard && pathname.startsWith('/dashboard')) return null;
 
   return (
-    <header className={cn('h-16 bg-background', variant === 'hero' && 'bg-transparent text-white', className)}>
-      <div className={cn('mx-auto flex h-full max-w-[1240px] items-center justify-between gap-5 px-6', innerClassName)}>
+    <header className={cn('h-16 bg-white', variant === 'hero' && 'bg-transparent text-white', className)}>
+      <div
+        className={cn(
+          'mx-auto flex h-full max-w-[948px] items-center justify-between gap-5 px-6',
+          variant !== 'hero' && "relative after:absolute after:bottom-0 after:left-6 after:right-6 after:h-px after:bg-[#d2d2d7] after:content-['']",
+          innerClassName
+        )}
+      >
         <Link href="/" className="flex cursor-pointer items-center gap-3">
+          <img
+            src="/images/brand/reachard-logo-mark.png"
+            alt=""
+            aria-hidden="true"
+            className="h-10 w-10 shrink-0 object-contain"
+          />
           <span
-            className={cn(
-              'flex h-9 w-9 items-center justify-center rounded-[11px] text-lg font-semibold',
-              variant === 'hero'
-                ? 'bg-white/95 text-[#15814e] shadow-[0_12px_30px_rgba(23,129,78,0.2)]'
-                : 'bg-primary text-primary-foreground'
-            )}
+            style={{
+              fontFamily: '"Geist", sans-serif',
+              fontWeight: 600,
+              fontSize: 24,
+              letterSpacing: '-0.045em',
+              lineHeight: 1,
+              color: '#171717'
+            }}
           >
-            R
-          </span>
-          <span className={cn('text-xl font-semibold', variant === 'hero' ? 'text-white' : 'text-foreground')}>
             Reachard
           </span>
         </Link>
@@ -124,7 +124,7 @@ function HeaderActions({
             'chrome-cta-button rounded-[10px] transition-[background,color,transform] duration-200 ease-out active:scale-[0.98]',
             variant === 'hero'
               ? 'bg-white text-[#1d1d1f] shadow-[0_14px_30px_rgba(23,129,78,0.14)] hover:bg-white/90 hover:text-[#1d1d1f]'
-              : 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+              : 'bg-[#3a3a3c] text-white hover:bg-[#2c2c2e] hover:text-white'
           )}
         >
           <Chrome />
@@ -139,7 +139,6 @@ function HeaderActions({
       <ExtensionSessionBridge user={user} />
       <div className="flex items-center gap-2">
         {showCredits ? <CreditsLink value={account?.credits?.remaining} variant={variant} /> : null}
-        <SettingsLink variant={variant} />
         <AccountMenu user={user} variant={variant} />
       </div>
     </>
@@ -155,26 +154,8 @@ function CreditsLink({ value, variant }: { value?: number; variant: HeaderVarian
   );
 }
 
-function SettingsLink({ variant }: { variant: HeaderVariant }) {
-  const pathname = usePathname();
-  const active = pathname.startsWith('/dashboard/security');
-  const iconActionClass = cn(getActionClass(variant), 'w-11 px-0');
-
-  return (
-    <Link
-      href="/dashboard/security"
-      aria-label="Settings"
-      className={cn(iconActionClass, active && getSelectedActionClass(variant))}
-    >
-      <Settings className="h-4 w-4" />
-    </Link>
-  );
-}
-
 function AccountMenu({ user, variant }: { user: HeaderUser; variant: HeaderVariant }) {
   const router = useRouter();
-  const { t } = useI18n();
-  const iconActionClass = cn(getActionClass(variant), 'w-11 px-0');
 
   async function handleSignOut() {
     await clearExtensionSessionBeforeSignOut();
@@ -184,45 +165,47 @@ function AccountMenu({ user, variant }: { user: HeaderUser; variant: HeaderVaria
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(iconActionClass, getSelectedActionClass(variant))}
-          aria-label="Account menu"
-        >
-          <Avatar className="size-8 rounded-[11px]">
-            <AvatarImage alt={user.name || ''} />
-            <AvatarFallback
-              className={cn(
-                'rounded-[11px] bg-transparent text-sm font-semibold',
-                variant === 'hero' ? 'text-white' : 'text-foreground'
-              )}
-            >
-              {initials(user)}
-            </AvatarFallback>
-          </Avatar>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuItem asChild className="cursor-pointer">
-          <Link href="/dashboard">
-            <Home className="mr-2 h-4 w-4" />
-            <span>{t('nav.dashboard')}</span>
+    <div className="group relative">
+      <button
+        type="button"
+        className={cn(
+          'inline-flex h-11 cursor-pointer items-center gap-3 rounded-full px-2 outline-none transition-opacity duration-150 ease-out',
+          variant === 'hero' ? 'text-white/85 hover:text-white' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+        )}
+        aria-haspopup="menu"
+        aria-label="Account menu"
+      >
+        <ChevronDown className="h-5 w-5 stroke-[2.4]" aria-hidden="true" />
+        <Avatar className="size-10 rounded-full">
+          <AvatarFallback className="rounded-full bg-[#5ed8bf] text-[17px] font-semibold text-white">
+            {initials(user)}
+          </AvatarFallback>
+        </Avatar>
+      </button>
+      <div className="absolute right-0 top-full z-50 hidden min-w-[236px] pt-3 group-focus-within:block group-hover:block">
+        <div className="overflow-hidden rounded-[12px] border border-[#d2d2d7] bg-white text-left shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
+          <Link
+            href="/dashboard"
+            className="block border-b border-[#e5e5ea] px-7 py-4 text-[17px] font-semibold text-[#6e6e73] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+          >
+            View Account
           </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="cursor-pointer"
-          onSelect={(event) => {
-            event.preventDefault();
-            handleSignOut();
-          }}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>{t('nav.signOut')}</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <Link
+            href="/dashboard/security"
+            className="block border-b border-[#e5e5ea] px-7 py-4 text-[17px] font-semibold text-[#6e6e73] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+          >
+            Settings
+          </Link>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="block w-full px-7 py-4 text-left text-[17px] font-semibold text-[#d70015] transition-colors hover:bg-[#fff2f2]"
+          >
+            Log out
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

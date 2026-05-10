@@ -64,7 +64,7 @@ export default function RecentOutreachPage() {
   }
 
   return (
-    <main className="min-h-[calc(100dvh-64px)] p-6">
+    <main className="min-h-[calc(100dvh-64px)] bg-white p-6">
       <section className="mx-auto grid max-w-[1240px] grid-cols-1 gap-4 2xl:grid-cols-[304px_minmax(0,1fr)]">
         <DashboardSidebar
           account={data}
@@ -74,8 +74,8 @@ export default function RecentOutreachPage() {
         />
 
         <section className="flex min-h-0 flex-col overflow-visible">
-          <section className="rounded-[8px] bg-white p-4 shadow-[0_18px_70px_rgba(15,23,42,0.04)]">
-            <h2 className="text-base font-semibold text-slate-950">Recent outreach</h2>
+          <section className="rounded-[18px] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.035),0_4px_10px_rgba(0,0,0,0.045)] ring-1 ring-black/[0.025]">
+            <h2 className="section-title">Recent outreach</h2>
             <RecentOutreachList outreach={outreach} />
           </section>
         </section>

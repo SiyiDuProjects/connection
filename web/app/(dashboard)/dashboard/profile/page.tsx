@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function ProfilePage() {
-  redirect('/dashboard#personal-info');
+  redirect('/dashboard');
 }

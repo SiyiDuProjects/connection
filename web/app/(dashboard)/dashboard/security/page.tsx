@@ -49,7 +49,7 @@ export default function SecurityPage() {
   return (
     <section className="min-h-[calc(100dvh-64px)] px-6 py-6 lg:py-8">
       <div className="mx-auto max-w-[760px]">
-        <h1 className="mb-5 text-2xl font-semibold leading-tight text-gray-950">
+        <h1 className="page-title mb-5">
           {t('security.title')}
         </h1>
 
@@ -59,14 +59,14 @@ export default function SecurityPage() {
               <CardTitle>{t('general.language')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="mb-3 text-sm text-gray-500">
+              <p className="secondary mb-3">
                 {t('general.languageDescription')}
               </p>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={useBrowserLanguage}
-                  className={`h-9 rounded-[8px] px-3 text-sm font-semibold transition-colors hover:bg-[#f9f9f9] ${
+                  className={`button-text h-9 rounded-[8px] px-3 transition-colors hover:bg-[#f9f9f9] ${
                     languageMode === 'browser' ? 'bg-[#f3f3f3] text-gray-950' : 'text-gray-500'
                   }`}
                 >
@@ -75,7 +75,7 @@ export default function SecurityPage() {
                 <button
                   type="button"
                   onClick={() => setLanguage('en')}
-                  className={`h-9 rounded-[8px] px-3 text-sm font-semibold transition-colors hover:bg-[#f9f9f9] ${
+                  className={`button-text h-9 rounded-[8px] px-3 transition-colors hover:bg-[#f9f9f9] ${
                     languageMode === 'manual' && language === 'en' ? 'bg-[#f3f3f3] text-gray-950' : 'text-gray-500'
                   }`}
                 >
@@ -84,7 +84,7 @@ export default function SecurityPage() {
                 <button
                   type="button"
                   onClick={() => setLanguage('zh')}
-                  className={`h-9 rounded-[8px] px-3 text-sm font-semibold transition-colors hover:bg-[#f9f9f9] ${
+                  className={`button-text h-9 rounded-[8px] px-3 transition-colors hover:bg-[#f9f9f9] ${
                     languageMode === 'manual' && language === 'zh' ? 'bg-[#f3f3f3] text-gray-950' : 'text-gray-500'
                   }`}
                 >
@@ -145,15 +145,15 @@ export default function SecurityPage() {
                   />
                 </div>
                 {passwordState.error && (
-                  <p className="text-red-500 text-sm">{passwordState.error}</p>
+                  <p className="text-sm font-medium leading-[1.5] tracking-[-0.01em] text-red-500">{passwordState.error}</p>
                 )}
                 {passwordState.success && (
-                  <p className="text-green-500 text-sm">{passwordState.success}</p>
+                  <p className="text-sm font-medium leading-[1.5] tracking-[-0.01em] text-green-500">{passwordState.success}</p>
                 )}
                 <div className="flex justify-end">
                   <Button
                     type="submit"
-                    className="bg-gray-950 text-white hover:bg-gray-800"
+                    className="button-text bg-gray-950 text-white hover:bg-gray-800"
                     disabled={isPasswordPending}
                   >
                     {isPasswordPending ? (
@@ -178,14 +178,14 @@ export default function SecurityPage() {
               <CardTitle>Log out</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="secondary mb-4">
                 End this session and return to the homepage.
               </p>
               <Button
                 type="button"
                 onClick={handleSignOut}
                 variant="outline"
-                className="bg-white text-gray-950 hover:bg-gray-50"
+                className="button-text bg-white text-gray-950 hover:bg-gray-50"
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 Log out
@@ -198,7 +198,7 @@ export default function SecurityPage() {
               <CardTitle>{t('security.deleteAccount')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="secondary mb-4">
                 {t('security.deleteWarning')}
               </p>
               <form action={deleteAction} className="space-y-4">
@@ -217,13 +217,13 @@ export default function SecurityPage() {
                   />
                 </div>
                 {deleteState.error && (
-                  <p className="text-red-500 text-sm">{deleteState.error}</p>
+                  <p className="text-sm font-medium leading-[1.5] tracking-[-0.01em] text-red-500">{deleteState.error}</p>
                 )}
                 <div className="flex justify-end">
                   <Button
-                    type="submit"
-                    variant="destructive"
-                    className="bg-red-600 hover:bg-red-700"
+                  type="submit"
+                  variant="destructive"
+                  className="button-text bg-red-600 hover:bg-red-700"
                     disabled={isDeletePending}
                   >
                     {isDeletePending ? (

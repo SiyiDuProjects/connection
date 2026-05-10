@@ -831,7 +831,7 @@
         </div>
         <div class="fc-settings-actions">
           <button class="fc-secondary" type="button" data-refresh-account>Refresh account</button>
-          <button class="fc-secondary" type="button" data-action-url="https://reachard.co/dashboard/profile">Account profile</button>
+          <button class="fc-secondary" type="button" data-action-url="https://reachard.co/dashboard">Account profile</button>
           <button class="fc-danger" type="button" data-sign-out>Sign out</button>
         </div>
       </section>

@@ -1,46 +1,44 @@
-'use client';
-
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import useSWR from 'swr';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { AppHeader } from '@/components/app-header';
+import { getCreditBalance, getSettings, getUser } from '@/lib/db/queries';
+import { getOnboardingStatus } from '@/lib/onboarding';
 
-type AccountSummary = {
-  user?: {
-    id?: number;
-    name: string | null;
-    email: string;
-  };
-  credits?: {
-    remaining: number;
-  };
-  onboarding?: {
-    profile?: {
-      complete: boolean;
-    };
-  };
-};
-
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const { data } = useSWR<AccountSummary>('/api/account', fetcher);
+  const user = await getUser();
+  if (!user) {
+    redirect('/sign-in');
+  }
 
-  useEffect(() => {
-    if (data && data.onboarding && !data.onboarding.profile?.complete) {
-      router.replace(`/onboarding?redirect=${encodeURIComponent(pathname || '/dashboard')}`);
-    }
-  }, [data, pathname, router]);
+  const [settings, credits] = await Promise.all([
+    getSettings(user.id),
+    getCreditBalance(user.id)
+  ]);
+  const onboarding = getOnboardingStatus(user, settings);
+  if (!onboarding.complete) {
+    const pathname = (await headers()).get('x-pathname') || '/dashboard';
+    redirect(`/onboarding?redirect=${encodeURIComponent(pathname)}`);
+  }
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground">
-      <AppHeader account={data} />
+    <div className="min-h-[100dvh] bg-[#f5f5f7] text-foreground">
+      <AppHeader
+        className="bg-[#f5f5f7]"
+        account={{
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email
+          },
+          credits: {
+            remaining: credits
+          }
+        }}
+      />
 
       {children}
     </div>

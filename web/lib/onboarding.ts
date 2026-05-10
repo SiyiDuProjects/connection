@@ -13,10 +13,8 @@ export function getOnboardingStatus(
 ): OnboardingStatus {
   const fields = [
     ['name', user?.name],
-    ['region', settings?.region],
     ['school', settings?.school],
-    ['targetRole', settings?.targetRole],
-    ['outreachGoal', settings?.outreachGoal],
+    ['targetRole', settings?.targetRole]
   ] as const;
   const hasBackground = Boolean(clean(settings?.senderProfile) || clean(settings?.resumeContext));
   const missingFields: string[] = fields

@@ -52,6 +52,29 @@ const signInSchema = z.object({
   password: z.string().min(8).max(100)
 });
 
+const accountStatusSchema = z.object({
+  email: z.string().email().min(3).max(255)
+});
+
+export async function checkAccountStatus(emailInput: string) {
+  const result = accountStatusSchema.safeParse({ email: emailInput });
+  if (!result.success) {
+    return { error: result.error.errors[0].message };
+  }
+
+  const email = result.data.email.toLowerCase();
+  const existingUser = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+
+  return {
+    email,
+    exists: existingUser.length > 0
+  };
+}
+
 export const signIn = validatedAction(signInSchema, async (data, formData) => {
   const { password } = data;
   const email = data.email.toLowerCase();

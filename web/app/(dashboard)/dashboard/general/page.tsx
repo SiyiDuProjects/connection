@@ -83,7 +83,7 @@ export default function GeneralPage() {
 
   return (
     <section className="flex-1 p-4 lg:p-8">
-      <h1 className="text-lg lg:text-2xl font-medium text-gray-900 mb-6">
+      <h1 className="page-title mb-6">
         {t('general.title')}
       </h1>
 
@@ -97,14 +97,14 @@ export default function GeneralPage() {
               <AccountFormWithData state={state} />
             </Suspense>
             {state.error && (
-              <p className="text-red-500 text-sm">{state.error}</p>
+              <p className="text-sm font-medium leading-[1.5] tracking-[-0.01em] text-red-500">{state.error}</p>
             )}
             {state.success && (
-              <p className="text-green-500 text-sm">{state.success}</p>
+              <p className="text-sm font-medium leading-[1.5] tracking-[-0.01em] text-green-500">{state.success}</p>
             )}
             <Button
               type="submit"
-              className="bg-gray-950 text-white hover:bg-gray-800"
+              className="button-text bg-gray-950 text-white hover:bg-gray-800"
               disabled={isPending}
             >
               {isPending ? (

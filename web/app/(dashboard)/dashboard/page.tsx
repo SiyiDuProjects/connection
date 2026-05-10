@@ -1,9 +1,9 @@
 'use client';
 
-import { Check, FileText, Pencil, Search } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { CreditCard, FileText, History, Info, ShieldCheck, UserRound } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { DashboardSidebar } from './dashboard-sidebar';
+import { RecentOutreachList, recentOutreach } from './recent-outreach-list';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -79,8 +79,14 @@ type PreferenceKey = 'targetRole' | 'outreachGoal' | 'outreachLength' | 'outreac
 type PersonalDraft = {
   name: string;
   school: string;
+  region: string;
   senderProfile: string;
 };
+type OutreachDraft = {
+  targetRole: string;
+  outreachStyleNotes: string;
+};
+type EditPanel = '' | 'personal' | 'resume' | 'outreach';
 type ResolvedItem = {
   id: string;
   label: string;
@@ -103,6 +109,8 @@ export default function DashboardPage() {
   const [personalEditing, setPersonalEditing] = useState<keyof PersonalDraft | ''>('');
   const [personalSaving, setPersonalSaving] = useState(false);
   const [personalStatus, setPersonalStatus] = useState('');
+  const [editPanel, setEditPanel] = useState<EditPanel>('');
+  const [outreachDraft, setOutreachDraft] = useState<OutreachDraft | null>(null);
   const [schoolOptions, setSchoolOptions] = useState<ResolvedItem[]>([]);
   const [schoolResolving, setSchoolResolving] = useState(false);
   const [inviteStatus, setInviteStatus] = useState('');
@@ -110,13 +118,25 @@ export default function DashboardPage() {
   const accountSettings = data?.settings;
   const settings = { ...(accountSettings || {}), ...preferenceOverrides } as Settings;
   const name = settings?.senderName || data?.user?.name || displayName(data?.user);
-  const targetRoles = settings?.targetRole || 'Add target roles';
+  const firstName = name.split(/\s+/).filter(Boolean)[0] || name;
+  const outreach = recentOutreach(data?.usage);
   const inviteLink = inviteData?.link || '';
   const personal = personalDraft || {
     name: data?.user?.name || '',
     school: settings.school || '',
+    region: settings.region || '',
     senderProfile: settings.senderProfile || ''
   };
+
+  useEffect(() => {
+    if (window.location.hash) return;
+
+    const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    resetScroll();
+    const frame = window.requestAnimationFrame(resetScroll);
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   async function importResumeFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -144,6 +164,7 @@ export default function DashboardPage() {
       }
       await mutate();
       setResumeStatus('Saved.');
+      setEditPanel('');
     } catch (error) {
       setResumeStatus(error instanceof Error ? error.message : 'Could not read this file.');
     } finally {
@@ -304,6 +325,115 @@ export default function DashboardPage() {
     void commitPersonalInfo(next, schoolPreference);
   }
 
+  function openPersonalEditor() {
+    setPersonalStatus('');
+    setSchoolOptions([]);
+    setPersonalDraft({
+      name: data?.user?.name || '',
+      school: settings.school || '',
+      region: settings.region || '',
+      senderProfile: settings.senderProfile || ''
+    });
+    setEditPanel('personal');
+  }
+
+  function openOutreachEditor() {
+    setPreferenceStatus('');
+    setOutreachDraft({
+      targetRole: settings.targetRole || '',
+      outreachStyleNotes: settings.outreachStyleNotes || ''
+    });
+    setEditPanel('outreach');
+  }
+
+  function updateOutreachDraft(key: keyof OutreachDraft, value: string) {
+    setPreferenceStatus('');
+    setOutreachDraft((current) => ({
+      ...(current || {
+        targetRole: settings.targetRole || '',
+        outreachStyleNotes: settings.outreachStyleNotes || ''
+      }),
+      [key]: value
+    }));
+  }
+
+  async function saveOutreachFromModal() {
+    if (!accountSettings || !outreachDraft) return;
+
+    setPreferenceSaving(true);
+    setPreferenceStatus('');
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(outreachDraft)
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || 'Could not save outreach settings.');
+      }
+      setPreferenceOverrides((current) => ({ ...current, ...outreachDraft }));
+      await mutate();
+      setEditPanel('');
+    } catch (error) {
+      setPreferenceStatus(error instanceof Error ? error.message : 'Could not save outreach settings.');
+    } finally {
+      setPreferenceSaving(false);
+    }
+  }
+
+  async function savePersonalFromModal() {
+    if (!accountSettings) return;
+
+    setPersonalSaving(true);
+    setPersonalStatus('');
+    const existingPreferences = settings.defaultSearchPreferences || {};
+    const defaultSearchPreferences = {
+      school:
+        existingPreferences.school?.label === personal.school
+          ? existingPreferences.school
+          : undefined,
+      region:
+        existingPreferences.region?.label === personal.region
+          ? existingPreferences.region
+          : undefined
+    };
+
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: personal.name,
+          senderName: personal.name,
+          school: personal.school,
+          region: personal.region,
+          senderProfile: personal.senderProfile,
+          defaultSearchPreferences
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || 'Could not save personal info.');
+      }
+      setPreferenceOverrides((current) => ({
+        ...current,
+        senderName: personal.name,
+        school: personal.school,
+        region: personal.region,
+        senderProfile: personal.senderProfile,
+        defaultSearchPreferences
+      }));
+      setPersonalDraft(null);
+      await mutate();
+      setEditPanel('');
+    } catch (error) {
+      setPersonalStatus(error instanceof Error ? error.message : 'Could not save personal info.');
+    } finally {
+      setPersonalSaving(false);
+    }
+  }
+
   async function commitPersonalInfo(
     values = personal,
     schoolPreference?: NonNullable<Settings['defaultSearchPreferences']>['school']
@@ -315,11 +445,13 @@ export default function DashboardPage() {
     const currentValues = {
       name: data?.user?.name || '',
       school: settings.school || '',
+      region: settings.region || '',
       senderProfile: settings.senderProfile || ''
     };
     const hasChanged =
       values.name !== currentValues.name ||
       values.school !== currentValues.school ||
+      values.region !== currentValues.region ||
       values.senderProfile !== currentValues.senderProfile ||
       Boolean(schoolPreference);
 
@@ -350,6 +482,7 @@ export default function DashboardPage() {
           name: values.name,
           senderName: values.name,
           school: values.school,
+          region: values.region,
           senderProfile: values.senderProfile,
           defaultSearchPreferences
         })
@@ -362,6 +495,7 @@ export default function DashboardPage() {
         ...current,
         senderName: values.name,
         school: values.school,
+        region: values.region,
         senderProfile: values.senderProfile,
         defaultSearchPreferences
       }));
@@ -377,241 +511,424 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-[calc(100dvh-64px)] p-6">
-      <section className="mx-auto grid max-w-[1240px] grid-cols-1 gap-4 2xl:grid-cols-[304px_minmax(0,1fr)]">
-        <DashboardSidebar
-          account={data}
-          inviteCopying={inviteCopying}
-          inviteStatus={inviteStatus}
-          onCopyInviteLink={copyInviteLink}
-        />
-
-        <section className="flex min-h-0 flex-col overflow-visible">
-          <div className="flex min-h-0 flex-1 flex-col gap-4">
-            <section className="rounded-[8px] bg-white px-4 pb-0 pt-4 shadow-[0_18px_70px_rgba(15,23,42,0.04)]">
-              <div className="mb-3">
-                <h2 className="text-base font-semibold text-slate-950">Resume</h2>
-              </div>
-
-              <div className="-mx-4 flex min-w-0 items-center justify-between gap-4 px-4 py-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center text-slate-700">
-                    <FileText className="h-6 w-6" aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-semibold text-slate-950">
-                        {settings?.resumeFileName || (settings?.resumeContext ? 'Saved resume' : 'No resume added')}
-                      </p>
-                      {settings?.resumeFileName || settings?.resumeContext ? (
-                        <span className="rounded-full bg-[#f3f3f3] px-2.5 py-1 text-xs font-semibold text-slate-700">
-                          Default
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 text-sm font-medium text-slate-500">
-                      Last uploaded: {settings?.resumeUploadedAt ? formatDateTime(settings.resumeUploadedAt) : 'Not available'}
-                    </p>
-                  </div>
-                </div>
-                <label
-                  aria-disabled={resumeSaving || !accountSettings}
-                  className={`inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-[8px] bg-white text-slate-600 transition-colors hover:bg-[#f9f9f9] hover:text-slate-950 ${
-                    resumeSaving || !accountSettings ? 'pointer-events-none opacity-60' : ''
-                  }`}
-                  title={settings?.resumeFileName ? 'Replace resume' : 'Upload resume'}
-                >
-                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">{settings?.resumeFileName ? 'Replace resume' : 'Upload resume'}</span>
-                  <input
-                    type="file"
-                    accept=".txt,.md,.rtf,.pdf,.doc,.docx"
-                    className="sr-only"
-                    disabled={resumeSaving || !accountSettings}
-                    onChange={importResumeFile}
-                  />
-                </label>
-              </div>
-              {resumeStatus ? (
-                <p className="mt-2 text-sm font-medium text-slate-500">{resumeStatus}</p>
-              ) : null}
-            </section>
-
-            <section className="rounded-[8px] bg-white px-4 pb-0 pt-4 shadow-[0_18px_70px_rgba(15,23,42,0.04)]">
-              <div className="mb-3">
-                <h2 className="text-base font-semibold text-slate-950">Outreach preferences</h2>
-              </div>
-              <PreferenceRow
-                label="Target roles"
-                value={targetRoles}
-                field="targetRole"
-                editing={editingPreference === 'targetRole'}
-                draft={preferenceDraft}
-                saving={preferenceSaving}
-                onStart={startPreferenceEdit}
-                onDraftChange={setPreferenceDraft}
-                onCancel={() => setEditingPreference('')}
-                onSave={savePreference}
-              />
-              <PreferenceRow
-                label="Goal"
-                value={goalLabel(settings?.outreachGoal)}
-                field="outreachGoal"
-                editing={editingPreference === 'outreachGoal'}
-                draft={preferenceDraft}
-                saving={preferenceSaving}
-                onStart={startPreferenceEdit}
-                onDraftChange={setPreferenceDraft}
-                onCancel={() => setEditingPreference('')}
-                onSave={savePreference}
-              />
-              <PreferenceRow
-                label="Email length"
-                value={lengthLabel(settings?.outreachLength)}
-                field="outreachLength"
-                editing={editingPreference === 'outreachLength'}
-                draft={preferenceDraft}
-                saving={preferenceSaving}
-                onStart={startPreferenceEdit}
-                onDraftChange={setPreferenceDraft}
-                onCancel={() => setEditingPreference('')}
-                onSave={savePreference}
-              />
-              <PreferenceRow
-                label="Style notes"
-                value={settings?.outreachStyleNotes || 'No extra notes'}
-                field="outreachStyleNotes"
-                editing={editingPreference === 'outreachStyleNotes'}
-                draft={preferenceDraft}
-                saving={preferenceSaving}
-                onStart={startPreferenceEdit}
-                onDraftChange={setPreferenceDraft}
-                onCancel={() => setEditingPreference('')}
-                onSave={savePreference}
-                last
-              />
-              {preferenceStatus ? (
-                <p className="mt-2 text-sm font-medium text-slate-500">{preferenceStatus}</p>
-              ) : null}
-            </section>
-
-            <section
-              id="personal-info"
-              className="rounded-[8px] bg-white px-4 pb-0 pt-4 shadow-[0_18px_70px_rgba(15,23,42,0.04)]"
-            >
-              <div>
-                <div className="mb-3">
-                  <h2 className="text-base font-semibold text-slate-950">Personal Info</h2>
-                </div>
-                <div>
-                  <PersonalInfoField
-                    label="Name"
-                    value={personal.name || 'Add your name'}
-                    editing={personalEditing === 'name'}
-                    onEdit={() => setPersonalEditing('name')}
-                  >
-                    <input
-                      autoFocus
-                      value={personal.name}
-                      onChange={(event) => updatePersonalDraft('name', event.target.value)}
-                      onBlur={(event) => void commitPersonalInfo({ ...personal, name: event.currentTarget.value })}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault();
-                          event.currentTarget.blur();
-                        }
-                      }}
-                      disabled={personalSaving || !accountSettings}
-                      placeholder="Enter your name"
-                      className="h-5 w-full bg-transparent p-0 text-sm font-semibold leading-5 text-slate-950 outline-none ring-0 focus:outline-none focus:ring-0"
-                    />
-                  </PersonalInfoField>
-
-                  <PersonalInfoField
-                    label="School or affiliation"
-                    value={personal.school || 'Add school or affiliation'}
-                    editing={personalEditing === 'school'}
-                    onEdit={() => setPersonalEditing('school')}
-                  >
-                    <div className="relative w-full">
-                      <input
-                        autoFocus
-                        value={personal.school}
-                        onChange={(event) => updatePersonalDraft('school', event.target.value)}
-                        onBlur={(event) => {
-                          if (event.relatedTarget instanceof HTMLElement && event.currentTarget.parentElement?.contains(event.relatedTarget)) {
-                            return;
-                          }
-                          void commitPersonalInfo({ ...personal, school: event.currentTarget.value });
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            event.currentTarget.blur();
-                          }
-                        }}
-                        disabled={personalSaving || !accountSettings}
-                        placeholder="University of California, Berkeley"
-                        className="h-5 w-full bg-transparent p-0 pr-8 text-sm font-semibold leading-5 text-slate-950 outline-none ring-0 focus:outline-none focus:ring-0"
-                      />
-                      <button
-                        type="button"
-                        onClick={resolveSchool}
-                        disabled={personalSaving || schoolResolving || !accountSettings}
-                        className="absolute right-0 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[8px] text-slate-500 transition-colors hover:bg-[#f9f9f9] hover:text-slate-950 disabled:opacity-60"
-                        title={settings.defaultSearchPreferences?.school?.label === personal.school ? 'Verified' : 'Search school'}
-                      >
-                        {settings.defaultSearchPreferences?.school?.label === personal.school ? (
-                          <Check className="h-4 w-4" aria-hidden="true" />
-                        ) : (
-                          <Search className="h-4 w-4" aria-hidden="true" />
-                        )}
-                        <span className="sr-only">
-                          {settings.defaultSearchPreferences?.school?.label === personal.school ? 'Verified school' : 'Search school'}
-                        </span>
-                      </button>
-                    </div>
-                    {schoolOptions.length ? (
-                      <ResolveOptions items={schoolOptions} onSelect={selectSchool} />
-                    ) : null}
-                  </PersonalInfoField>
-
-                  <PersonalInfoField
-                    label="Extra personal info"
-                    value={personal.senderProfile || 'Add any personal context that should shape outreach.'}
-                    editing={personalEditing === 'senderProfile'}
-                    multiline
-                    onEdit={() => setPersonalEditing('senderProfile')}
-                    last
-                  >
-                    <textarea
-                      autoFocus
-                      value={personal.senderProfile}
-                      onChange={(event) => updatePersonalDraft('senderProfile', event.target.value)}
-                      onBlur={(event) => void commitPersonalInfo({ ...personal, senderProfile: event.currentTarget.value })}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault();
-                          event.currentTarget.blur();
-                        }
-                      }}
-                      disabled={personalSaving || !accountSettings}
-                      placeholder="Add any personal context that should shape outreach."
-                      className="min-h-5 w-full resize-none bg-transparent p-0 text-sm font-semibold leading-5 text-slate-950 outline-none ring-0 focus:outline-none focus:ring-0"
-                    />
-                  </PersonalInfoField>
-                </div>
-                {personalStatus ? (
-                  <p className="mt-2 text-sm font-medium text-slate-500">{personalStatus}</p>
-                ) : null}
-              </div>
-            </section>
-
-          </div>
-        </section>
+    <main className="min-h-[calc(100dvh-64px)] bg-[#f5f5f7] px-6 pb-12 pt-4">
+      <section className="mx-auto max-w-[900px] pb-3 pt-6">
+        <div>
+          <h1 className="text-[40px] font-semibold leading-[1.12] text-[#1d1d1f]">
+            Hi, {firstName}
+          </h1>
+        </div>
       </section>
 
+      <SectionIndex />
+
+      <InviteFriendBanner
+        inviteCopying={inviteCopying}
+        inviteStatus={inviteStatus}
+        onCopyInviteLink={copyInviteLink}
+      />
+
+      <section id="recent-outreach" className="mx-auto mt-8 max-w-[900px] rounded-[18px] bg-white px-6 py-10 sm:px-11">
+        <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
+          <h2 className="text-[21px] font-semibold leading-[1.2] text-[#1d1d1f]">
+            Recent Outreach
+          </h2>
+          <RecentOutreachList outreach={outreach} plain />
+        </div>
+      </section>
+
+      <DashboardCard id="profile" title="Profile">
+        <div className="space-y-9">
+          <SettingsSection title="Personal">
+            <SettingsItem
+              title="Personal information"
+              action={<EditButton onClick={openPersonalEditor} />}
+            >
+              <p>{name}</p>
+              <p>{data?.user?.email || 'No email available'}</p>
+              <p>{settings.school || 'No school added'}</p>
+              <p>{settings.region || 'No region added'}</p>
+            </SettingsItem>
+            <SettingsItem title="Personal context">
+              <p className="max-w-[560px]">
+                {settings.senderProfile || 'Add the background Reachard should use when drafting outreach.'}
+              </p>
+            </SettingsItem>
+          </SettingsSection>
+
+          <SettingsSection title="Outreach">
+            <SettingsItem
+              title="Outreach defaults"
+              action={<EditButton onClick={openOutreachEditor} />}
+            >
+              <p>Target roles: {settings.targetRole || 'Not set'}</p>
+              <p className="max-w-[560px]">
+                Style notes: {settings.outreachStyleNotes || 'No extra style notes'}
+              </p>
+            </SettingsItem>
+          </SettingsSection>
+        </div>
+      </DashboardCard>
+
+      <DashboardCard id="resume" title="Resume">
+        <SettingsItem
+          title={settings.resumeFileName || (settings.resumeContext ? 'Saved resume' : 'No resume added')}
+          action={<EditButton label={settings.resumeFileName || settings.resumeContext ? 'Replace' : 'Edit'} onClick={() => setEditPanel('resume')} />}
+        >
+          <p>
+            Last uploaded: {settings.resumeUploadedAt ? formatDateTime(settings.resumeUploadedAt) : 'Not available'}
+          </p>
+          <p>{resumeStatus || 'A readable resume improves generated outreach drafts.'}</p>
+        </SettingsItem>
+      </DashboardCard>
+
+      <DashboardCard id="plan" title="Plan">
+        <SettingsItem title="Credits">
+          <p>{formatNumber(data?.credits?.remaining)} remaining</p>
+          <p>Use credits to reveal emails and unlock contact details.</p>
+        </SettingsItem>
+      </DashboardCard>
+
+      <DashboardCard id="account" title="Account">
+        <SettingsItem title={data?.user?.email || 'Reachard account'}>
+          <p>
+            This is the account Reachard uses for dashboard access, profile setup, and extension sessions.
+          </p>
+          <p>Extension: {data?.extension?.connected ? 'Connected' : 'Not connected'}</p>
+        </SettingsItem>
+      </DashboardCard>
+
+      {editPanel === 'personal' ? (
+        <EditPanelModal title="Edit your profile." onClose={() => setEditPanel('')}>
+          <div className="space-y-4">
+            <AppleTextField
+              label="Name"
+              value={personal.name}
+              onChange={(value) => updatePersonalDraft('name', value)}
+            />
+            <AppleTextField
+              label="School or affiliation"
+              value={personal.school}
+              onChange={(value) => updatePersonalDraft('school', value)}
+            />
+            <AppleTextField
+              label="Region"
+              value={personal.region}
+              onChange={(value) => updatePersonalDraft('region', value)}
+            />
+            <AppleTextArea
+              label="Extra personal info"
+              value={personal.senderProfile}
+              onChange={(value) => updatePersonalDraft('senderProfile', value)}
+            />
+          </div>
+          {personalStatus ? <p className="mt-4 text-sm font-medium text-[#d70015]">{personalStatus}</p> : null}
+          <ModalActions
+            saving={personalSaving}
+            primaryLabel="Save"
+            onPrimary={() => void savePersonalFromModal()}
+            onCancel={() => setEditPanel('')}
+          />
+        </EditPanelModal>
+      ) : null}
+
+      {editPanel === 'outreach' ? (
+        <EditPanelModal title="Edit outreach defaults." onClose={() => setEditPanel('')}>
+          <div className="space-y-4">
+            <AppleTextField
+              label="Target roles"
+              value={outreachDraft?.targetRole || ''}
+              onChange={(value) => updateOutreachDraft('targetRole', value)}
+            />
+            <AppleTextArea
+              label="Extra style notes"
+              value={outreachDraft?.outreachStyleNotes || ''}
+              onChange={(value) => updateOutreachDraft('outreachStyleNotes', value)}
+            />
+          </div>
+          {preferenceStatus ? <p className="mt-4 text-sm font-medium text-[#d70015]">{preferenceStatus}</p> : null}
+          <ModalActions
+            saving={preferenceSaving}
+            primaryLabel="Save"
+            onPrimary={() => void saveOutreachFromModal()}
+            onCancel={() => setEditPanel('')}
+          />
+        </EditPanelModal>
+      ) : null}
+
+      {editPanel === 'resume' ? (
+        <EditPanelModal title="Update your resume." onClose={() => setEditPanel('')}>
+          <div className="rounded-[12px] border border-[#86868b] px-5 py-5">
+            <p className="text-[17px] font-semibold text-[#1d1d1f]">
+              {settings.resumeFileName || (settings.resumeContext ? 'Saved resume' : 'No resume added')}
+            </p>
+            <p className="mt-1 text-[15px] font-normal leading-5 text-[#6e6e73]">
+              Upload a readable resume file so Reachard can draft with accurate context.
+            </p>
+            <label className="mt-5 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[980px] bg-[#0071e3] px-6 text-[17px] font-normal text-white hover:bg-[#0077ed]">
+              {resumeSaving ? 'Uploading' : 'Choose file'}
+              <input
+                type="file"
+                accept=".txt,.md,.rtf,.pdf,.doc,.docx"
+                className="sr-only"
+                disabled={resumeSaving || !accountSettings}
+                onChange={importResumeFile}
+              />
+            </label>
+          </div>
+          {resumeStatus ? <p className="mt-4 text-sm font-medium text-[#6e6e73]">{resumeStatus}</p> : null}
+          <ModalActions
+            saving={resumeSaving}
+            primaryLabel="Done"
+            onPrimary={() => setEditPanel('')}
+            onCancel={() => setEditPanel('')}
+          />
+        </EditPanelModal>
+      ) : null}
     </main>
+  );
+}
+
+function InviteFriendBanner({
+  inviteCopying,
+  inviteStatus,
+  onCopyInviteLink
+}: {
+  inviteCopying: boolean;
+  inviteStatus: string;
+  onCopyInviteLink: () => void;
+}) {
+  return (
+    <section className="mx-auto mt-8 max-w-[900px] rounded-[18px] bg-white px-6 py-9 sm:px-11">
+      <p className="flex items-center gap-3 text-[24px] font-semibold leading-tight text-[#1d1d1f]">
+        <Info className="h-6 w-6 shrink-0 stroke-[2.1]" aria-hidden="true" />
+        Invite a friend
+      </p>
+      <p className="mt-6 max-w-[760px] text-[21px] font-normal leading-[1.55] text-[#6e6e73]">
+        Invite a friend to purchase Reachard and get one month free.
+      </p>
+      <button
+        type="button"
+        onClick={onCopyInviteLink}
+        disabled={inviteCopying}
+        className="mt-8 inline-flex min-h-12 cursor-pointer items-center justify-center rounded-full bg-[#0071e3] px-7 text-[19px] font-normal text-white transition-colors hover:bg-[#0077ed] disabled:cursor-default disabled:opacity-60"
+      >
+        {inviteCopying ? 'Copying' : 'Copy invite link'}
+      </button>
+      {inviteStatus ? (
+        <p className="mt-4 text-[15px] font-normal leading-5 text-[#6e6e73]">{inviteStatus}</p>
+      ) : null}
+    </section>
+  );
+}
+
+function SectionIndex() {
+  const items = [
+    { label: 'Recent', href: '#recent-outreach', icon: History },
+    { label: 'Profile', href: '#profile', icon: UserRound },
+    { label: 'Resume', href: '#resume', icon: FileText },
+    { label: 'Plan', href: '#plan', icon: CreditCard },
+    { label: 'Account', href: '#account', icon: ShieldCheck }
+  ];
+
+  return (
+    <nav className="mx-auto mt-8 flex max-w-[900px] flex-wrap items-start justify-center gap-x-11 gap-y-6" aria-label="Dashboard sections">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <a
+            key={item.href}
+            href={item.href}
+            className="group flex min-w-[88px] flex-col items-center gap-3 text-center text-[17px] font-normal leading-tight text-[#1d1d1f]"
+          >
+            <Icon className="h-12 w-12 text-[#6e6e73] transition-colors group-hover:text-[#1d1d1f]" strokeWidth={1.8} aria-hidden="true" />
+            <span>{item.label}</span>
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
+function DashboardCard({
+  id,
+  title,
+  children
+}: {
+  id: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="mx-auto mt-8 max-w-[900px] scroll-mt-8 rounded-[18px] bg-white px-6 py-10 sm:px-11">
+      <h2 className="text-[28px] font-semibold leading-[1.15] text-[#1d1d1f]">
+        {title}
+      </h2>
+      <div className="mt-9">{children}</div>
+    </section>
+  );
+}
+
+function SettingsSection({
+  title,
+  children
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
+      <h2 className="text-[21px] font-semibold leading-[1.2] text-[#1d1d1f]">
+        {title}
+      </h2>
+      <div className="space-y-7">{children}</div>
+    </section>
+  );
+}
+
+function SettingsItem({
+  title,
+  children,
+  action
+}: {
+  title: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+      <div className="min-w-0">
+        <h3 className="text-[17px] font-semibold leading-[1.35] text-[#1d1d1f]">
+          {title}
+        </h3>
+        <div className="mt-2 space-y-1 text-[17px] font-normal leading-[1.45] text-[#1d1d1f]">
+          {children}
+        </div>
+      </div>
+      {action ? <div className="pt-1">{action}</div> : null}
+    </div>
+  );
+}
+
+function EditButton({
+  label = 'Edit',
+  onClick
+}: {
+  label?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-[17px] font-normal leading-6 text-[#0066cc] underline underline-offset-2 hover:text-[#004999]"
+    >
+      {label}
+    </button>
+  );
+}
+
+function EditPanelModal({
+  title,
+  children,
+  onClose
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-10">
+      <section className="relative w-full max-w-[680px] rounded-[18px] bg-white px-6 py-12 shadow-[0_18px_60px_rgba(0,0,0,0.18)] sm:px-16">
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={onClose}
+          className="absolute right-6 top-6 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#e8e8ed] text-[26px] font-semibold leading-none text-[#6e6e73] hover:bg-[#dedee3]"
+        >
+          ×
+        </button>
+        <h2 className="mb-8 text-center text-[36px] font-semibold leading-tight tracking-[-0.022em] text-[#1d1d1f]">
+          {title}
+        </h2>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function AppleTextField({
+  label,
+  value,
+  onChange
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block rounded-[12px] border border-[#86868b] px-4 pb-2 pt-3 focus-within:border-[#0071e3] focus-within:shadow-[inset_0_0_0_1px_#0071e3]">
+      <span className="block text-[13px] font-normal leading-4 text-[#6e6e73]">{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 h-7 w-full bg-transparent text-[18px] font-normal leading-7 text-[#1d1d1f] outline-none"
+      />
+    </label>
+  );
+}
+
+function AppleTextArea({
+  label,
+  value,
+  onChange
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block rounded-[12px] border border-[#86868b] px-4 pb-3 pt-3 focus-within:border-[#0071e3] focus-within:shadow-[inset_0_0_0_1px_#0071e3]">
+      <span className="block text-[13px] font-normal leading-4 text-[#6e6e73]">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={5}
+        className="mt-2 w-full resize-none bg-transparent text-[18px] font-normal leading-7 text-[#1d1d1f] outline-none"
+      />
+    </label>
+  );
+}
+
+function ModalActions({
+  saving,
+  primaryLabel,
+  onPrimary,
+  onCancel
+}: {
+  saving: boolean;
+  primaryLabel: string;
+  onPrimary: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="mt-10">
+      <button
+        type="button"
+        disabled={saving}
+        onClick={onPrimary}
+        className="min-h-14 w-full cursor-pointer rounded-[12px] bg-[#0071e3] px-6 text-[17px] font-normal text-white hover:bg-[#0077ed] disabled:cursor-default disabled:opacity-60"
+      >
+        {saving ? 'Saving' : primaryLabel}
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        className="mx-auto mt-5 block text-[17px] font-normal text-[#0066cc] hover:text-[#004999]"
+      >
+        Cancel
+      </button>
+    </div>
   );
 }
 
@@ -647,7 +964,7 @@ function PreferenceRow({
           last ? '' : 'border-b border-slate-200'
         }`}
       >
-        <p className="text-xs font-semibold text-slate-500">{label}</p>
+        <p className="label">{label}</p>
         <div className="mt-1">
           <InlinePreferenceEditor
             field={field}
@@ -669,7 +986,7 @@ function PreferenceRow({
           last ? '' : 'border-b border-slate-200'
         }`}
       >
-        <p className="text-xs font-semibold text-slate-500">{label}</p>
+        <p className="label">{label}</p>
         <div className="mt-1">
           <InlinePreferenceEditor
             field={field}
@@ -690,7 +1007,7 @@ function PreferenceRow({
         last ? '' : 'border-b border-slate-200'
       }`}
     >
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
+      <p className="label">{label}</p>
       <div className="mt-1">
         <EditableValue value={value} onEdit={() => onStart(field)} />
       </div>
@@ -713,7 +1030,7 @@ function EditableValue({
       onClick={onEdit}
       className="flex min-h-11 w-full items-center rounded-[8px] p-2 text-left transition-colors hover:bg-[#f9f9f9] focus:outline-none"
     >
-      <span className={`block min-w-0 text-sm font-semibold text-slate-950 ${multiline ? 'whitespace-pre-wrap leading-5' : 'truncate'}`}>
+      <span className={`value block min-w-0 ${multiline ? 'whitespace-pre-wrap' : 'truncate'}`}>
         {value}
       </span>
     </button>
@@ -743,7 +1060,7 @@ function PersonalInfoField({
         last ? '' : 'border-b border-slate-200'
       }`}
     >
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
+      <p className="label">{label}</p>
       <div className="mt-1">
         {editing ? (
           <div className="flex min-h-11 w-full flex-col justify-center rounded-[8px] p-2">{children}</div>
@@ -817,7 +1134,7 @@ function InlinePreferenceEditor({
           }
           if (event.key === 'Escape') onCancel();
         }}
-        className="h-5 w-full min-w-0 bg-transparent p-0 text-sm font-semibold leading-5 text-slate-950 outline-none ring-0 focus:outline-none focus:ring-0"
+        className="value h-5 w-full min-w-0 bg-transparent p-0 outline-none ring-0 focus:outline-none focus:ring-0"
         placeholder={field === 'outreachStyleNotes' ? 'Extra style notes' : 'Target roles'}
       />
     </div>
@@ -873,9 +1190,9 @@ function ResolveOptions({
           onClick={() => onSelect(item)}
           className="block w-full border-b border-slate-200 px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-[#f9f9f9]"
         >
-          <span className="block text-sm font-semibold text-slate-950">{item.label}</span>
+          <span className="value block">{item.label}</span>
           {item.subtitle ? (
-            <span className="mt-0.5 block text-xs font-medium text-slate-500">{item.subtitle}</span>
+            <span className="secondary mt-0.5 block">{item.subtitle}</span>
           ) : null}
         </button>
       ))}
@@ -951,6 +1268,10 @@ function formatDateTime(value?: string | null) {
     second: '2-digit',
     timeZoneName: 'short'
   }).format(new Date(value));
+}
+
+function formatNumber(value?: number) {
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US') : '...';
 }
 
 function displayName(user?: AccountData['user']) {
