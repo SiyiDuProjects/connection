@@ -333,7 +333,13 @@ async function rapidApiGet(baseUrl, path, params, host) {
 }
 
 function normalizeFreshPerson(person, job, ids) {
-  const linkedinUrl = firstString(person.url, person.linkedin_url);
+  const linkedinUrl = firstString(
+    person.url,
+    person.linkedin_url,
+    person.linkedin,
+    person.linkedin_profile_url,
+    person.profile_url
+  );
   const id = firstString(person.id, person.urn, person.public_identifier, linkedinUrl, person.full_name);
   return {
     id,

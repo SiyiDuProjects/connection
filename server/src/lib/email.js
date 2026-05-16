@@ -69,11 +69,11 @@ function createTemplateDraft(contact, job, settings = {}) {
 }
 
 export function createMailtoUrl(to, draft) {
-  const params = new URLSearchParams({
-    subject: draft.subject,
-    body: draft.body
-  });
-  return `mailto:${encodeURIComponent(to)}?${params.toString()}`;
+  const params = [
+    ["subject", draft.subject],
+    ["body", draft.body]
+  ].map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value || "")}`).join("&");
+  return `mailto:${encodeURIComponent(to)}?${params}`;
 }
 
 function articleFor(title) {

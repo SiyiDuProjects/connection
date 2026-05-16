@@ -305,11 +305,14 @@
 
 .fc-contact-link {
   color: #fff;
+  cursor: pointer;
   text-decoration: none;
+  text-underline-offset: 3px;
 }
 
 .fc-contact-link:hover {
   color: #bfdbfe;
+  text-decoration: underline;
 }
 
 .fc-contact-meta {
