@@ -59,7 +59,7 @@ Do not print secret values in user-visible output. Mask keys when showing env.
 
 The intended production contact pipeline is:
 
-- RapidAPI Fresh LinkedIn Scraper for candidate search.
+- RapidAPI Fresh LinkedIn Scraper for candidate search and LinkedIn company/school/location ID lookup.
 - Apollo only for on-demand email reveal.
 - Search costs zero app credits.
 - Reveal costs one app credit.
@@ -71,7 +71,6 @@ Required server env:
 CONTACT_PROVIDER=rapidapi
 RAPIDAPI_KEY=...
 RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
-RAPIDAPI_METADATA_HOST=z-real-time-linkedin-scraper-api1.p.rapidapi.com
 APOLLO_API_KEY=...
 CONTACT_SEARCH_CREDITS=0
 CONTACT_REVEAL_CREDITS=1
@@ -84,8 +83,9 @@ EMAIL_DRAFT_CREDITS=0
 
 - People search host: `fresh-linkedin-scraper-api.p.rapidapi.com`
 - People search endpoint: `/api/v1/search/people`
-- Metadata host: `z-real-time-linkedin-scraper-api1.p.rapidapi.com`
-- Metadata is used for LinkedIn company/school/location ID lookup.
+- Company lookup endpoint: `/api/v1/company/profile?company=...`
+- School lookup endpoint: `/api/v1/search/schools?keyword=...`
+- Location lookup endpoint: `/api/v1/search/location?keyword=...`
 
 RapidAPI marketplace page URLs are not the runtime host. Use the `*.p.rapidapi.com` host in env and requests.
 

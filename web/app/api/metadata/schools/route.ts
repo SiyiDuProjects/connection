@@ -1,6 +1,6 @@
 import { getUser } from '@/lib/db/queries';
 
-const HOST = process.env.RAPIDAPI_METADATA_HOST || 'z-real-time-linkedin-scraper-api1.p.rapidapi.com';
+const HOST = process.env.RAPIDAPI_PEOPLE_HOST || 'fresh-linkedin-scraper-api.p.rapidapi.com';
 
 export async function GET(request: Request) {
   const user = await getUser();
@@ -16,17 +16,16 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, error: 'RapidAPI is not configured.' }, { status: 500 });
   }
 
-  const url = new URL(`https://${HOST}/api/search/schools`);
-  url.searchParams.set('keywords', query);
-  url.searchParams.set('limit', '8');
+  const url = new URL(`https://${HOST}/api/v1/search/schools`);
+  url.searchParams.set('keyword', query);
 
   const response = await fetch(url, { headers: rapidHeaders() });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.status === 'ERROR') {
+  if (!response.ok || data.success === false || data.status === 'ERROR') {
     return Response.json({ ok: false, error: data.message || 'Could not resolve school.' }, { status: 502 });
   }
 
-  const results = Array.isArray(data.data?.data) ? data.data.data : [];
+  const results = Array.isArray(data.data) ? data.data : [];
   const sorted = [...results].sort((first: Record<string, unknown>, second: Record<string, unknown>) => {
     const firstName = String(first.name || '').toLowerCase();
     const secondName = String(second.name || '').toLowerCase();

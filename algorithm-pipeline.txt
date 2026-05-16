@@ -56,10 +56,10 @@ Local scoring should rank candidates after search:
 - location is San Francisco Bay Area, San Francisco, Berkeley, Palo Alto, or Mountain View: +5
 - verified profile: +3
 
-Metadata confirmation
+Lookup confirmation
 - School and region should not be used as raw text in search.
 - The onboarding UI asks the user to type a school/region, then click Confirm.
-- Confirm calls a metadata endpoint once and shows candidates for the user to choose.
+- Confirm calls Fresh LinkedIn Scraper lookup endpoints once and shows candidates for the user to choose.
 - Selected values are saved as label + LinkedIn ID in default_search_preferences.
 - This costs about 1 RapidAPI request for school and 1 for region during setup, then uses saved IDs.
 - Search is blocked if the user changes school/region text without confirming again.
@@ -67,7 +67,9 @@ Metadata confirmation
 Current implementation direction
 - Search provider: CONTACT_PROVIDER=rapidapi.
 - People source: Fresh LinkedIn Scraper API.
-- Metadata source: z-real-time-linkedin-scraper-api1 RapidAPI endpoints.
+- Company lookup: Fresh LinkedIn Scraper API `/api/v1/company/profile?company=...`.
+- School lookup: Fresh LinkedIn Scraper API `/api/v1/search/schools?keyword=...`.
+- Location lookup: Fresh LinkedIn Scraper API `/api/v1/search/location?keyword=...`.
 - Apollo is not used for candidate search.
 - Apollo is only used for selected email reveal.
 

@@ -32,6 +32,8 @@ AUTH_SECRET=generate-a-long-random-secret
 EMAIL_FROM="Reachard <noreply@yourdomain.com>"
 RESEND_API_KEY=re_...
 MONTHLY_CREDITS=20
+RAPIDAPI_KEY=your-rapidapi-key
+RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
 ```
 
 For local development, email verification links are printed to the web server log if `EMAIL_FROM` and `RESEND_API_KEY` are not set. Production should configure both values so sign-up and resend flows can deliver verification email.
@@ -74,7 +76,6 @@ POSTGRES_URL=postgresql://...
 CONTACT_PROVIDER=rapidapi
 RAPIDAPI_KEY=your-rapidapi-key
 RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
-RAPIDAPI_METADATA_HOST=z-real-time-linkedin-scraper-api1.p.rapidapi.com
 APOLLO_API_KEY=your-apollo-key
 CONTACT_SEARCH_CREDITS=0
 CONTACT_REVEAL_CREDITS=1

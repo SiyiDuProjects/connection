@@ -54,6 +54,8 @@ Chrome Extension on LinkedIn
 | `ALLOWED_EXTENSION_IDS` | Yes for production extension connect flow | Vercel project env | Stable unpacked dev ID is `ojajfgpfdkmaiccoeffhbdbccefpbala`; use comma-separated values if a Chrome Web Store ID is added later. |
 | `AUTH_SECRET` | Yes | Vercel project env | Long random secret. Rotate if exposed. |
 | `MONTHLY_CREDITS` | Yes | Vercel project env | Current example: `20` Contact Kits. |
+| `RAPIDAPI_KEY` | Yes for school/location autocomplete | Vercel project env | Server-only; do not expose with `NEXT_PUBLIC_`. |
+| `RAPIDAPI_PEOPLE_HOST` | Yes for school/location autocomplete | Vercel project env | Expected `fresh-linkedin-scraper-api.p.rapidapi.com`. |
 | `ADMIN_EMAILS` | Optional | Vercel project env | Local example includes an admin email. |
 
 ### Contacts API, likely VPS `/opt/connection/server/.env`
@@ -64,9 +66,8 @@ Chrome Extension on LinkedIn
 | `WEB_BASE_URL` | Yes | VPS env file | Should be final web app URL, not the API URL. |
 | `POSTGRES_URL` | Yes | VPS env file | Same Neon database as web. |
 | `CONTACT_PROVIDER` | Yes | VPS env file | Production should be `rapidapi`. |
-| `RAPIDAPI_KEY` | Yes for production search | VPS env file | Used by RapidAPI people search and metadata lookup. |
+| `RAPIDAPI_KEY` | Yes for production search | VPS env file | Used by Fresh LinkedIn people search and company/school/location lookup. |
 | `RAPIDAPI_PEOPLE_HOST` | Yes for production search | VPS env file | Expected `fresh-linkedin-scraper-api.p.rapidapi.com`. |
-| `RAPIDAPI_METADATA_HOST` | Yes for production metadata lookup | VPS env file | Expected `z-real-time-linkedin-scraper-api1.p.rapidapi.com`. |
 | `APOLLO_API_KEY` | Yes for email reveal | VPS env file | Required by Reveal email via Apollo `people/match`; rotate if exposed. |
 | `APOLLO_MOCK` | Yes | VPS env file | Production should usually be `false`. |
 | `EXTENSION_ORIGIN` | Optional | VPS env file | Real value should be `chrome-extension://<extension-id>` if enforced. |

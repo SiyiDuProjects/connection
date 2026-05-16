@@ -1,6 +1,6 @@
 import { getUser } from '@/lib/db/queries';
 
-const HOST = process.env.RAPIDAPI_METADATA_HOST || 'z-real-time-linkedin-scraper-api1.p.rapidapi.com';
+const HOST = process.env.RAPIDAPI_PEOPLE_HOST || 'fresh-linkedin-scraper-api.p.rapidapi.com';
 
 export async function GET(request: Request) {
   const user = await getUser();
@@ -16,13 +16,12 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, error: 'RapidAPI is not configured.' }, { status: 500 });
   }
 
-  const url = new URL(`https://${HOST}/api/search/metadata/location`);
-  url.searchParams.set('search', query);
-  url.searchParams.set('limit', '8');
+  const url = new URL(`https://${HOST}/api/v1/search/location`);
+  url.searchParams.set('keyword', query);
 
   const response = await fetch(url, { headers: rapidHeaders() });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.status === 'ERROR') {
+  if (!response.ok || data.success === false || data.status === 'ERROR') {
     return Response.json({ ok: false, error: data.message || 'Could not resolve location.' }, { status: 502 });
   }
 
@@ -30,9 +29,9 @@ export async function GET(request: Request) {
   return Response.json({
     ok: true,
     items: results.map((location: Record<string, unknown>) => ({
-      id: String(location.id || ''),
-      label: String(location.name || ''),
-      subtitle: String(location.countryCode || ''),
+      id: String(location.geocode || location.id || ''),
+      label: String(location.location || location.name || ''),
+      subtitle: String(location.countryCode || location.country || ''),
       type: 'location'
     })).filter((item: { id: string; label: string }) => item.id && item.label)
   });

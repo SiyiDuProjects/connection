@@ -2,9 +2,7 @@ import { revealApolloEmail, searchApolloContacts } from "./apollo.js";
 import { buildContactSearchPlan } from "./contact-search-plan.js";
 
 const PEOPLE_HOST = process.env.RAPIDAPI_PEOPLE_HOST || "fresh-linkedin-scraper-api.p.rapidapi.com";
-const METADATA_HOST = process.env.RAPIDAPI_METADATA_HOST || "z-real-time-linkedin-scraper-api1.p.rapidapi.com";
 const PEOPLE_BASE_URL = `https://${PEOPLE_HOST}`;
-const METADATA_BASE_URL = `https://${METADATA_HOST}`;
 const companyCache = new Map();
 
 export async function searchRapidApiContacts(job) {
@@ -97,17 +95,15 @@ async function resolveCompanyId(job) {
 
   if (cacheKey && companyCache.has(cacheKey)) return companyCache.get(cacheKey);
 
-  const keywords = job.companyDomain || job.companyName;
-  if (!keywords) return "";
+  const company = companyLookupTerm(job);
+  if (!company) return "";
 
   const params = new URLSearchParams({
-    keywords,
-    limit: "10"
+    company
   });
-  const data = await rapidApiGet(METADATA_BASE_URL, "/api/search/companies", params, METADATA_HOST);
-  const companies = Array.isArray(data.data?.data) ? data.data.data : Array.isArray(data.data) ? data.data : [];
-  const selected = selectCompany(companies, job);
-  const id = firstString(selected?.id, selected?.entityUrn?.split(":").pop());
+  const data = await rapidApiGet(PEOPLE_BASE_URL, "/api/v1/company/profile", params, PEOPLE_HOST);
+  const profile = Array.isArray(data.data) ? selectCompany(data.data, job) : data.data;
+  const id = firstString(profile?.id, profile?.company_id, profile?.entityUrn?.split(":").pop());
 
   if (cacheKey && id) companyCache.set(cacheKey, id);
   return id;
@@ -119,14 +115,13 @@ async function resolveJobLocationId(location) {
 
   try {
     const params = new URLSearchParams({
-      search: query,
-      limit: "5"
+      keyword: query
     });
 
-    const data = await rapidApiGet(METADATA_BASE_URL, "/api/search/metadata/location", params, METADATA_HOST);
+    const data = await rapidApiGet(PEOPLE_BASE_URL, "/api/v1/search/location", params, PEOPLE_HOST);
     const locations = Array.isArray(data.data) ? data.data : [];
     const selected = selectLocation(locations, query);
-    return firstString(selected?.id);
+    return firstString(selected?.geocode, selected?.id);
   } catch {
     return "";
   }
@@ -135,7 +130,7 @@ async function resolveJobLocationId(location) {
 function selectLocation(locations, query) {
   if (!locations.length) return null;
   const wanted = normalizeKey(query);
-  return locations.find((location) => normalizeKey(location.name) === wanted) || locations[0];
+  return locations.find((location) => normalizeKey(location.location || location.name) === wanted) || locations[0];
 }
 
 async function searchPeople({ query, companyId, schoolId, geoId, page }) {
@@ -309,7 +304,7 @@ function selectCompany(companies, job) {
   const wantedName = normalizeCompany(job.companyName || job.companyDomain);
   const exact = companies.find((company) => normalizeCompany(company.name) === wantedName);
   if (exact) return exact;
-  return [...companies].sort((a, b) => Number(b.followersCount || 0) - Number(a.followersCount || 0))[0];
+  return [...companies].sort((a, b) => Number(b.follower_count || b.followersCount || 0) - Number(a.follower_count || a.followersCount || 0))[0];
 }
 
 async function rapidApiGet(baseUrl, path, params, host) {
@@ -400,6 +395,13 @@ function normalizeCompany(value) {
     .replace(/\.(com|ai|co|io|net|org)$/i, "")
     .replace(/[^a-z0-9]+/g, "")
     .trim();
+}
+
+function companyLookupTerm(job) {
+  const name = firstString(job.companyName);
+  if (name) return name;
+  const domain = normalizeCompany(job.companyDomain);
+  return domain || firstString(job.companyDomain);
 }
 
 function normalizeKey(value) {

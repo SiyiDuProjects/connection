@@ -90,7 +90,6 @@ CONTACT_PROVIDER=rapidapi
 APOLLO_MOCK=false
 RAPIDAPI_KEY=your_rapidapi_key
 RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
-RAPIDAPI_METADATA_HOST=z-real-time-linkedin-scraper-api1.p.rapidapi.com
 APOLLO_API_KEY=your_apollo_api_key
 EXTENSION_ORIGIN=
 GMAIL_SUBJECT_PREFIX=Quick question from a Berkeley student
@@ -130,6 +129,8 @@ NEXT_PUBLIC_API_BASE_URL=https://contacts.reachard.studio
 ALLOWED_EXTENSION_IDS=ojajfgpfdkmaiccoeffhbdbccefpbala
 AUTH_SECRET=long-random-secret
 MONTHLY_CREDITS=20
+RAPIDAPI_KEY=your_rapidapi_key
+RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
 ```
 
 `ALLOWED_EXTENSION_IDS` is comma-separated. The checked-in unpacked development extension has stable ID `ojajfgpfdkmaiccoeffhbdbccefpbala`; add a Chrome Web Store ID later only if you publish a separate signed build.
