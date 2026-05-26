@@ -1,8 +1,9 @@
 # Agent Notes
 
-## Documentation Maintenance
+## Change Hygiene
 
-- Keep `README.md` and `AGENTS.md` updated promptly when behavior, setup, deployment, or operational details change.
+- After completing meaningful code, configuration, deployment, or documentation changes, create a git commit unless the user explicitly asks not to.
+- Keep `README.md` and `AGENTS.md` updated promptly when behavior, setup, deployment, architecture, environment variables, or operational details change.
 
 ## Web App Invite Rewards
 
