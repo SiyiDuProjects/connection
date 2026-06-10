@@ -403,7 +403,7 @@ function validate(values: OnboardingValues) {
   const missing: string[] = [];
   const name = splitName(values.name);
   if (!name.first || !name.last) missing.push('name');
-  if (!values.school.trim() || values.defaultSearchPreferences.school?.label !== values.school) missing.push('school');
+  if (!values.school.trim()) missing.push('school');
   if (!values.targetRole.trim()) missing.push('targetRole');
   if (!values.senderProfile.trim() && !values.resumeContext.trim()) missing.push('background');
   return missing;
