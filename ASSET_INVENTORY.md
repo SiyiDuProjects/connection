@@ -86,7 +86,7 @@ Chrome Extension on LinkedIn
 | `SSH_USER` | Yes | Deploy user | GitHub organization or repo settings and VPS. |
 | `SSH_KEY` | Yes | Private key for deploy user | Rotate if exposed. |
 | `DEPLOY_PATH` | Yes | Expected `/opt/connection/server` | GitHub organization or repo settings and VPS. |
-| `COMPOSE_PATH` | Yes | Expected `/home/ubuntu/muxing` or actual compose dir | GitHub organization or repo settings and VPS. |
+| `COMPOSE_PATH` | Yes | Expected `/home/ubuntu/siyi` or actual compose dir | GitHub organization or repo settings and VPS. |
 | `PUBLIC_HEALTH_URL` | Yes | Expected `https://contacts.reachard.studio/health` | GitHub organization or repo settings. |
 
 ## Dashboard Checklist

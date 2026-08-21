@@ -78,7 +78,7 @@ APOLLO_API_KEY=your_apollo_api_key
 
 ## Option A: Add To Existing Docker Compose
 
-If your current compose file is `~/muxing/docker-compose.yml`, add this service next to `muxing` and `cloudflared`:
+If your current compose file is `~/siyi/docker-compose.yml`, add this service next to `siyi` and `cloudflared`:
 
 ```yaml
   connection_contacts:
@@ -93,7 +93,7 @@ If your current compose file is `~/muxing/docker-compose.yml`, add this service 
 Then run:
 
 ```bash
-cd ~/muxing
+cd ~/siyi
 docker compose up -d --build connection_contacts
 docker logs -f connection_contacts
 ```

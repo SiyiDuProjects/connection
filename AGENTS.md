@@ -2,8 +2,8 @@
 
 ## Change Hygiene
 
-- After completing meaningful code, configuration, deployment, or documentation changes, create a git commit unless the user explicitly asks not to.
-- Keep `README.md` and `AGENTS.md` updated promptly when behavior, setup, deployment, architecture, environment variables, or operational details change.
+- Follow the global documentation and context rules in `/Users/bytedance/.codex/AGENTS.md`.
+- Keep this file focused on Reachard-specific product, provider, deployment, and verification details.
 
 ## Web App Invite Rewards
 
@@ -16,21 +16,32 @@
 ## Web App Landing Hero
 
 - The landing hero background uses the fixed public asset `web/public/images/home/hero-background.png`.
-- To try a new hero image, run `.\scripts\set-home-hero-background.cmd "C:\path\to\image.png"` from the repo root. The script copies the source into the fixed asset path and leaves the source file in place.
+- To try a new hero image, run `./scripts/set-home-hero-background.sh /path/to/image.png` on macOS/Linux or `.\scripts\set-home-hero-background.cmd "C:\path\to\image.png"` on Windows from the repo root. The script copies the source into the fixed asset path and leaves the source file in place.
 - During visual iteration, refresh the local browser after swapping the file. Save full build/screenshot verification for the selected final image unless code or CSS changed.
+
+## Local macOS Setup
+
+- After a fresh clone on macOS/Linux, run `./scripts/check-local-env.sh` from the repo root to check Node.js, npm, corepack/pnpm, `.env` files, and installed dependencies.
+- If Node.js tooling is missing on macOS, install it with `brew install node`, then run `corepack enable` before installing web dependencies.
 
 ## Production Server
 
 - Host: `49.51.38.235`
-- SSH key: `C:\Users\Administrator\Desktop\Projects\Siyi.pem`
 - SSH user: `ubuntu`
+- Shared VPS SSH access: see `/Users/bytedance/.codex/AGENTS.md`
 - Project env file on host: `/opt/connection/server/.env`
-- Docker Compose file: `/home/ubuntu/muxing/docker-compose.yml`
+- Docker Compose file: `/home/ubuntu/siyi/docker-compose.yml`
 - Contacts service/container: `connection_contacts`
 - Compose service name: `connection_contacts`
 - Server container working directory: `/app`
 - Server command inside container: `node src/index.js`
 - Public/local server port: `8787`
+
+Shared key location, permission repair, and secret-printing rules are documented globally. Project-specific health check:
+
+```bash
+curl -sS http://127.0.0.1:8787/health
+```
 
 ## Important Deployment Detail
 
@@ -41,7 +52,7 @@ Do not assume that restarting a host `node src/index.js` process is the correct 
 Use:
 
 ```bash
-cd /home/ubuntu/muxing
+cd /home/ubuntu/siyi
 sudo docker compose up -d --build connection_contacts
 ```
 
@@ -54,7 +65,7 @@ sudo docker inspect connection_contacts --format '{{range .Config.Env}}{{println
 sudo docker logs --tail 30 connection_contacts
 ```
 
-Do not print secret values in user-visible output. Mask keys when showing env.
+When showing env verification, follow global secret-masking rules.
 
 ## Current Contact Pipeline Env
 

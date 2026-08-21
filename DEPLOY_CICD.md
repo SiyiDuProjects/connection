@@ -31,7 +31,7 @@ SSH_PORT=22
 SSH_USER=your_deploy_user
 SSH_KEY=private SSH key for that deploy user
 DEPLOY_PATH=/opt/connection/server
-COMPOSE_PATH=/home/ubuntu/muxing
+COMPOSE_PATH=/home/ubuntu/siyi
 PUBLIC_HEALTH_URL=https://contacts.reachard.studio/health
 ```
 
@@ -47,7 +47,7 @@ sudo chown -R deployer:deployer /opt/connection
 nano /opt/connection/server/.env
 ```
 
-If your current Compose project lives in `/home/ubuntu/muxing`, make sure the Compose file contains this service:
+If your current Compose project lives in `/home/ubuntu/siyi`, make sure the Compose file contains this service:
 
 ```yaml
   connection_contacts:
@@ -62,7 +62,7 @@ If your current Compose project lives in `/home/ubuntu/muxing`, make sure the Co
 Run the service once manually before relying on CI/CD:
 
 ```bash
-cd /home/ubuntu/muxing
+cd /home/ubuntu/siyi
 sudo docker compose up -d --build connection_contacts
 sudo docker logs --tail=80 connection_contacts
 curl http://localhost:8787/health
@@ -76,7 +76,7 @@ The server must already have:
 Docker
 Docker Compose
 cloudflared tunnel
-/home/ubuntu/muxing/docker-compose.yml with connection_contacts service
+/home/ubuntu/siyi/docker-compose.yml with connection_contacts service
 /opt/connection/server/.env
 ```
 

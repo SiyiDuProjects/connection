@@ -28,7 +28,7 @@ Reachard is a SaaS application for finding company contacts from LinkedIn job pa
 Install dependencies from this repository's `web/` directory:
 
 ```bash
-pnpm install
+corepack pnpm install
 ```
 
 ## Running Locally
@@ -42,14 +42,14 @@ stripe login
 Use the included setup script to create your `.env` file:
 
 ```bash
-pnpm db:setup
+corepack pnpm db:setup
 ```
 
 Run the database migrations and seed the database with a default user and team:
 
 ```bash
-pnpm db:migrate
-pnpm db:seed
+corepack pnpm db:migrate
+corepack pnpm db:seed
 ```
 
 This will create the following user and team:
@@ -62,7 +62,7 @@ You can also create new users through the `/sign-up` route.
 Finally, run the Next.js development server:
 
 ```bash
-pnpm dev
+corepack pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser to see the app in action.

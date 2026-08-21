@@ -10,7 +10,34 @@ Chrome Extension + Express API + Next.js SaaS app for finding company contacts f
 
 The app uses a Postgres + Drizzle + cookie auth stack. It does not use Supabase.
 
+## Local Environment Check
+
+On macOS or Linux, run this from the repo root after cloning:
+
+```bash
+./scripts/check-local-env.sh
+```
+
+The script checks whether Node.js, npm, corepack/pnpm, `.env` files, and installed dependencies are present. On macOS, install Node.js with Homebrew if needed:
+
+```bash
+brew install node
+corepack enable
+```
+
 ## Web App
+
+macOS/Linux:
+
+```bash
+cd web
+cp .env.example .env
+corepack pnpm install
+corepack pnpm db:migrate
+corepack pnpm dev
+```
+
+Windows PowerShell:
 
 ```powershell
 cd web
@@ -22,7 +49,7 @@ corepack pnpm dev
 
 Required `web/.env` values:
 
-```powershell
+```env
 POSTGRES_URL=postgresql://...
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
@@ -48,11 +75,15 @@ After signing in, open `Dashboard > Extension` and generate an extension API tok
 
 The landing page reads its hero image from:
 
-```powershell
+```text
 web/public/images/home/hero-background.png
 ```
 
-To try a different image without editing CSS, run:
+To try a different image without editing CSS, run one of:
+
+```bash
+./scripts/set-home-hero-background.sh /path/to/image.png
+```
 
 ```powershell
 .\scripts\set-home-hero-background.cmd "C:\path\to\image.png"
@@ -61,6 +92,17 @@ To try a different image without editing CSS, run:
 The script copies the source image into the fixed public path and leaves the source file in place. In local dev, refresh the browser to preview; run a full build/screenshot only after choosing the final image.
 
 ## Local Server
+
+macOS/Linux:
+
+```bash
+cd server
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Windows PowerShell:
 
 ```powershell
 cd server
@@ -71,7 +113,7 @@ npm run dev
 
 Set `POSTGRES_URL` to the same database used by `web/`, then set the provider API keys in `server/.env`. The production contact pipeline uses RapidAPI for search and Apollo for on-demand email reveal:
 
-```powershell
+```env
 POSTGRES_URL=postgresql://...
 CONTACT_PROVIDER=rapidapi
 RAPIDAPI_KEY=your-rapidapi-key
@@ -83,6 +125,10 @@ EMAIL_DRAFT_CREDITS=0
 ```
 
 Search preview and the included outreach draft do not consume Contact Kits. Revealing an email consumes one Contact Kit through Apollo `people/match`.
+
+## Production Access
+
+Production VPS access uses the shared local SSH handle documented in `/Users/bytedance/.codex/AGENTS.md`. Project-specific service, env, and Docker details are in `AGENTS.md`.
 
 ## Chrome Extension
 
