@@ -25,9 +25,9 @@ const WEIGHTS = Object.freeze({
 });
 
 export function buildPeopleSearchPlan(job = {}) {
-  const targetFunction = inferFunction(job.targetRole, job.jobTitle, job.originalJobTitle, job.jobDescription);
-  const targetTeam = inferTeam(job.targetRole, job.jobTitle, job.originalJobTitle, job.jobDescription);
-  const titles = titlePackForFunction(targetFunction, job.jobTitle || job.targetRole);
+  const targetFunction = inferFunction(job.originalJobTitle, job.jobTitle, job.jobDescription);
+  const targetTeam = inferTeam(job.originalJobTitle, job.jobTitle, job.jobDescription);
+  const titles = titlePackForFunction(targetFunction, job.originalJobTitle || job.jobTitle);
   const locations = locationTerms(job.jobLocation);
   const companyDomain = cleanDomain(job.companyDomain);
 
@@ -127,9 +127,9 @@ export function normalizeContactForScoring(contact = {}, job = {}) {
 
 export function scoreCandidate(contact = {}, job = {}) {
   const normalized = normalizeContactForScoring(contact, job);
-  const targetFunction = inferFunction(job.targetRole, job.jobTitle, job.originalJobTitle, job.jobDescription);
-  const targetSeniority = inferSeniority(job.targetRole, job.jobTitle, job.originalJobTitle);
-  const targetTeam = inferTeam(job.targetRole, job.jobTitle, job.originalJobTitle, job.jobDescription);
+  const targetFunction = inferFunction(job.originalJobTitle, job.jobTitle, job.jobDescription);
+  const targetSeniority = inferSeniority(job.originalJobTitle, job.jobTitle);
+  const targetTeam = inferTeam(job.originalJobTitle, job.jobTitle, job.jobDescription);
   const reasons = [];
   const warnings = [];
   const missingFields = [];
@@ -363,7 +363,7 @@ function normalizeLocation(value) {
 }
 
 function isTechnicalLeadershipTarget(targetFunction, job) {
-  const text = [job.targetRole, job.jobTitle, job.jobDescription].filter(Boolean).join(" ").toLowerCase();
+  const text = [job.originalJobTitle, job.jobTitle, job.jobDescription].filter(Boolean).join(" ").toLowerCase();
   return targetFunction === FUNCTIONS.ENGINEERING && /\b(manager|director|head|vp|leadership|technical buyer|cto)\b/.test(text);
 }
 

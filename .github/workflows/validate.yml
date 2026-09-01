@@ -9,6 +9,27 @@ permissions:
   contents: read
 
 jobs:
+  server:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - name: Check server and provider fixtures
+        run: |
+          find src -name '*.js' -print0 | xargs -0 -n1 node --check
+          npm run test:hunter
+          npm run test:rapidapi
+          npm run test:intelligence
+          npm run test:intelligence:large
+
   extension:
     runs-on: ubuntu-latest
     steps:

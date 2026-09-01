@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: deploy-contacts-server
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -41,6 +41,8 @@ jobs:
 
       - name: Run ranking regression fixtures
         run: |
+          npm run test:hunter
+          npm run test:rapidapi
           npm run test:intelligence
           npm run test:intelligence:large
 
@@ -76,6 +78,15 @@ jobs:
             StrictHostKeyChecking yes
           EOF
 
+      - name: Create rollback snapshot
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          test -n "$DEPLOY_PATH"
+          ROLLBACK_PATH="${DEPLOY_PATH}.rollback.${GITHUB_RUN_ID}"
+          ssh deploy-server "if test -d '$DEPLOY_PATH'; then cp -a '$DEPLOY_PATH' '$ROLLBACK_PATH'; fi"
+          echo "ROLLBACK_PATH=$ROLLBACK_PATH" >> "$GITHUB_ENV"
+
       - name: Sync server files
         env:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
@@ -97,11 +108,7 @@ jobs:
           set -euo pipefail
           cd "$COMPOSE_PATH"
           sudo docker compose build connection_contacts
-          if ! sudo docker compose up -d --no-build --force-recreate --remove-orphans connection_contacts; then
-            sudo docker compose rm -fs connection_contacts || true
-            sudo docker rm -f connection_contacts 2>/dev/null || true
-            sudo docker compose up -d --no-build --force-recreate --remove-orphans connection_contacts
-          fi
+          sudo docker compose up -d --no-build --force-recreate --remove-orphans connection_contacts
           sudo docker logs --tail=80 connection_contacts
           REMOTE
 
@@ -118,3 +125,39 @@ jobs:
             sleep 5
           done
           curl --fail --silent --show-error "$PUBLIC_HEALTH_URL"
+
+      - name: Roll back failed deployment
+        if: ${{ failure() }}
+        env:
+          COMPOSE_PATH: ${{ secrets.COMPOSE_PATH }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          test -n "$DEPLOY_PATH"
+          test -n "$ROLLBACK_PATH"
+          ssh deploy-server "DEPLOY_PATH='$DEPLOY_PATH' ROLLBACK_PATH='$ROLLBACK_PATH' COMPOSE_PATH='$COMPOSE_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+          test -d "$ROLLBACK_PATH"
+          case "$ROLLBACK_PATH" in
+            "$DEPLOY_PATH".rollback.*) ;;
+            *) echo "Unsafe rollback path" >&2; exit 1 ;;
+          esac
+          rsync -a --delete --exclude '.env' --exclude '.env.*' "$ROLLBACK_PATH"/ "$DEPLOY_PATH"/
+          cd "$COMPOSE_PATH"
+          sudo docker compose build connection_contacts
+          sudo docker compose up -d --no-build --force-recreate --remove-orphans connection_contacts
+          curl --fail --silent --show-error http://127.0.0.1:8787/health
+          REMOTE
+
+      - name: Remove rollback snapshot
+        if: ${{ success() }}
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          test -n "$ROLLBACK_PATH"
+          ssh deploy-server "DEPLOY_PATH='$DEPLOY_PATH' ROLLBACK_PATH='$ROLLBACK_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+          case "$ROLLBACK_PATH" in
+            "$DEPLOY_PATH".rollback.*) rm -rf -- "$ROLLBACK_PATH" ;;
+            *) echo "Unsafe rollback path" >&2; exit 1 ;;
+          esac
+          REMOTE

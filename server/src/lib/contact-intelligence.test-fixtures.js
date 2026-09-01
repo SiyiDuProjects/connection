@@ -177,6 +177,31 @@ function run() {
 
   assert.equal(neutralRanking[0].name, "Morgan Marketing");
 
+  const legacyPreferenceDoesNotOverrideJob = rankContacts([
+    {
+      name: "Morgan Marketing",
+      title: "Marketing Director",
+      companyName: "Acme",
+      companyDomain: "acme.com"
+    },
+    {
+      name: "Bailey Engineering",
+      title: "Engineering Manager",
+      companyName: "Acme",
+      companyDomain: "acme.com"
+    }
+  ], {
+    companyName: "Acme",
+    companyDomain: "acme.com",
+    jobTitle: "Marketing Manager",
+    targetRole: "Software Engineer"
+  });
+  assert.equal(
+    legacyPreferenceDoesNotOverrideJob[0].name,
+    "Morgan Marketing",
+    "a legacy target role must not override the current job"
+  );
+
   const alumniAwareRanking = rankContacts([
     {
       name: "Avery Engineering",

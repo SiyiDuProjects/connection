@@ -7,9 +7,10 @@ import {
   integer,
   jsonb,
   boolean,
+  index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -35,17 +36,24 @@ export const teams = pgTable('teams', {
   subscriptionStatus: varchar('subscription_status', { length: 20 }),
 });
 
-export const teamMembers = pgTable('team_members', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id')
-    .notNull()
-    .references(() => users.id),
-  teamId: integer('team_id')
-    .notNull()
-    .references(() => teams.id),
-  role: varchar('role', { length: 50 }).notNull(),
-  joinedAt: timestamp('joined_at').notNull().defaultNow(),
-});
+export const teamMembers = pgTable(
+  'team_members',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    teamId: integer('team_id')
+      .notNull()
+      .references(() => teams.id),
+    role: varchar('role', { length: 50 }).notNull(),
+    joinedAt: timestamp('joined_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userTeamUnique: uniqueIndex('team_members_user_team_unique').on(table.userId, table.teamId),
+    userIdIdx: index('team_members_user_id_idx').on(table.userId),
+  })
+);
 
 export const activityLogs = pgTable('activity_logs', {
   id: serial('id').primaryKey(),
@@ -171,41 +179,94 @@ export const userSettings = pgTable(
   })
 );
 
-export const extensionApiTokens = pgTable('extension_api_tokens', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id')
-    .notNull()
-    .references(() => users.id),
-  name: varchar('name', { length: 100 }).notNull().default('Chrome extension'),
-  tokenHash: text('token_hash').notNull().unique(),
-  lastUsedAt: timestamp('last_used_at'),
-  revokedAt: timestamp('revoked_at'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+export const extensionApiTokens = pgTable(
+  'extension_api_tokens',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    name: varchar('name', { length: 100 }).notNull().default('Chrome extension'),
+    tokenHash: text('token_hash').notNull().unique(),
+    lastUsedAt: timestamp('last_used_at'),
+    revokedAt: timestamp('revoked_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    activeUserUnique: uniqueIndex('extension_api_tokens_active_user_unique')
+      .on(table.userId)
+      .where(sql`${table.revokedAt} is null`),
+  })
+);
 
-export const creditLedger = pgTable('credit_ledger', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id')
-    .notNull()
-    .references(() => users.id),
-  amount: integer('amount').notNull(),
-  action: text('action').notNull(),
-  metadata: jsonb('metadata').notNull().default({}),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+export const creditLedger = pgTable(
+  'credit_ledger',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    amount: integer('amount').notNull(),
+    action: text('action').notNull(),
+    requestId: text('request_id'),
+    metadata: jsonb('metadata').notNull().default({}),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userCreatedAtIdx: index('credit_ledger_user_created_at_idx').on(table.userId, table.createdAt),
+    requestUnique: uniqueIndex('credit_ledger_user_action_request_unique')
+      .on(table.userId, table.action, table.requestId)
+      .where(sql`${table.requestId} is not null`),
+  })
+);
 
-export const apiUsage = pgTable('api_usage', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id')
-    .notNull()
-    .references(() => users.id),
-  action: text('action').notNull(),
-  credits: integer('credits').notNull().default(0),
-  status: varchar('status', { length: 40 }).notNull(),
-  request: jsonb('request').notNull().default({}),
-  response: jsonb('response').notNull().default({}),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+export const apiUsage = pgTable(
+  'api_usage',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    action: text('action').notNull(),
+    requestId: text('request_id'),
+    credits: integer('credits').notNull().default(0),
+    status: varchar('status', { length: 40 }).notNull(),
+    request: jsonb('request').notNull().default({}),
+    response: jsonb('response').notNull().default({}),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userCreatedAtIdx: index('api_usage_user_created_at_idx').on(table.userId, table.createdAt),
+    successfulRequestUnique: uniqueIndex('api_usage_successful_request_unique')
+      .on(table.userId, table.action, table.requestId)
+      .where(sql`${table.requestId} is not null and ${table.status} = 'success'`),
+  })
+);
+
+export const apiIdempotencyKeys = pgTable(
+  'api_idempotency_keys',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    action: text('action').notNull(),
+    key: varchar('idempotency_key', { length: 120 }).notNull(),
+    status: varchar('status', { length: 20 }).notNull().default('processing'),
+    response: jsonb('response').notNull().default({}),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userActionKeyUnique: uniqueIndex('api_idempotency_keys_user_action_key_unique').on(
+      table.userId,
+      table.action,
+      table.key
+    ),
+    updatedAtIdx: index('api_idempotency_keys_updated_at_idx').on(table.updatedAt),
+  })
+);
 
 export const productEvents = pgTable('product_events', {
   id: serial('id').primaryKey(),
@@ -371,6 +432,7 @@ export type UserSettings = typeof userSettings.$inferSelect;
 export type ExtensionApiToken = typeof extensionApiTokens.$inferSelect;
 export type CreditLedger = typeof creditLedger.$inferSelect;
 export type ApiUsage = typeof apiUsage.$inferSelect;
+export type ApiIdempotencyKey = typeof apiIdempotencyKeys.$inferSelect;
 export type ProductEvent = typeof productEvents.$inferSelect;
 export type TeamDataWithMembers = Team & {
   teamMembers: (TeamMember & {

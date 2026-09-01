@@ -1,4 +1,4 @@
-import { revealApolloEmail } from "./apollo.js";
+import { revealHunterEmail } from "./hunter.js";
 import { buildContactSearchPlan } from "./contact-search-plan.js";
 import { fetchWithTimeout } from "./http.js";
 
@@ -74,7 +74,7 @@ export async function searchRapidApiContacts(job) {
 
   logSearchSummary({
     companyName: job.companyName,
-    jobTitle: job.originalJobTitle || job.targetRole || job.jobTitle,
+    jobTitle: job.originalJobTitle || job.jobTitle,
     pageType: job.type,
     queries,
     rapidApiCandidates: contacts.length,
@@ -87,32 +87,82 @@ export async function searchRapidApiContacts(job) {
 }
 
 export function revealRapidApiEmail(contact) {
-  return revealApolloEmail({
+  return revealHunterEmail({
     ...contact,
-    provider: "apollo"
+    provider: "hunter"
   });
 }
 
-async function resolveCompanyId(job) {
+export async function resolveCompanyId(job) {
+  const linkedInJobId = extractLinkedInJobId(job.sourceUrl || job.jobUrl);
   const cacheKey = [
+    normalizeKey(linkedInJobId),
     normalizeKey(job.companyDomain),
     normalizeKey(job.companyName)
   ].filter(Boolean).join("|");
 
   if (cacheKey && companyCache.has(cacheKey)) return companyCache.get(cacheKey);
 
-  const company = companyLookupTerm(job);
-  if (!company) return "";
+  if (linkedInJobId) {
+    const id = await resolveCompanyIdFromLinkedInJob(linkedInJobId);
+    if (id) {
+      if (cacheKey) companyCache.set(cacheKey, id);
+      return id;
+    }
+  }
 
-  const params = new URLSearchParams({
-    company
-  });
-  const data = await rapidApiGet(PEOPLE_BASE_URL, "/api/v1/company/profile", params, PEOPLE_HOST);
-  const profile = Array.isArray(data.data) ? selectCompany(data.data, job) : data.data;
-  const id = firstString(profile?.id, profile?.company_id, profile?.entityUrn?.split(":").pop());
+  for (const company of companyLookupTerms(job)) {
+    try {
+      const params = new URLSearchParams({ company });
+      const data = await rapidApiGet(PEOPLE_BASE_URL, "/api/v1/company/profile", params, PEOPLE_HOST);
+      const profile = Array.isArray(data.data) ? selectCompany(data.data, job) : data.data;
+      const id = companyIdFrom(profile);
+      if (id) {
+        if (cacheKey) companyCache.set(cacheKey, id);
+        return id;
+      }
+    } catch (error) {
+      if (!isCompanyLookupMiss(error)) throw error;
+    }
+  }
 
+  const id = await resolveCompanyIdFromJobSearch(job);
   if (cacheKey && id) companyCache.set(cacheKey, id);
   return id;
+}
+
+async function resolveCompanyIdFromLinkedInJob(jobId) {
+  try {
+    const params = new URLSearchParams({ job_id: jobId });
+    const data = await rapidApiGet(PEOPLE_BASE_URL, "/api/v1/job/detail", params, PEOPLE_HOST);
+    return companyIdFrom(data.data?.company);
+  } catch (error) {
+    if (isCompanyLookupMiss(error)) return "";
+    throw error;
+  }
+}
+
+async function resolveCompanyIdFromJobSearch(job) {
+  const companyName = firstString(job.companyName);
+  const jobTitle = firstString(job.originalJobTitle, job.jobTitle);
+  if (!companyName || !jobTitle) return "";
+
+  try {
+    const params = new URLSearchParams({
+      keyword: `${companyName} ${jobTitle}`,
+      page: "1",
+      sort_by: "relevant",
+      date_posted: "anytime"
+    });
+    const data = await rapidApiGet(PEOPLE_BASE_URL, "/api/v1/job/search", params, PEOPLE_HOST);
+    const jobs = Array.isArray(data.data) ? data.data : [];
+    const wanted = canonicalCompany(companyName || job.companyDomain);
+    const match = jobs.find((item) => canonicalCompany(item?.company?.name) === wanted);
+    return companyIdFrom(match?.company);
+  } catch (error) {
+    if (isCompanyLookupMiss(error)) return "";
+    throw error;
+  }
 }
 
 async function resolveJobLocationId(location) {
@@ -186,7 +236,7 @@ function normalizePeople(people, job, metadata) {
 }
 
 function buildPeopleSearchQueries(searchPlan, job) {
-  const role = firstString(job.originalJobTitle, job.targetRole, job.jobTitle, searchPlan.primaryQuery);
+  const role = firstString(job.originalJobTitle, job.jobTitle, searchPlan.primaryQuery);
   const recruiterQuery = /\b(engineer|engineering|data|product|design|technical|software|security|ai|machine learning)\b/i.test(role)
     ? "Technical Recruiter"
     : "Recruiter";
@@ -205,8 +255,8 @@ function logSearchSummary(summary) {
 }
 
 function selectCompany(companies, job) {
-  const wantedName = normalizeCompany(job.companyName || job.companyDomain);
-  const exact = companies.find((company) => normalizeCompany(company.name) === wantedName);
+  const wantedName = canonicalCompany(job.companyName || job.companyDomain);
+  const exact = companies.find((company) => canonicalCompany(company.name) === wantedName);
   if (exact) return exact;
   return [...companies].sort((a, b) => Number(b.follower_count || b.followersCount || 0) - Number(a.follower_count || a.followersCount || 0))[0];
 }
@@ -217,26 +267,43 @@ async function rapidApiGet(baseUrl, path, params, host) {
     if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, value);
   }
 
-  const response = await fetchWithTimeout(url, {
-    headers: {
-      "Content-Type": "application/json",
-      "x-rapidapi-host": host,
-      "x-rapidapi-key": process.env.RAPIDAPI_KEY
-    }
-  }, {
-    provider: "rapidapi",
-    timeoutMs: process.env.RAPIDAPI_TIMEOUT_MS || 15_000
-  });
-  const data = await response.json().catch(() => ({}));
+  const maxAttempts = Math.max(1, Number(process.env.RAPIDAPI_MAX_ATTEMPTS || 2));
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetchWithTimeout(url, {
+      headers: {
+        "Content-Type": "application/json",
+        "x-rapidapi-host": host,
+        "x-rapidapi-key": process.env.RAPIDAPI_KEY
+      }
+    }, {
+      provider: "rapidapi",
+      timeoutMs: process.env.RAPIDAPI_TIMEOUT_MS || 15_000
+    });
+    const data = await response.json().catch(() => ({}));
+    const upstreamStatus = statusFromMessage(data.message || data.error);
+    const failed = !response.ok || data.success === false || data.status === "ERROR";
 
-  if (!response.ok || data.success === false || data.status === "ERROR") {
+    if (!failed) return data;
+
+    const retryable = response.status === 429 || upstreamStatus === 429 || response.status >= 500;
+    if (retryable && attempt < maxAttempts) {
+      const retryAfterMs = retryDelayMs(response, attempt);
+      await delay(retryAfterMs);
+      continue;
+    }
+
     const error = new Error(data.message || data.error || `RapidAPI request failed with ${response.status}`);
-    error.status = response.status >= 500 ? 502 : response.status || 502;
+    error.status = response.status >= 400 && response.status < 500 && response.status !== 429
+      ? response.status
+      : 502;
+    error.providerHttpStatus = response.status;
+    error.upstreamStatus = upstreamStatus;
+    error.providerCost = Number(data.cost || 0);
     error.publicMessage = "Contact search is temporarily unavailable. Try again shortly.";
     throw error;
   }
 
-  return data;
+  throw new Error("RapidAPI request failed after retrying.");
 }
 
 function normalizeFreshPerson(person, job, ids) {
@@ -329,11 +396,92 @@ function normalizeCompany(value) {
     .trim();
 }
 
-function companyLookupTerm(job) {
+function canonicalCompany(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/.*$/, "")
+    .replace(/\.(com|ai|co|io|net|org)$/i, "")
+    .replace(/\b(incorporated|corporation|company|limited|holdings|inc|corp|llc|ltd|plc)\b/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function companyLookupTerms(job) {
   const name = firstString(job.companyName);
-  if (name) return name;
-  const domain = normalizeCompany(job.companyDomain);
-  return domain || firstString(job.companyDomain);
+  const withoutSuffix = name
+    .replace(/[,\s]+(incorporated|corporation|company|limited|holdings|inc|corp|llc|ltd|plc)\.?$/i, "")
+    .trim();
+  const domain = hostname(job.companyDomain);
+  const domainStem = domain.split(".")[0];
+  return uniqueStrings([
+    linkedInCompanySlug(job.companyLinkedInUrl),
+    withoutSuffix || name,
+    name ? "" : domainStem
+  ]).slice(0, 2);
+}
+
+function linkedInCompanySlug(value) {
+  const text = firstString(value);
+  if (!text) return "";
+  try {
+    const url = new URL(text);
+    if (!/linkedin\.com$/i.test(url.hostname.replace(/^www\./, ""))) return "";
+    return decodeURIComponent(url.pathname.match(/\/company\/([^/]+)/i)?.[1] || "");
+  } catch {
+    return text.match(/linkedin\.com\/company\/([^/?#]+)/i)?.[1] || "";
+  }
+}
+
+function hostname(value) {
+  const text = firstString(value);
+  if (!text) return "";
+  try {
+    return new URL(text.includes("://") ? text : `https://${text}`).hostname.replace(/^www\./, "");
+  } catch {
+    return text.replace(/^www\./, "").split("/")[0];
+  }
+}
+
+function companyIdFrom(company) {
+  return firstString(company?.id, company?.company_id, company?.entityUrn?.split(":").pop());
+}
+
+function isCompanyLookupMiss(error) {
+  return error?.providerHttpStatus === 202
+    || [404, 429].includes(Number(error?.upstreamStatus))
+    || /company not found|job not found|not found|invalid company|no company/i.test(String(error?.message || ""));
+}
+
+function statusFromMessage(value) {
+  const match = String(value || "").match(/status\s+(\d{3})/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function retryDelayMs(response, attempt) {
+  const retryAfterSeconds = Number(response.headers.get("retry-after") || 0);
+  if (retryAfterSeconds > 0) return Math.min(15_000, retryAfterSeconds * 1_000);
+  const base = Math.max(1_000, Number(process.env.RAPIDAPI_RETRY_BASE_MS || 3_000));
+  return Math.min(15_000, base * attempt);
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function extractLinkedInJobId(value) {
+  const text = firstString(value);
+  if (!/linkedin\.com\/jobs\//i.test(text)) return "";
+  try {
+    const url = new URL(text);
+    const queryId = firstString(url.searchParams.get("currentJobId"), url.searchParams.get("jobId"));
+    if (/^\d{6,}$/.test(queryId)) return queryId;
+    const matches = url.pathname.match(/(\d{6,})(?:\/?$)/);
+    return matches?.[1] || "";
+  } catch {
+    return text.match(/(\d{6,})(?:[/?#]|$)/)?.[1] || "";
+  }
 }
 
 function normalizeKey(value) {

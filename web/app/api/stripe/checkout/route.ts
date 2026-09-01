@@ -1,6 +1,6 @@
-import { setSession } from '@/lib/auth/session';
 import { NextRequest, NextResponse } from 'next/server';
 import { handleSuccessfulCheckoutSession } from '@/lib/payments/checkout';
+import { getUser } from '@/lib/db/queries';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -11,11 +11,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const user = await handleSuccessfulCheckoutSession(sessionId);
+    const signedInUser = await getUser();
+    if (!signedInUser) {
+      const signInUrl = new URL('/sign-in', request.url);
+      signInUrl.searchParams.set('redirect', '/pricing');
+      return NextResponse.redirect(signInUrl);
+    }
+
+    const user = await handleSuccessfulCheckoutSession(sessionId, {
+      expectedUserId: signedInUser.id
+    });
     if (!user) {
       return NextResponse.redirect(new URL('/pricing?checkout=pending', request.url));
     }
-    await setSession(user);
     return NextResponse.redirect(new URL('/dashboard', request.url));
   } catch (error) {
     console.error('Error handling successful checkout:', error);

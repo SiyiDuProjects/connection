@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { creditLedger, teamMembers, teams, users } from '@/lib/db/schema';
 import { resolveSubscriptionPlan, stripe } from '@/lib/payments/stripe';
@@ -8,7 +8,10 @@ import {
 } from '@/lib/payments/friend-invite-rewards';
 import { recordProductEvent } from '@/lib/product-events';
 
-export async function handleSuccessfulCheckoutSession(sessionId: string) {
+export async function handleSuccessfulCheckoutSession(
+  sessionId: string,
+  options: { expectedUserId?: number } = {}
+) {
   const session = await stripe.checkout.sessions.retrieve(sessionId, {
     expand: ['customer', 'subscription'],
   });
@@ -52,11 +55,18 @@ export async function handleSuccessfulCheckoutSession(sessionId: string) {
   if (!userId) {
     throw new Error("No user ID found in session's client_reference_id.");
   }
+  const parsedUserId = Number(userId);
+  if (!Number.isSafeInteger(parsedUserId) || parsedUserId <= 0) {
+    throw new Error("Invalid user ID found in session's client_reference_id.");
+  }
+  if (options.expectedUserId !== undefined && parsedUserId !== options.expectedUserId) {
+    throw new Error('Checkout session does not belong to the signed-in user.');
+  }
 
   const [user] = await db
     .select()
     .from(users)
-    .where(eq(users.id, Number(userId)))
+    .where(eq(users.id, parsedUserId))
     .limit(1);
 
   if (!user) {
@@ -75,25 +85,33 @@ export async function handleSuccessfulCheckoutSession(sessionId: string) {
     throw new Error('User is not associated with any team.');
   }
 
-  await db
-    .update(teams)
-    .set({
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: subscriptionId,
-      stripeProductId: productId,
-      planName: reachardPlan.name,
-      subscriptionStatus: subscription.status,
-      updatedAt: new Date(),
-    })
-    .where(eq(teams.id, userTeam.teamId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(teams)
+      .set({
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: subscriptionId,
+        stripeProductId: productId,
+        planName: reachardPlan.name,
+        subscriptionStatus: subscription.status,
+        updatedAt: new Date(),
+      })
+      .where(eq(teams.id, userTeam.teamId));
 
-  await grantInitialSubscriptionCredits(
-    user.id,
-    subscriptionId,
-    session.id,
-    reachardPlan.name,
-    reachardPlan.monthlyCredits
-  );
+    await tx
+      .insert(creditLedger)
+      .values({
+        userId: user.id,
+        amount: reachardPlan.monthlyCredits,
+        action: 'subscription.initial_grant',
+        metadata: {
+          subscriptionId,
+          checkoutSessionId: session.id,
+          planName: reachardPlan.name
+        }
+      })
+      .onConflictDoNothing();
+  });
   await grantFriendInvitePurchaseReward({
     invitedUserId: user.id,
     checkoutSessionId: session.id,
@@ -112,38 +130,4 @@ export async function handleSuccessfulCheckoutSession(sessionId: string) {
   );
 
   return user;
-}
-
-async function grantInitialSubscriptionCredits(
-  userId: number,
-  subscriptionId: string,
-  checkoutSessionId: string,
-  planName: string,
-  amount: number
-) {
-  const existingGrant = await db
-    .select({ id: creditLedger.id })
-    .from(creditLedger)
-    .where(
-      and(
-        eq(creditLedger.userId, userId),
-        eq(creditLedger.action, 'subscription.initial_grant'),
-        sql`${creditLedger.metadata}->>'subscriptionId' = ${subscriptionId}`
-      )
-    )
-    .limit(1);
-
-  if (existingGrant.length > 0) {
-    return;
-  }
-
-  await db
-    .insert(creditLedger)
-    .values({
-      userId,
-      amount,
-      action: 'subscription.initial_grant',
-      metadata: { subscriptionId, checkoutSessionId, planName }
-    })
-    .onConflictDoNothing();
 }

@@ -43,9 +43,11 @@ export async function PATCH(request: Request) {
     outreachLength: custom.outreachLength,
     outreachGoal: custom.outreachGoal,
     outreachStyleNotes: custom.outreachStyleNotes,
-    defaultSearchPreferences: {},
     updatedAt: new Date()
-  };
+  } satisfies Pick<
+    typeof userSettings.$inferInsert,
+    'userId' | 'emailTone' | 'outreachLength' | 'outreachGoal' | 'outreachStyleNotes' | 'updatedAt'
+  >;
   const existing = await getSettings(user.id);
 
   if (existing) {

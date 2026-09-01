@@ -50,7 +50,7 @@ export async function buildContactSearchPlan(job) {
 }
 
 function fallbackPlan(job) {
-  const title = clean(job.originalJobTitle || job.jobTitle || job.targetRole);
+  const title = clean(job.originalJobTitle || job.jobTitle);
   const functionalTitle = functionalQuery(title);
   const queries = compact([
     functionalTitle,
@@ -88,8 +88,7 @@ function buildInput(job) {
   return JSON.stringify({
     companyName: job.companyName || "",
     companyDomain: job.companyDomain || "",
-    jobTitle: job.originalJobTitle || job.jobTitle || job.targetRole || "",
-    targetRole: job.targetRole || "",
+    jobTitle: job.originalJobTitle || job.jobTitle || "",
     jobLocation: job.jobLocation || "",
     jobDescription: truncate(job.jobDescription, Number(process.env.AI_SEARCH_PLAN_MAX_JD_CHARS || 4_000))
   });

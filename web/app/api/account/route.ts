@@ -8,19 +8,23 @@ export async function GET() {
     return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const [balanceResult, usageResult, settingsResult, teamResult, extensionTokenResult] = await Promise.allSettled([
-    getCreditBalance(user.id),
-    getRecentUsage(user.id),
-    getSettings(user.id),
-    getTeamForUser(),
-    getActiveExtensionTokenInfo(user.id)
-  ]);
-
-  const balance = balanceResult.status === 'fulfilled' ? balanceResult.value : 0;
-  const usage = usageResult.status === 'fulfilled' ? usageResult.value : [];
-  const settings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
-  const team = teamResult.status === 'fulfilled' ? teamResult.value : null;
-  const extensionToken = extensionTokenResult.status === 'fulfilled' ? extensionTokenResult.value : null;
+  const accountData = await Promise.all([
+      getCreditBalance(user.id),
+      getRecentUsage(user.id),
+      getSettings(user.id),
+      getTeamForUser(),
+      getActiveExtensionTokenInfo(user.id)
+    ]).catch((error) => {
+    console.error('Could not load account data:', error);
+    return null;
+  });
+  if (!accountData) {
+    return Response.json(
+      { ok: false, error: 'Account data is temporarily unavailable.' },
+      { status: 503 }
+    );
+  }
+  const [balance, usage, settings, team, extensionToken] = accountData;
 
   const onboardingProfile = getOnboardingStatus(user, settings);
   const successfulSearch = usage.find((item) => item.action === 'contacts.search' && item.status === 'success');
@@ -34,9 +38,9 @@ export async function GET() {
       remaining: balance,
       status: balance > 0 ? 'available' : 'empty',
       costs: {
-        search: Number(process.env.CONTACT_SEARCH_CREDITS || 0),
-        reveal: Number(process.env.CONTACT_REVEAL_CREDITS || 1),
-        draft: Number(process.env.EMAIL_DRAFT_CREDITS || 0)
+        search: creditCost('CONTACT_SEARCH_CREDITS', 0),
+        reveal: creditCost('CONTACT_REVEAL_CREDITS', 1),
+        draft: creditCost('EMAIL_DRAFT_CREDITS', 0)
       }
     },
     usage,
@@ -73,4 +77,12 @@ export async function GET() {
       }
     }
   });
+}
+
+function creditCost(name: string, fallback: number) {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative number.`);
+  }
+  return value;
 }

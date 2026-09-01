@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, lt, or } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import {
   friendInviteRedemptions,
@@ -74,7 +74,9 @@ export async function applyPendingFriendInviteRewards(inviterUserId: number) {
     .where(eq(friendInviteRewards.inviterUserId, inviterUserId));
 
   for (const reward of rewards) {
-    if (reward.status !== 'pending' && reward.status !== 'failed') {
+    const staleApplying = reward.status === 'applying'
+      && reward.updatedAt < new Date(Date.now() - 5 * 60 * 1000);
+    if (!['pending', 'failed'].includes(reward.status) && !staleApplying) {
       continue;
     }
     try {
@@ -96,6 +98,7 @@ async function findRewardByRedemptionId(redemptionId: number) {
 }
 
 async function applyFriendInviteReward(reward: RewardRow) {
+  const staleBefore = new Date(Date.now() - 5 * 60 * 1000);
   const [lockedReward] = await db
     .update(friendInviteRewards)
     .set({
@@ -106,7 +109,13 @@ async function applyFriendInviteReward(reward: RewardRow) {
     .where(
       and(
         eq(friendInviteRewards.id, reward.id),
-        eq(friendInviteRewards.status, reward.status)
+        or(
+          inArray(friendInviteRewards.status, ['pending', 'failed']),
+          and(
+            eq(friendInviteRewards.status, 'applying'),
+            lt(friendInviteRewards.updatedAt, staleBefore)
+          )
+        )
       )
     )
     .returning();
@@ -162,6 +171,9 @@ async function applyFriendInviteReward(reward: RewardRow) {
         checkoutSessionId: lockedReward.checkoutSessionId,
         invitedSubscriptionId: lockedReward.invitedSubscriptionId
       }
+    },
+    {
+      idempotencyKey: `friend-invite-reward-${lockedReward.id}`
     }
   ).catch(async (error) => {
     await markRewardFailed(lockedReward.id, error instanceof Error ? error.message : 'Could not create Stripe balance credit.');

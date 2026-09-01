@@ -30,25 +30,43 @@ export async function createCheckoutSession({
     redirect(`/sign-up?redirect=checkout&priceId=${priceId}`);
   }
 
-  const checkoutPlan = await resolveCheckoutPlan(priceId);
+  if (
+    team.stripeSubscriptionId
+    && ['active', 'trialing'].includes(team.subscriptionStatus || '')
+  ) {
+    redirect('/dashboard?billing=already-active');
+  }
 
-  const session = await stripe.checkout.sessions.create({
-    line_items: [
-      {
-        price: checkoutPlan.priceId,
-        quantity: 1
-      }
-    ],
-    mode: 'subscription',
-    success_url: `${process.env.BASE_URL}/api/stripe/checkout?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.BASE_URL}/pricing`,
-    customer: team.stripeCustomerId || undefined,
-    client_reference_id: user.id.toString(),
-    allow_promotion_codes: true,
-    subscription_data: checkoutPlan.trialPeriodDays
-      ? { trial_period_days: checkoutPlan.trialPeriodDays }
-      : undefined
-  });
+  const checkoutPlan = await resolveCheckoutPlan(priceId);
+  const checkoutAttempt = Math.floor(Date.now() / 60_000);
+
+  const session = await stripe.checkout.sessions.create(
+    {
+      line_items: [
+        {
+          price: checkoutPlan.priceId,
+          quantity: 1
+        }
+      ],
+      mode: 'subscription',
+      success_url: `${process.env.BASE_URL}/api/stripe/checkout?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.BASE_URL}/pricing`,
+      customer: team.stripeCustomerId || undefined,
+      client_reference_id: user.id.toString(),
+      allow_promotion_codes: true,
+      metadata: {
+        reachardUserId: String(user.id),
+        reachardTeamId: String(team.id),
+        reachardPlan: checkoutPlan.name
+      },
+      subscription_data: checkoutPlan.trialPeriodDays
+        ? { trial_period_days: checkoutPlan.trialPeriodDays }
+        : undefined
+    },
+    {
+      idempotencyKey: `checkout-${user.id}-${checkoutPlan.key}-${checkoutAttempt}`
+    }
+  );
 
   await recordProductEvent(user.id, 'checkout.started', {
     checkoutSessionId: session.id,

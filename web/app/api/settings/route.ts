@@ -17,7 +17,6 @@ const settingsSchema = z.object({
   outreachLength: z.enum(['short', 'concise', 'detailed']).optional(),
   outreachGoal: z.enum(['advice', 'referral', 'intro']).optional(),
   outreachStyleNotes: z.string().max(500).optional(),
-  targetRole: z.string().max(200).optional(),
   senderProfile: z.string().max(2000).optional(),
   resumeContext: z.string().max(40000).optional(),
   resumeFileName: z.string().max(260).optional(),
@@ -72,7 +71,6 @@ export async function POST(request: Request) {
     school: has('school') ? clean(payload.school) : existing?.school || '',
     emailSignature: has('emailSignature') ? cleanMultiline(payload.emailSignature) : existing?.emailSignature || '',
     introStyle: payload.introStyle || existing?.introStyle || 'student',
-    targetRole: has('targetRole') ? clean(payload.targetRole) : existing?.targetRole || '',
     emailTone: payload.emailTone || existing?.emailTone || 'warm',
     outreachLength: payload.outreachLength || existing?.outreachLength || 'concise',
     outreachGoal: payload.outreachGoal || existing?.outreachGoal || 'advice',
@@ -91,20 +89,22 @@ export async function POST(request: Request) {
     updatedAt: new Date()
   };
 
-  if (has('name') && name && name !== user.name) {
-    await db
-      .update(users)
-      .set({ name, updatedAt: new Date() })
-      .where(eq(users.id, user.id));
-  }
+  await db.transaction(async (tx) => {
+    if (has('name') && name && name !== user.name) {
+      await tx
+        .update(users)
+        .set({ name, updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+    }
 
-  await db
-    .insert(userSettings)
-    .values(values)
-    .onConflictDoUpdate({
-      target: userSettings.userId,
-      set: values
-    });
+    await tx
+      .insert(userSettings)
+      .values(values)
+      .onConflictDoUpdate({
+        target: userSettings.userId,
+        set: values
+      });
+  });
 
   const updatedUser = { name: has('name') && name ? name : user.name };
   if (!wasOnboardingComplete && getOnboardingStatus(updatedUser, values).complete) {

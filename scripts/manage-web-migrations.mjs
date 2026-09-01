@@ -7,6 +7,10 @@ if (!databaseUrl) throw new Error("POSTGRES_URL is required.");
 
 const sql = postgres(databaseUrl, { max: 1 });
 const backupTable = "credit_ledger_backup_0011_20260830";
+const consistencyBackupTables = {
+  teamMembers: "team_members_backup_0013",
+  extensionTokens: "extension_api_tokens_backup_0013"
+};
 
 try {
   const report = await audit();
@@ -16,6 +20,9 @@ try {
   if (!migrationSpecs.length) process.exitCode = 0;
   else {
     await backupDuplicateBillingGrants(report);
+    if (migrationSpecs.some((spec) => spec.includes("0013_backend_consistency.sql"))) {
+      await backupConsistencyRows();
+    }
     for (const spec of migrationSpecs) await applyMigration(spec);
     console.log(JSON.stringify(await audit()));
   }
@@ -24,10 +31,11 @@ try {
 }
 
 async function audit() {
-  const [{ creditLedger, productEvents, migrationTable, backup }] = await sql`
+  const [{ creditLedger, productEvents, apiIdempotencyKeys, migrationTable, backup }] = await sql`
     SELECT
       to_regclass('public.credit_ledger')::text AS "creditLedger",
       to_regclass('public.product_events')::text AS "productEvents",
+      to_regclass('public.api_idempotency_keys')::text AS "apiIdempotencyKeys",
       to_regclass('drizzle.__drizzle_migrations')::text AS "migrationTable",
       to_regclass(${`public.${backupTable}`})::text AS backup
   `;
@@ -35,6 +43,7 @@ async function audit() {
   const result = {
     creditLedger: Boolean(creditLedger),
     productEvents: Boolean(productEvents),
+    apiIdempotencyKeys: Boolean(apiIdempotencyKeys),
     migrationTable: Boolean(migrationTable),
     backupTable: Boolean(backup),
     duplicateInitialGrantRows: 0,
@@ -71,6 +80,14 @@ async function audit() {
         AND indexname IN (
           'credit_ledger_initial_subscription_unique',
           'credit_ledger_monthly_invoice_unique',
+          'credit_ledger_user_action_request_unique',
+          'credit_ledger_user_created_at_idx',
+          'api_usage_successful_request_unique',
+          'api_usage_user_created_at_idx',
+          'api_idempotency_keys_user_action_key_unique',
+          'api_idempotency_keys_updated_at_idx',
+          'extension_api_tokens_active_user_unique',
+          'team_members_user_team_unique',
           'product_events_event_created_at_idx',
           'product_events_user_created_at_idx'
         )
@@ -121,6 +138,27 @@ async function backupDuplicateBillingGrants(report) {
   console.log(JSON.stringify({ backupCreated: backupTable, duplicateRows }));
 }
 
+async function backupConsistencyRows() {
+  const [{ teamMembers, extensionTokens }] = await sql.begin(async (tx) => {
+    await tx.unsafe(
+      `CREATE TABLE IF NOT EXISTS ${consistencyBackupTables.teamMembers} AS TABLE team_members`
+    );
+    await tx.unsafe(
+      `CREATE TABLE IF NOT EXISTS ${consistencyBackupTables.extensionTokens} AS TABLE extension_api_tokens`
+    );
+    return tx`
+      SELECT
+        (SELECT COUNT(*)::int FROM ${tx(consistencyBackupTables.teamMembers)}) AS "teamMembers",
+        (SELECT COUNT(*)::int FROM ${tx(consistencyBackupTables.extensionTokens)}) AS "extensionTokens"
+    `;
+  });
+
+  console.log(JSON.stringify({
+    backupCreated: consistencyBackupTables,
+    rows: { teamMembers, extensionTokens }
+  }));
+}
+
 async function applyMigration(spec) {
   const separator = spec.lastIndexOf(":");
   if (separator < 1) throw new Error(`Invalid migration spec: ${spec}`);
@@ -140,13 +178,13 @@ async function applyMigration(spec) {
         created_at bigint
       )
     `);
-    const [latest] = await tx`
-      SELECT created_at AS "createdAt"
+    const [existing] = await tx`
+      SELECT id
       FROM drizzle.__drizzle_migrations
-      ORDER BY created_at DESC
+      WHERE hash = ${hash}
       LIMIT 1
     `;
-    if (latest?.createdAt !== undefined && Number(latest.createdAt) >= createdAt) return;
+    if (existing) return;
 
     const statements = query
       .split("--> statement-breakpoint")

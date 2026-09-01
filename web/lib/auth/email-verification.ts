@@ -25,20 +25,22 @@ export async function createEmailVerification(userId: number) {
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
 
-  await db
-    .update(emailVerificationTokens)
-    .set({ usedAt: new Date() })
-    .where(
-      and(
-        eq(emailVerificationTokens.userId, userId),
-        isNull(emailVerificationTokens.usedAt)
-      )
-    );
+  await db.transaction(async (tx) => {
+    await tx
+      .update(emailVerificationTokens)
+      .set({ usedAt: new Date() })
+      .where(
+        and(
+          eq(emailVerificationTokens.userId, userId),
+          isNull(emailVerificationTokens.usedAt)
+        )
+      );
 
-  await db.insert(emailVerificationTokens).values({
-    userId,
-    tokenHash,
-    expiresAt,
+    await tx.insert(emailVerificationTokens).values({
+      userId,
+      tokenHash,
+      expiresAt,
+    });
   });
 
   return {
@@ -95,34 +97,26 @@ export async function issueEmailVerification(userId: number, email: string) {
 
 export async function verifyEmailToken(token: string) {
   const tokenHash = hashToken(token);
-  const [record] = await db
-    .select()
-    .from(emailVerificationTokens)
-    .where(
-      and(
-        eq(emailVerificationTokens.tokenHash, tokenHash),
-        isNull(emailVerificationTokens.usedAt),
-        gt(emailVerificationTokens.expiresAt, new Date())
-      )
-    )
-    .limit(1);
-
-  if (!record) {
-    return null;
-  }
-
   const verifiedAt = new Date();
+  return db.transaction(async (tx) => {
+    const [record] = await tx
+      .update(emailVerificationTokens)
+      .set({ usedAt: verifiedAt })
+      .where(
+        and(
+          eq(emailVerificationTokens.tokenHash, tokenHash),
+          isNull(emailVerificationTokens.usedAt),
+          gt(emailVerificationTokens.expiresAt, verifiedAt)
+        )
+      )
+      .returning();
+    if (!record) return null;
 
-  const [user] = await db
-    .update(users)
-    .set({ emailVerifiedAt: verifiedAt, updatedAt: verifiedAt })
-    .where(eq(users.id, record.userId))
-    .returning();
-
-  await db
-    .update(emailVerificationTokens)
-    .set({ usedAt: verifiedAt })
-    .where(eq(emailVerificationTokens.id, record.id));
-
-  return user || null;
+    const [user] = await tx
+      .update(users)
+      .set({ emailVerifiedAt: verifiedAt, updatedAt: verifiedAt })
+      .where(eq(users.id, record.userId))
+      .returning();
+    return user || null;
+  });
 }

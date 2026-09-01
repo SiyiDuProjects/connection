@@ -8,6 +8,11 @@ import { createDraft, createMailtoUrl } from "./lib/email.js";
 import { errorHandler, fail, logRequest, ok, publicError, requestContext, writeLog } from "./lib/http.js";
 import {
   getBearerToken,
+  chargeAndLogApiUsage,
+  checkAccountDb,
+  claimApiRequest,
+  closeAccountDb,
+  failApiRequest,
   getAccountSummary,
   getCreditBalance,
   getOnboardingForUser,
@@ -15,14 +20,15 @@ import {
   getUserSettings,
   isAccountDbConfigured,
   logApiUsage,
-  spendCredits
+  pruneApiIdempotencyKeys
 } from "./lib/account.js";
 
 const app = express();
-const port = Number(process.env.PORT || 8787);
+const port = positiveIntegerEnv("PORT", 8787);
+let shuttingDown = false;
 const apiLimiter = createRateLimiter({
-  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000),
-  max: Number(process.env.RATE_LIMIT_MAX || 60)
+  windowMs: positiveIntegerEnv("RATE_LIMIT_WINDOW_MS", 60_000),
+  max: positiveIntegerEnv("RATE_LIMIT_MAX", 60)
 });
 
 app.use(helmet());
@@ -77,13 +83,31 @@ app.use(cors({
 app.use("/api", apiLimiter);
 app.use("/api", requireAuth);
 
-app.get("/health", (_req, res) => {
-  ok(res, {
+app.get("/live", (_req, res) => {
+  if (shuttingDown) return fail(res, 503, "Server is shutting down.");
+  return ok(res, { live: true });
+});
+
+app.get("/health", async (_req, res) => {
+  const issues = requiredConfigurationIssues();
+  if (isAccountDbConfigured()) {
+    try {
+      await checkAccountDb();
+    } catch (_error) {
+      issues.push("account_database_unavailable");
+    }
+  }
+  if (shuttingDown) issues.push("server_shutting_down");
+
+  const payload = {
+    ready: issues.length === 0,
+    issues,
     provider: providerStatus(),
     auth: {
       accountDbConfigured: isAccountDbConfigured()
     }
-  });
+  };
+  return issues.length ? res.status(503).json({ ok: false, ...payload }) : ok(res, payload);
 });
 
 app.get(["/connect-extension", "/pricing"], (req, res) => {
@@ -122,7 +146,7 @@ app.get("/api/account", async (req, res, next) => {
   }
 });
 
-app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("CONTACT_SEARCH_CREDITS", 0)), async (req, res, next) => {
+app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), requireCredits("contacts.search", creditCost("CONTACT_SEARCH_CREDITS", 0)), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
     if (!onboarding.complete) return fail(res, 428, "Complete your profile before using Reachard.", onboardingAction(onboarding));
@@ -150,15 +174,15 @@ app.post("/api/contacts/search", requireCredits("contacts.search", creditCost("C
       throw publicError("Contact search is temporarily unavailable. Try again shortly.", 503);
     });
     const ranked = rankContacts(contacts, context).slice(0, 10);
-    await chargeAndRecord(req, "contacts.search", { resultCount: ranked.length });
-    ok(res, { contacts: ranked, credits: { remaining: await getCreditBalance(req.user.id) } });
+    const completed = await chargeAndRecord(req, "contacts.search", { contacts: ranked });
+    ok(res, completed.response);
   } catch (error) {
-    await recordUsage(req, "contacts.search", 0, "error", { error: error.message }).catch(() => {});
+    await recordFailure(req, "contacts.search", error).catch(() => {});
     next(error);
   }
 });
 
-app.post("/api/contacts/reveal", requireCredits("contacts.reveal", creditCost("CONTACT_REVEAL_CREDITS", 1)), async (req, res, next) => {
+app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), requireCredits("contacts.reveal", creditCost("CONTACT_REVEAL_CREDITS", 1)), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
     if (!onboarding.complete) return fail(res, 428, "Complete your profile before using Reachard.", onboardingAction(onboarding));
@@ -179,15 +203,18 @@ app.post("/api/contacts/reveal", requireCredits("contacts.reveal", creditCost("C
       });
     }
 
-    await chargeAndRecord(req, "contacts.reveal", { provider: revealProviderName() });
-    ok(res, { email, credits: { remaining: await getCreditBalance(req.user.id) } });
+    const completed = await chargeAndRecord(req, "contacts.reveal", {
+      email,
+      provider: revealProviderName()
+    });
+    ok(res, completed.response);
   } catch (error) {
-    await recordUsage(req, "contacts.reveal", 0, "error", { error: error.message }).catch(() => {});
+    await recordFailure(req, "contacts.reveal", error).catch(() => {});
     next(error);
   }
 });
 
-app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRAFT_CREDITS", 0)), async (req, res, next) => {
+app.post("/api/email/draft", prepareIdempotentRequest("email.draft"), requireCredits("email.draft", creditCost("EMAIL_DRAFT_CREDITS", 0)), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
     if (!onboarding.complete) return fail(res, 428, "Complete your profile before using Reachard.", onboardingAction(onboarding));
@@ -202,26 +229,34 @@ app.post("/api/email/draft", requireCredits("email.draft", creditCost("EMAIL_DRA
     }
 
     const draft = await createDraft(contact, context, settings);
-    await chargeAndRecord(req, "email.draft", {
-      hasSettings: Boolean(Object.keys(settings).length),
-      ai: draft.ai
-    });
-    ok(res, {
+    const completed = await chargeAndRecord(req, "email.draft", {
       ...draft,
-      mailtoUrl: createMailtoUrl(contact.email, draft),
-      credits: { remaining: await getCreditBalance(req.user.id) }
+      mailtoUrl: createMailtoUrl(contact.email, draft)
     });
+    ok(res, completed.response);
   } catch (error) {
-    await recordUsage(req, "email.draft", 0, "error", { error: error.message }).catch(() => {});
+    await recordFailure(req, "email.draft", error).catch(() => {});
     next(error);
   }
 });
 
 app.use(errorHandler);
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Reachard server listening on http://localhost:${port}`);
 });
+const idempotencyCleanupTimer = setInterval(() => {
+  void pruneApiIdempotencyKeys().catch((error) => {
+    writeLog("warn", "idempotency.cleanup_failed", { error: error.message });
+  });
+}, 6 * 60 * 60 * 1000);
+idempotencyCleanupTimer.unref();
+
+for (const signal of ["SIGTERM", "SIGINT"]) {
+  process.once(signal, () => {
+    void shutdown(signal);
+  });
+}
 
 function createRateLimiter({ windowMs, max }) {
   const buckets = new Map();
@@ -266,6 +301,12 @@ function requireCredits(action, amount) {
     try {
       const balance = await getCreditBalance(req.user.id);
       if (balance < amount) {
+        await failApiRequest({
+          userId: req.user.id,
+          action,
+          idempotencyKey: req.idempotencyKey,
+          error: "insufficient_credits"
+        });
         return fail(res, 402, "No Contact Kits left", {
           action: { label: "Open pricing", url: `${getWebRedirectBaseUrl()}/pricing` },
           credits: { remaining: balance, required: amount }
@@ -280,13 +321,43 @@ function requireCredits(action, amount) {
   };
 }
 
+function prepareIdempotentRequest(action) {
+  return async (req, res, next) => {
+    try {
+      const suppliedKey = String(req.get("idempotency-key") || "").trim();
+      if (suppliedKey && (!/^[A-Za-z0-9._:-]+$/.test(suppliedKey) || suppliedKey.length > 120)) {
+        return fail(res, 400, "Invalid Idempotency-Key header.");
+      }
+
+      req.idempotencyKey = suppliedKey || req.requestId;
+      const claim = await claimApiRequest({
+        userId: req.user.id,
+        action,
+        idempotencyKey: req.idempotencyKey
+      });
+      if (claim.status === "replay") {
+        return ok(res, { ...(claim.response || {}), idempotentReplay: true });
+      }
+      if (claim.status === "processing") {
+        res.setHeader("Retry-After", "2");
+        return fail(res, 409, "This request is already being processed.");
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
 async function chargeAndRecord(req, action, response) {
   const charge = req.creditCharge || { action, amount: 0 };
-  const result = await spendCredits({
+  const result = await chargeAndLogApiUsage({
     userId: req.user.id,
     amount: charge.amount,
     action,
-    metadata: summarizeRequest(req)
+    idempotencyKey: req.idempotencyKey,
+    request: summarizeRequest(req),
+    response
   });
 
   if (!result?.ok) {
@@ -296,7 +367,7 @@ async function chargeAndRecord(req, action, response) {
     });
   }
 
-  await recordUsage(req, action, charge.amount, "success", response);
+  return result;
 }
 
 async function recordUsage(req, action, credits, status, response) {
@@ -304,11 +375,25 @@ async function recordUsage(req, action, credits, status, response) {
   await logApiUsage({
     userId: req.user.id,
     action,
+    requestId: req.idempotencyKey,
     credits,
     status,
     request: summarizeRequest(req),
     response
   });
+}
+
+async function recordFailure(req, action, error) {
+  if (!req.user?.id) return;
+  await Promise.all([
+    failApiRequest({
+      userId: req.user.id,
+      action,
+      idempotencyKey: req.idempotencyKey,
+      error: error?.message || error
+    }),
+    recordUsage(req, action, 0, "error", { error: error?.message || String(error) })
+  ]);
 }
 
 function summarizeRequest(req) {
@@ -319,18 +404,28 @@ function summarizeRequest(req) {
     companyName: context.companyName,
     companyDomain: context.companyDomain,
     jobTitle: context.jobTitle,
-    targetRole: context.targetRole,
     contactProvider: body.contact?.provider,
     contactId: body.contact?.id || body.contact?.linkedinUrl
   };
 }
 
 function creditCost(name, fallback) {
-  return Math.max(0, Number(process.env[name] || fallback));
+  const parsed = Number(process.env[name] ?? fallback);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${name} must be a non-negative number.`);
+  }
+  return parsed;
+}
+
+function positiveIntegerEnv(name, fallback) {
+  const parsed = Number(process.env[name] ?? fallback);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+  return parsed;
 }
 
 function normalizeContext(input, settings = {}) {
-  const targetRole = clean(settings.target_role || settings.targetRole);
   const jobTitle = clean(input?.jobTitle);
   const sourceUrl = clean(input?.sourceUrl || input?.jobUrl);
   const type = clean(input?.type || "linkedin_job");
@@ -341,9 +436,9 @@ function normalizeContext(input, settings = {}) {
     source: clean(input?.source),
     companyName: clean(input?.companyName),
     companyDomain: cleanDomain(input?.companyDomain),
-    jobTitle: jobTitle || targetRole,
+    companyLinkedInUrl: clean(input?.companyLinkedInUrl),
+    jobTitle,
     originalJobTitle: jobTitle,
-    targetRole,
     searchPreferences,
     jobLocation: clean(input?.jobLocation) || (companyContext ? searchPreferences.region.label : ""),
     jobUrl: sourceUrl,
@@ -391,7 +486,7 @@ function normalizeLinkedinProfileUrl(value) {
 function revealProviderName() {
   if (String(process.env.APOLLO_MOCK || "").toLowerCase() === "true") return "mock";
   const provider = String(process.env.CONTACT_PROVIDER || "apollo").toLowerCase();
-  return provider === "rapidapi" ? "apollo" : provider;
+  return provider === "rapidapi" ? "hunter" : provider;
 }
 
 function onboardingAction(onboarding) {
@@ -469,7 +564,50 @@ function providerStatus() {
     contactProvider,
     apolloMock: String(process.env.APOLLO_MOCK || "").toLowerCase() === "true",
     hasApolloKey: Boolean(process.env.APOLLO_API_KEY),
+    hasHunterKey: Boolean(process.env.HUNTER_API_KEY),
     hasExploriumKey: Boolean(process.env.EXPLORIUM_API_KEY),
     hasRapidApiKey: Boolean(process.env.RAPIDAPI_KEY)
   };
+}
+
+function requiredConfigurationIssues() {
+  const status = providerStatus();
+  const issues = [];
+  if (!isAccountDbConfigured()) issues.push("account_database_not_configured");
+  if (status.contactProvider === "rapidapi" && !status.hasRapidApiKey) {
+    issues.push("rapidapi_key_missing");
+  }
+  if (status.contactProvider === "rapidapi" && !status.apolloMock && !status.hasHunterKey) {
+    issues.push("hunter_key_missing");
+  }
+  if (status.contactProvider === "apollo" && !status.apolloMock && !status.hasApolloKey) {
+    issues.push("apollo_key_missing");
+  }
+  if (status.contactProvider === "explorium" && !status.hasExploriumKey) {
+    issues.push("explorium_key_missing");
+  }
+  return issues;
+}
+
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  clearInterval(idempotencyCleanupTimer);
+  writeLog("info", "server.shutdown_started", { signal });
+  const forceTimer = setTimeout(() => process.exit(1), 10_000);
+  forceTimer.unref();
+
+  server.close(async (error) => {
+    try {
+      await closeAccountDb();
+    } finally {
+      clearTimeout(forceTimer);
+      if (error) {
+        writeLog("error", "server.shutdown_failed", { signal, error: error.message });
+        process.exit(1);
+      }
+      writeLog("info", "server.shutdown_completed", { signal });
+      process.exit(0);
+    }
+  });
 }

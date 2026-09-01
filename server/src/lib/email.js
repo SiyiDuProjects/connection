@@ -46,12 +46,12 @@ function createTemplateDraft(contact, job, settings = {}) {
   const firstName = String(contact.name || "").split(" ")[0] || "there";
   const titleLine = contact.title ? `I saw your work as ${articleFor(contact.title)} ${contact.title} at ${company}.` : `I came across your profile at ${company}.`;
   const preferences = settings.default_search_preferences || settings.defaultSearchPreferences || {};
-  const targetRole = job.originalJobTitle || job.jobTitle || job.targetRole;
+  const roleTitle = job.originalJobTitle || job.jobTitle;
   const hasJobPosting = isJobPageContext(job);
-  const jobLine = hasJobPosting && targetRole
-    ? `I'm interested in the posted ${targetRole} role`
-    : targetRole
-      ? `I'm exploring ${targetRole} opportunities at ${company}`
+  const jobLine = hasJobPosting && roleTitle
+    ? `I'm interested in the posted ${roleTitle} role`
+    : roleTitle
+      ? `I'm exploring ${roleTitle} opportunities at ${company}`
       : `I'm exploring opportunities at ${company}`;
   const senderProfile = settings.sender_profile || settings.senderProfile || introProfile(settings);
   const toneLine = toneSentence(settings.email_tone || settings.emailTone);
@@ -188,7 +188,6 @@ function buildAiInput(contact, job, settings) {
       companyName: job.companyName || contact.companyName || "",
       jobTitle: job.jobTitle || "",
       originalJobTitle: job.originalJobTitle || "",
-      targetRole: job.targetRole || "",
       hasJobPosting: isJobPageContext(job),
       jobLocation: job.jobLocation || "",
       jobUrl: job.jobUrl || "",
