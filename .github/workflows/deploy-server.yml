@@ -84,7 +84,7 @@ jobs:
         run: |
           test -n "$DEPLOY_PATH"
           ROLLBACK_PATH="${DEPLOY_PATH}.rollback.${GITHUB_RUN_ID}"
-          ssh deploy-server "if test -d '$DEPLOY_PATH'; then cp -a '$DEPLOY_PATH' '$ROLLBACK_PATH'; fi"
+          ssh deploy-server "if test -d '$DEPLOY_PATH'; then sudo cp -a '$DEPLOY_PATH' '$ROLLBACK_PATH'; fi"
           echo "ROLLBACK_PATH=$ROLLBACK_PATH" >> "$GITHUB_ENV"
 
       - name: Sync server files
@@ -92,8 +92,10 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
           test -n "$DEPLOY_PATH"
-          ssh deploy-server "mkdir -p '$DEPLOY_PATH'"
+          ssh deploy-server "sudo mkdir -p '$DEPLOY_PATH'"
           rsync -az --delete \
+            --no-owner --no-group --no-perms \
+            --rsync-path='sudo rsync' \
             --exclude '.env' \
             --exclude '.env.*' \
             --exclude 'node_modules' \
@@ -141,7 +143,7 @@ jobs:
             "$DEPLOY_PATH".rollback.*) ;;
             *) echo "Unsafe rollback path" >&2; exit 1 ;;
           esac
-          rsync -a --delete --exclude '.env' --exclude '.env.*' "$ROLLBACK_PATH"/ "$DEPLOY_PATH"/
+          sudo rsync -a --delete --exclude '.env' --exclude '.env.*' "$ROLLBACK_PATH"/ "$DEPLOY_PATH"/
           cd "$COMPOSE_PATH"
           sudo docker compose build connection_contacts
           sudo docker compose up -d --no-build --force-recreate --remove-orphans connection_contacts
@@ -157,7 +159,7 @@ jobs:
           ssh deploy-server "DEPLOY_PATH='$DEPLOY_PATH' ROLLBACK_PATH='$ROLLBACK_PATH' bash -s" <<'REMOTE'
           set -euo pipefail
           case "$ROLLBACK_PATH" in
-            "$DEPLOY_PATH".rollback.*) rm -rf -- "$ROLLBACK_PATH" ;;
+            "$DEPLOY_PATH".rollback.*) sudo rm -rf -- "$ROLLBACK_PATH" ;;
             *) echo "Unsafe rollback path" >&2; exit 1 ;;
           esac
           REMOTE
