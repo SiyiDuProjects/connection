@@ -12,7 +12,6 @@ type OnboardingValues = {
   name: string;
   region: string;
   school: string;
-  targetRole: string;
   senderProfile: string;
   resumeContext: string;
   resumeFileName: string;
@@ -286,9 +285,6 @@ export function OnboardingClient({
 
             <div className={cn(sectionDivider, 'space-y-3')}>
               <h2 className="text-[21px] font-semibold leading-6 text-[#1d1d1f]">Outreach</h2>
-              <Field label="Target roles" required>
-                <Input value={values.targetRole} onChange={(event) => update('targetRole', event.target.value)} placeholder="Target roles" className={controlClass} />
-              </Field>
               <Field label="Extra style notes">
                 <textarea
                   value={values.outreachStyleNotes}
@@ -404,7 +400,6 @@ function validate(values: OnboardingValues) {
   const name = splitName(values.name);
   if (!name.first || !name.last) missing.push('name');
   if (!values.school.trim()) missing.push('school');
-  if (!values.targetRole.trim()) missing.push('targetRole');
   if (!values.senderProfile.trim() && !values.resumeContext.trim()) missing.push('background');
   return missing;
 }

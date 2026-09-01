@@ -28,7 +28,6 @@ export default async function OnboardingPage({
         name: user.name || '',
         region: settings?.region || '',
         school: settings?.school || '',
-        targetRole: settings?.targetRole || '',
         senderProfile: settings?.senderProfile || '',
         resumeContext: settings?.resumeContext || '',
         resumeFileName: settings?.resumeFileName || '',
