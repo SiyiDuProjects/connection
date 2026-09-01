@@ -6,7 +6,7 @@ import { normalizeLanguage } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Reachard',
-  description: 'Find company contacts from LinkedIn job pages.'
+  description: 'Open a job post, identify the people worth contacting, and draft thoughtful outreach.'
 };
 
 export const viewport: Viewport = {

@@ -1,4 +1,4 @@
-const DEFAULT_OPENAI_BASE_URL = "https://reachard.studio";
+const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com";
 
 export async function createDraft(contact, job, settings = {}) {
   const fallback = createTemplateDraft(contact, job, settings);
@@ -46,8 +46,13 @@ function createTemplateDraft(contact, job, settings = {}) {
   const firstName = String(contact.name || "").split(" ")[0] || "there";
   const titleLine = contact.title ? `I saw your work as ${articleFor(contact.title)} ${contact.title} at ${company}.` : `I came across your profile at ${company}.`;
   const preferences = settings.default_search_preferences || settings.defaultSearchPreferences || {};
-  const targetRole = job.jobTitle;
-  const jobLine = targetRole ? `I'm interested in the ${targetRole} role` : `I'm interested in opportunities`;
+  const targetRole = job.originalJobTitle || job.jobTitle || job.targetRole;
+  const hasJobPosting = isJobPageContext(job);
+  const jobLine = hasJobPosting && targetRole
+    ? `I'm interested in the posted ${targetRole} role`
+    : targetRole
+      ? `I'm exploring ${targetRole} opportunities at ${company}`
+      : `I'm exploring opportunities at ${company}`;
   const senderProfile = settings.sender_profile || settings.senderProfile || introProfile(settings);
   const toneLine = toneSentence(settings.email_tone || settings.emailTone);
   const contactPerspective = contactRoleLabel(preferences.contactRole || preferences.contact_role || preferences.seniority);
@@ -152,6 +157,8 @@ function aiInstructions() {
     "Do not invent work experience, degrees, referrals, prior conversations, or personal relationships.",
     "Do not claim the contact can refer the sender. Ask for advice, a brief chat, or the right recruiting contact.",
     "Treat saved sender profile data as stable personal context. Treat company, role intent, job description, selected profile, and contact data as page-specific context.",
+    "For linkedin_job or external_job context, refer to the specific posted role when present.",
+    "For linkedin_company or company_site context, describe the sender as exploring opportunities in the saved target area; never imply that a specific opening exists.",
     "Respect sender.outreachLength, sender.outreachGoal, and sender.outreachStyleNotes as style controls only; do not quote style notes verbatim.",
     "If the context is a LinkedIn people profile, write to that one person and do not imply a job posting exists unless one was provided.",
     "If job title or job description is missing, still write a usable email and list the missing fields in missingContext.",
@@ -180,7 +187,9 @@ function buildAiInput(contact, job, settings) {
       type: job.type || "",
       companyName: job.companyName || contact.companyName || "",
       jobTitle: job.jobTitle || "",
+      originalJobTitle: job.originalJobTitle || "",
       targetRole: job.targetRole || "",
+      hasJobPosting: isJobPageContext(job),
       jobLocation: job.jobLocation || "",
       jobUrl: job.jobUrl || "",
       sourceUrl: job.sourceUrl || job.jobUrl || "",
@@ -278,6 +287,10 @@ function missingContext(job, settings) {
   return missing;
 }
 
+function isJobPageContext(job = {}) {
+  return ["linkedin_job", "external_job"].includes(String(job.type || "")) && Boolean(job.originalJobTitle || job.jobTitle);
+}
+
 function introProfile(settings = {}) {
   const school = settings.school ? ` at ${settings.school}` : "";
   const style = String(settings.intro_style || settings.introStyle || "student");
@@ -310,7 +323,7 @@ function truncate(value, maxLength) {
 }
 
 function openAiModel() {
-  return process.env.OPENAI_MODEL || "gpt-5.4-mini";
+  return process.env.OPENAI_MODEL || "gpt-5.6-luna";
 }
 
 function goalSentence(value) {

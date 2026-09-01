@@ -51,13 +51,16 @@ export async function revealExploriumEmail(contact) {
 }
 
 async function exploriumPost(path, payload, options = {}) {
-  const response = await fetch(`${EXPLORIUM_BASE_URL}${path}`, {
+  const response = await fetchWithTimeout(`${EXPLORIUM_BASE_URL}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "api_key": process.env.EXPLORIUM_API_KEY
     },
     body: JSON.stringify(payload)
+  }, {
+    provider: "explorium",
+    timeoutMs: process.env.EXPLORIUM_TIMEOUT_MS || 15_000
   });
 
   const data = await response.json().catch(() => ({}));
@@ -298,3 +301,4 @@ function requireExploriumKey() {
     throw error;
   }
 }
+import { fetchWithTimeout } from "./http.js";

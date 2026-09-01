@@ -6,14 +6,14 @@ const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connectio
 const SESSION_EXPIRED_ERROR = "Session expired. Sign in again.";
 
 chrome.runtime.onInstalled.addListener((details) => {
+  migrateSensitiveStorage().catch(() => {});
   if (details?.reason === "install") {
     openInstallConnectPage();
   }
-  refreshSupportedTabs();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  refreshSupportedTabs();
+  migrateSensitiveStorage().catch(() => {});
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -29,30 +29,6 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     .catch((error) => sendResponse({ ok: false, error: error.message || "Unexpected error" }));
   return true;
 });
-
-async function refreshSupportedTabs() {
-  try {
-    const tabs = await chrome.tabs.query({ url: SUPPORTED_URLS });
-    await Promise.allSettled(tabs.map(injectIntoTab));
-  } catch (error) {
-    console.warn("Could not refresh supported content scripts", error);
-  }
-}
-
-async function injectIntoTab(tab) {
-  if (!tab.id) return;
-  if (isReachardWebsiteUrl(tab.url)) return;
-
-  await chrome.scripting.insertCSS({
-    target: { tabId: tab.id },
-    files: ["content.css"]
-  });
-
-  await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    files: ["content.js"]
-  });
-}
 
 async function handleMessage(message, sender) {
   switch (message?.type) {
@@ -130,7 +106,10 @@ async function connectExtensionSession(message, sender) {
   const webBaseUrl = normalizeWebBaseUrl(message.webBaseUrl);
   const apiBaseUrl = normalizeApiBaseUrl(message.apiBaseUrl, webBaseUrl);
   const extensionLanguage = normalizeLanguage(message.language);
-  await chrome.storage.sync.set({ extensionApiToken: token, apiBaseUrl, webBaseUrl, extensionLanguage });
+  await Promise.all([
+    chrome.storage.local.set({ extensionApiToken: token }),
+    chrome.storage.sync.set({ apiBaseUrl, webBaseUrl, extensionLanguage })
+  ]);
   await notifySupportedTabsAccountUpdated();
   await returnToSourceTab(message.returnTo, sender);
   return { ok: true };
@@ -150,9 +129,32 @@ async function clearExtensionSession(sender, options = {}) {
     return { ok: false, error: "Website origin is not allowed." };
   }
 
-  await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
+  await removeSensitiveSession();
   await notifySupportedTabsAccountUpdated();
   return { ok: true };
+}
+
+async function migrateSensitiveStorage() {
+  const [legacy, current] = await Promise.all([
+    chrome.storage.sync.get(["extensionApiToken", "accountStatus"]),
+    chrome.storage.local.get(["extensionApiToken", "accountStatus"])
+  ]);
+  const sensitive = {};
+  if (legacy.extensionApiToken && !current.extensionApiToken) {
+    sensitive.extensionApiToken = legacy.extensionApiToken;
+  }
+  if (legacy.accountStatus && !current.accountStatus) {
+    sensitive.accountStatus = legacy.accountStatus;
+  }
+  if (Object.keys(sensitive).length) await chrome.storage.local.set(sensitive);
+  await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
+}
+
+async function removeSensitiveSession() {
+  await Promise.all([
+    chrome.storage.local.remove(["extensionApiToken", "accountStatus"]),
+    chrome.storage.sync.remove(["extensionApiToken", "accountStatus"])
+  ]);
 }
 
 async function returnToSourceTab(value, sender) {
@@ -174,7 +176,7 @@ async function notifySupportedTabsAccountUpdated() {
       try {
         await chrome.tabs.sendMessage(tab.id, { type: "ACCOUNT_AUTH_UPDATED" });
       } catch (_error) {
-        await injectIntoTab(tab);
+        // The content script is not active in every matching tab yet.
       }
     }));
   } catch (error) {
@@ -188,28 +190,9 @@ function isAllowedWebsite(url) {
     "https://reachard.co",
     "https://www.reachard.co",
     "https://contacts.reachard.co",
-    "https://reachard.studio",
-    "https://www.reachard.studio",
-    "https://contacts.reachard.studio",
     "http://localhost:3000",
     "http://127.0.0.1:3000"
   ].includes(origin);
-}
-
-function isReachardWebsiteUrl(value) {
-  if (!value) return false;
-
-  try {
-    const url = new URL(value);
-    const host = url.hostname.replace(/^www\./i, "").toLowerCase();
-    return host === "reachard.co"
-      || host === "contacts.reachard.co"
-      || host === "reachard.studio"
-      || host === "contacts.reachard.studio"
-      || ((host === "localhost" || host === "127.0.0.1") && url.port === "3000");
-  } catch (_error) {
-    return false;
-  }
 }
 
 async function getApiBaseUrl() {
@@ -236,7 +219,6 @@ function normalizeWebBaseUrl(value) {
   if (!url) return DEFAULT_WEB_BASE_URL;
   if (url === DEFAULT_API_BASE_URL) return DEFAULT_WEB_BASE_URL;
   if (url.includes("contacts.reachard.co")) return DEFAULT_WEB_BASE_URL;
-  if (url.includes("contacts.reachard.studio")) return DEFAULT_WEB_BASE_URL;
   return url;
 }
 
@@ -249,9 +231,6 @@ function normalizeApiBaseUrl(value, webBaseUrl) {
     return DEFAULT_API_BASE_URL;
   }
   if (url.includes("reachard.co") && !url.includes("contacts.reachard.co")) {
-    return DEFAULT_API_BASE_URL;
-  }
-  if (url.includes("reachard.studio") && !url.includes("contacts.reachard.studio")) {
     return DEFAULT_API_BASE_URL;
   }
   return url;
@@ -273,7 +252,7 @@ async function getAccountStatus(sender) {
   const payload = await safeJson(response);
   if (!response.ok) {
     if (response.status === 401) {
-      await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
+      await removeSensitiveSession();
       return { ok: false, status: 401, error: SESSION_EXPIRED_ERROR, action: await loginAction(sender) };
     }
 
@@ -284,7 +263,7 @@ async function getAccountStatus(sender) {
     return { ok: false, status: response.status, error, action };
   }
 
-  await chrome.storage.sync.set({ accountStatus: payload });
+  await chrome.storage.local.set({ accountStatus: payload });
   return { ok: true, account: payload };
 }
 
@@ -310,7 +289,7 @@ async function postJson(path, body, sender) {
   const payload = await safeJson(response);
   if (!response.ok) {
     if (response.status === 401) {
-      await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
+      await removeSensitiveSession();
     }
     const action = payload.action || (response.status === 401
       ? await loginAction(sender)
@@ -336,8 +315,11 @@ async function postJson(path, body, sender) {
 }
 
 async function getExtensionApiToken() {
-  const stored = await chrome.storage.sync.get(["extensionApiToken"]);
-  return String(stored.extensionApiToken || "").trim();
+  const stored = await chrome.storage.local.get(["extensionApiToken"]);
+  if (stored.extensionApiToken) return String(stored.extensionApiToken).trim();
+  await migrateSensitiveStorage();
+  const migrated = await chrome.storage.local.get(["extensionApiToken"]);
+  return String(migrated.extensionApiToken || "").trim();
 }
 
 async function getEmailCustomize(sender) {
@@ -385,7 +367,7 @@ async function webJson(path, options, sender) {
   const payload = await safeJson(response);
   if (!response.ok) {
     if (response.status === 401) {
-      await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
+      await removeSensitiveSession();
     }
     return {
       ok: false,
@@ -417,7 +399,7 @@ async function notifySupportedTabsLanguageUpdated(language) {
       try {
         await chrome.tabs.sendMessage(tab.id, { type: "LANGUAGE_UPDATED", language });
       } catch (_error) {
-        await injectIntoTab(tab);
+        // The content script is not active in every matching tab yet.
       }
     }));
   } catch (error) {

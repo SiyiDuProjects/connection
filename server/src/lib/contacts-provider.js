@@ -19,11 +19,6 @@ export function searchContacts(job) {
 }
 
 export function revealEmail(contact) {
-  if (contact.provider === "mock") return revealMockEmail(contact);
-  if (contact.provider === "explorium") return revealExploriumEmail(contact);
-  if (contact.provider === "apollo") return revealApolloEmail(contact);
-  if (contact.provider === "rapidapi") return revealRapidApiEmail(contact);
-
   switch (providerName()) {
     case "mock":
       return revealMockEmail(contact);

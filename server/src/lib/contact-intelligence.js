@@ -15,13 +15,13 @@ import {
 } from "./contact-taxonomy.js";
 
 const WEIGHTS = Object.freeze({
-  roleFit: 35,
-  seniorityFit: 20,
+  roleFit: 30,
+  seniorityFit: 25,
   teamFit: 15,
   companyFit: 10,
-  evidenceFit: 10,
-  dataQuality: 5,
-  freshness: 5
+  alumniFit: 10,
+  locationFit: 5,
+  dataQuality: 5
 });
 
 export function buildPeopleSearchPlan(job = {}) {
@@ -70,8 +70,7 @@ export function normalizeContactForScoring(contact = {}, job = {}) {
     contact.company_name,
     contact.current_company_name,
     contact.organization_name,
-    organization.name,
-    job.companyName
+    organization.name
   );
   const companyDomain = cleanDomain(firstString(
     contact.companyDomain,
@@ -79,8 +78,7 @@ export function normalizeContactForScoring(contact = {}, job = {}) {
     contact.domain,
     organization.primary_domain,
     organization.website_url,
-    organization.domain,
-    job.companyDomain
+    organization.domain
   ));
   const location = firstString(
     contact.location,
@@ -112,6 +110,7 @@ export function normalizeContactForScoring(contact = {}, job = {}) {
     linkedinUrl,
     email: firstString(contact.email),
     emailStatus: firstString(contact.emailStatus, contact.email_status, contact.professional_email_status),
+    metadata: contact.metadata && typeof contact.metadata === "object" ? contact.metadata : {},
     normalizedFunction: inferFunction(title),
     normalizedSeniority: inferSeniority(title),
     inferredTeam: inferTeam(
@@ -148,12 +147,12 @@ export function scoreCandidate(contact = {}, job = {}) {
   const roleFit = scoreRoleFit(normalized, targetFunction, job, reasons, warnings);
   const seniorityFit = scoreSeniorityFit(normalized, targetSeniority, targetFunction, reasons);
   const teamFit = scoreTeamFit(normalized, targetTeam, reasons, warnings);
+  const alumniFit = scoreAlumniFit(normalized, job, reasons);
   const companyFit = scoreCompanyFit(normalized, job, reasons);
-  const evidenceFit = scoreEvidenceFit(normalized, reasons);
+  const locationFit = scoreLocationFit(normalized, job, reasons);
   const dataQuality = scoreDataQuality(normalized);
-  const freshness = scoreFreshness(normalized, job, reasons);
 
-  const dimensions = { roleFit, seniorityFit, teamFit, companyFit, evidenceFit, dataQuality, freshness };
+  const dimensions = { roleFit, seniorityFit, teamFit, companyFit, alumniFit, locationFit, dataQuality };
   const matchScore = clamp(Math.round(Object.entries(dimensions).reduce((total, [key, value]) => {
     return total + (value * WEIGHTS[key]);
   }, 0)), 0, 100);
@@ -169,9 +168,9 @@ export function scoreCandidate(contact = {}, job = {}) {
       seniorityFit: Math.round(seniorityFit * WEIGHTS.seniorityFit),
       teamFit: Math.round(teamFit * WEIGHTS.teamFit),
       companyFit: Math.round(companyFit * WEIGHTS.companyFit),
-      evidenceFit: Math.round(evidenceFit * WEIGHTS.evidenceFit),
-      dataQuality: Math.round(dataQuality * WEIGHTS.dataQuality),
-      freshness: Math.round(freshness * WEIGHTS.freshness)
+      alumniFit: Math.round(alumniFit * WEIGHTS.alumniFit),
+      locationFit: Math.round(locationFit * WEIGHTS.locationFit),
+      dataQuality: Math.round(dataQuality * WEIGHTS.dataQuality)
     },
     normalizedTarget: {
       function: targetFunction,
@@ -229,6 +228,12 @@ function scoreRoleFit(contact, targetFunction, job, reasons, warnings) {
 function scoreSeniorityFit(contact, targetSeniority, targetFunction, reasons) {
   const seniority = contact.normalizedSeniority;
   if (seniority === SENIORITIES.UNKNOWN) return 0.2;
+  if (contact.normalizedFunction === FUNCTIONS.RECRUITING) {
+    reasons.push("Hiring-side recruiting contact");
+    return [SENIORITIES.SENIOR_IC, SENIORITIES.MANAGER, SENIORITIES.DIRECTOR, SENIORITIES.HEAD, SENIORITIES.VP].includes(seniority)
+      ? 0.95
+      : 0.7;
+  }
   if (targetFunction === FUNCTIONS.RECRUITING && [SENIORITIES.SENIOR_IC, SENIORITIES.MANAGER, SENIORITIES.DIRECTOR, SENIORITIES.HEAD].includes(seniority)) {
     reasons.push(`${readableSeniority(seniority)} fit`);
     return 1;
@@ -244,6 +249,13 @@ function scoreSeniorityFit(contact, targetSeniority, targetFunction, reasons) {
 }
 
 function scoreTeamFit(contact, targetTeam, reasons, warnings) {
+  if (contact.normalizedFunction === FUNCTIONS.RECRUITING) {
+    if (/technical|engineering|data|product|design|university|campus/i.test(contact.title)) {
+      reasons.push("Relevant recruiting path");
+      return 0.8;
+    }
+    return 0.55;
+  }
   if (!targetTeam) return contact.inferredTeam ? 0.6 : 0.35;
   if (contact.inferredTeam === targetTeam) {
     reasons.push(`Likely ${targetTeam} team`);
@@ -254,6 +266,40 @@ function scoreTeamFit(contact, targetTeam, reasons, warnings) {
     return 0.45;
   }
   warnings.push("Team unavailable");
+  return 0.2;
+}
+
+function scoreAlumniFit(contact, job, reasons) {
+  const preferredSchool = firstString(
+    job.searchPreferences?.school?.label,
+    job.school
+  );
+  if (!preferredSchool) return 0.5;
+
+  if (contact.metadata?.alumniMatched || schoolsMatch(contact.education, preferredSchool)) {
+    reasons.push(`Alumni connection: ${preferredSchool}`);
+    return 1;
+  }
+  return contact.education ? 0.1 : 0.35;
+}
+
+function scoreLocationFit(contact, job, reasons) {
+  const preferredLocation = firstString(
+    job.jobLocation,
+    job.searchPreferences?.region?.label
+  );
+  if (!preferredLocation) return 0.5;
+  if (!contact.location) return 0.35;
+
+  const contactLocation = normalizeLocation(contact.location);
+  const matches = locationTerms(preferredLocation)
+    .map(normalizeLocation)
+    .filter(Boolean)
+    .some((location) => contactLocation.includes(location) || location.includes(contactLocation));
+  if (matches) {
+    reasons.push("Location connection");
+    return 1;
+  }
   return 0.2;
 }
 
@@ -268,19 +314,12 @@ function scoreCompanyFit(contact, job, reasons) {
     reasons.push("Company match");
     return 0.85;
   }
+  if (contact.metadata?.companySearchRestricted) {
+    reasons.push("Matched the provider's current-company filter");
+    return 0.72;
+  }
   if (contact.companyName || contact.companyDomain) return 0.45;
   return 0.1;
-}
-
-function scoreEvidenceFit(contact, reasons) {
-  let count = 0;
-  if (contact.linkedinUrl) count += 1;
-  if (contact.emailStatus) count += 1;
-  if (contact.education) count += 1;
-  if (contact.location) count += 1;
-  if (contact.providerId) count += 1;
-  if (count >= 4) reasons.push("Strong profile evidence");
-  return Math.min(1, count / 5);
 }
 
 function scoreDataQuality(contact) {
@@ -288,18 +327,39 @@ function scoreDataQuality(contact) {
   if (contact.name) count += 1;
   if (contact.title) count += 1;
   if (contact.companyName || contact.companyDomain) count += 1;
-  if (contact.emailStatus && !/invalid|unavailable/i.test(contact.emailStatus)) count += 1;
-  if (contact.providerId || contact.linkedinUrl) count += 1;
+  if (contact.location || contact.education) count += 1;
+  if (contact.linkedinUrl) count += 1;
   return Math.min(1, count / 5);
 }
 
-function scoreFreshness(contact, job, reasons) {
-  if (!job.jobTitle && !job.jobDescription && !job.companyName && !job.companyDomain) return 0.25;
-  if (contact.companyName || contact.companyDomain) {
-    reasons.push("Current company context");
-    return 0.8;
-  }
-  return 0.35;
+function schoolsMatch(education, preferredSchool) {
+  const actual = normalizeSchool(education);
+  const preferred = normalizeSchool(preferredSchool);
+  if (!actual || !preferred) return false;
+  if (actual.includes(preferred) || preferred.includes(actual)) return true;
+
+  const actualTokens = new Set(actual.split(" ").filter((token) => token.length > 2));
+  const preferredTokens = preferred.split(" ").filter((token) => token.length > 2);
+  if (!preferredTokens.length) return false;
+  return preferredTokens.filter((token) => actualTokens.has(token)).length / preferredTokens.length >= 0.75;
+}
+
+function normalizeSchool(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/university of california[,\s-]*berkeley/g, "uc berkeley")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\b(the|university|college|school|of|at)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeLocation(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function isTechnicalLeadershipTarget(targetFunction, job) {

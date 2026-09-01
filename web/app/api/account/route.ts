@@ -1,5 +1,6 @@
 import { getActiveExtensionTokenInfo, getCreditBalance, getRecentUsage, getSettings, getTeamForUser, getUser } from '@/lib/db/queries';
 import { getOnboardingStatus } from '@/lib/onboarding';
+import { toPublicUser } from '@/lib/auth/public-user';
 
 export async function GET() {
   const user = await getUser();
@@ -27,7 +28,7 @@ export async function GET() {
 
   return Response.json({
     ok: true,
-    user,
+    user: toPublicUser(user),
     credits: {
       balance,
       remaining: balance,

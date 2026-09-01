@@ -11,9 +11,9 @@ This file is a working inventory for the `connection` project. Do not put secret
 | Git repository | Organization-owned `connection` repo | GitHub | Transfer confirmed by owner; local remote needs update | Source of truth for `extension/`, `server/`, and `web/`. |
 | Web app | `web/` | Vercel recommended | Needs dashboard confirmation | Next.js SaaS app. Deploy root should be `web`. |
 | Contacts API | `server/` | VPS + Docker Compose | Needs VPS confirmation | Express API, expected local port `8787`. |
-| Browser extension | `extension/` | Chrome unpacked / Chrome Web Store later | Local confirmed | Defaults to `https://contacts.reachard.studio` API and `https://reachard.studio` web app. |
-| Production website domain | `reachard.studio` / `www.reachard.studio` | DNS provider needs confirmation | Referenced in code | Used by extension host permissions and default web URL. |
-| Production API domain | `contacts.reachard.studio` | Cloudflare Tunnel expected | Referenced in code | Used by extension default API URL and CI health check docs. |
+| Browser extension | `extension/` | Chrome unpacked / Chrome Web Store later | Local confirmed | Defaults to `https://contacts.reachard.co` API and `https://reachard.co` web app. |
+| Production website domain | `reachard.co` / `www.reachard.co` | DNS provider needs confirmation | Referenced in code | Used by extension host permissions and default web URL. |
+| Production API domain | `contacts.reachard.co` | Cloudflare Tunnel expected | Referenced in code | Used by extension default API URL and CI health check docs. |
 | Database | Neon Postgres | Neon | Local env detected | Shared by `web/` and `server/`. Rotate credentials if local `.env` was shared or committed anywhere. |
 | Billing | Stripe | Stripe | Needs dashboard confirmation | `web/` expects Stripe secret and webhook secret. |
 | Contact provider | Explorium or Apollo | Explorium / Apollo | Needs production confirmation | Docs recommend Explorium. Local env contains an Apollo key, so rotate it if exposed. |
@@ -23,14 +23,14 @@ This file is a working inventory for the `connection` project. Do not put secret
 
 ```text
 User
--> https://reachard.studio
+-> https://reachard.co
 -> Vercel project for web/
 -> Neon Postgres
 ```
 
 ```text
 Chrome Extension on LinkedIn
--> https://contacts.reachard.studio
+-> https://contacts.reachard.co
 -> Cloudflare Tunnel public hostname
 -> VPS localhost:8787
 -> Docker Compose service connection_contacts
@@ -48,12 +48,15 @@ Chrome Extension on LinkedIn
 | `POSTGRES_URL` | Yes | Vercel project env | Same Neon database as server. |
 | `STRIPE_SECRET_KEY` | Yes | Vercel project env | Use live key only for production. |
 | `STRIPE_WEBHOOK_SECRET` | Yes | Vercel project env | Must match the Stripe webhook endpoint. |
-| `BASE_URL` | Yes | Vercel project env | Production should be `https://reachard.studio` or the final canonical web domain. |
+| `BASE_URL` | Yes | Vercel project env | Production should be `https://reachard.co`. |
 | `NEXT_PUBLIC_WEB_BASE_URL` | Yes | Vercel project env | Should match `BASE_URL`. |
-| `NEXT_PUBLIC_API_BASE_URL` | Yes | Vercel project env | Expected `https://contacts.reachard.studio`. |
-| `ALLOWED_EXTENSION_IDS` | Yes for production extension connect flow | Vercel project env | Stable unpacked dev ID is `ojajfgpfdkmaiccoeffhbdbccefpbala`; use comma-separated values if a Chrome Web Store ID is added later. |
+| `NEXT_PUBLIC_API_BASE_URL` | Yes | Vercel project env | Expected `https://contacts.reachard.co`. |
+| `ALLOWED_EXTENSION_IDS` | Yes for production extension connect flow | Vercel project env | Use the actual installed development ID and add the verified Chrome Web Store ID before release. |
 | `AUTH_SECRET` | Yes | Vercel project env | Long random secret. Rotate if exposed. |
-| `MONTHLY_CREDITS` | Yes | Vercel project env | Current example: `20` Contact Kits. |
+| `BASE_MONTHLY_CREDITS` | Yes | Vercel project env | Base currently grants 20 Contact Kits. |
+| `PLUS_MONTHLY_CREDITS` | Yes | Vercel project env | Plus currently grants 60 Contact Kits. |
+| `STRIPE_BASE_PRICE_ID` | Yes | Vercel project env | Canonical active Base monthly price; rejects stale or forged checkout price IDs. |
+| `STRIPE_PLUS_PRICE_ID` | Yes | Vercel project env | Canonical active Plus monthly price; rejects stale or forged checkout price IDs. |
 | `RAPIDAPI_KEY` | Yes for school/location autocomplete | Vercel project env | Server-only; do not expose with `NEXT_PUBLIC_`. |
 | `RAPIDAPI_PEOPLE_HOST` | Yes for school/location autocomplete | Vercel project env | Expected `fresh-linkedin-scraper-api.p.rapidapi.com`. |
 | `ADMIN_EMAILS` | Optional | Vercel project env | Local example includes an admin email. |
@@ -87,7 +90,7 @@ Chrome Extension on LinkedIn
 | `SSH_KEY` | Yes | Private key for deploy user | Rotate if exposed. |
 | `DEPLOY_PATH` | Yes | Expected `/opt/connection/server` | GitHub organization or repo settings and VPS. |
 | `COMPOSE_PATH` | Yes | Expected `/home/ubuntu/siyi` or actual compose dir | GitHub organization or repo settings and VPS. |
-| `PUBLIC_HEALTH_URL` | Yes | Expected `https://contacts.reachard.studio/health` | GitHub organization or repo settings. |
+| `PUBLIC_HEALTH_URL` | Yes | Expected `https://contacts.reachard.co/health` | GitHub organization or repo settings. |
 
 ## Dashboard Checklist
 
@@ -95,11 +98,11 @@ Chrome Extension on LinkedIn
 
 | Item | Expected | Actual | Status |
 | --- | --- | --- | --- |
-| Zone for `reachard.studio` exists | Yes |  | Unknown |
+| Zone for `reachard.co` exists | Yes |  | Unknown |
 | Nameservers at registrar point to Cloudflare | Yes if Cloudflare is DNS authority |  | Unknown |
-| DNS record for `reachard.studio` | Points to Vercel |  | Unknown |
-| DNS record for `www.reachard.studio` | Points to Vercel |  | Unknown |
-| Tunnel public hostname `contacts.reachard.studio` | Points to `http://localhost:8787` |  | Unknown |
+| DNS record for `reachard.co` | Points to Vercel |  | Unknown |
+| DNS record for `www.reachard.co` | Points to Vercel |  | Unknown |
+| Tunnel public hostname `contacts.reachard.co` | Points to `http://localhost:8787` |  | Unknown |
 | Existing `sub2api` hostname | Points to `http://localhost:8080` if still used |  | Unknown |
 
 ### Vercel
@@ -108,7 +111,7 @@ Chrome Extension on LinkedIn
 | --- | --- | --- | --- |
 | Project root | `web` |  | Unknown |
 | Framework | Next.js |  | Unknown |
-| Production domain | `reachard.studio` |  | Unknown |
+| Production domain | `reachard.co` |  | Unknown |
 | Environment variables match this file | Yes |  | Unknown |
 | Build command | `corepack pnpm build` or migration + build |  | Unknown |
 
@@ -126,7 +129,7 @@ Chrome Extension on LinkedIn
 
 | Item | Expected | Actual | Status |
 | --- | --- | --- | --- |
-| Any domain registration for `reachard.studio` | Registrar only, if bought there |  | Unknown |
+| Any domain registration for `reachard.co` | Registrar only, if bought there |  | Unknown |
 | Any DNS zone still active | Should not conflict with Cloudflare authority |  | Unknown |
 | Any server/CVM running this project | Only if VPS is Tencent |  | Unknown |
 | Any paid resources not used | Identify and cancel later |  | Unknown |

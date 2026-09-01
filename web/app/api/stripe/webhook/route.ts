@@ -1,10 +1,11 @@
 import Stripe from 'stripe';
-import { handleSubscriptionChange, stripe } from '@/lib/payments/stripe';
+import { handleSubscriptionChange, resolveSubscriptionPlan, stripe } from '@/lib/payments/stripe';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
 import { creditLedger, stripeWebhookEvents, teams, teamMembers } from '@/lib/db/schema';
 import { and, eq, sql } from 'drizzle-orm';
 import { handleSuccessfulCheckoutSession } from '@/lib/payments/checkout';
+import { recordProductEvent } from '@/lib/product-events';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -30,17 +31,20 @@ export async function POST(request: NextRequest) {
     .where(eq(stripeWebhookEvents.id, event.id))
     .limit(1);
 
-  if (existing.length > 0) {
+  if (existing[0]?.processed) {
     return NextResponse.json({ received: true, duplicate: true });
   }
 
-  await db.insert(stripeWebhookEvents).values({
-    id: event.id,
-    type: event.type
-  });
+  if (existing.length === 0) {
+    await db
+      .insert(stripeWebhookEvents)
+      .values({ id: event.id, type: event.type })
+      .onConflictDoNothing();
+  }
 
   switch (event.type) {
     case 'checkout.session.completed':
+    case 'checkout.session.async_payment_succeeded':
       await handleSuccessfulCheckoutSession((event.data.object as Stripe.Checkout.Session).id);
       break;
     case 'invoice.payment_succeeded':
@@ -90,10 +94,20 @@ async function grantRenewalCredits(invoice: Stripe.Invoice) {
     return;
   }
 
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+    expand: ['items.data.price.product']
+  });
+  const plan = await resolveSubscriptionPlan(subscription);
+
   const [member] = await db
     .select()
     .from(teamMembers)
-    .where(eq(teamMembers.teamId, team.id))
+    .where(
+      and(
+        eq(teamMembers.teamId, team.id),
+        eq(teamMembers.role, 'owner')
+      )
+    )
     .limit(1);
 
   if (!member) {
@@ -116,10 +130,19 @@ async function grantRenewalCredits(invoice: Stripe.Invoice) {
     return;
   }
 
-  await db.insert(creditLedger).values({
-    userId: member.userId,
-    amount: Number(process.env.MONTHLY_CREDITS || 20),
-    action: 'subscription.monthly_grant',
-    metadata: { subscriptionId, invoiceId: invoice.id }
+  await db
+    .insert(creditLedger)
+    .values({
+      userId: member.userId,
+      amount: plan.monthlyCredits,
+      action: 'subscription.monthly_grant',
+      metadata: { subscriptionId, invoiceId: invoice.id, planName: plan.name }
+    })
+    .onConflictDoNothing();
+
+  await recordProductEvent(member.userId, 'subscription.renewed', {
+    invoiceId: invoice.id,
+    subscriptionId,
+    planName: plan.name
   });
 }

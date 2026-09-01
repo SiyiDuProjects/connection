@@ -1,0 +1,48 @@
+name: Validate Reachard
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check extension JavaScript
+        run: |
+          node --check extension/content.js
+          node --check extension/service_worker.js
+          node --check extension/options.js
+          node scripts/check-extension.mjs
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    env:
+      AUTH_SECRET: validation-only-secret-with-at-least-32-characters
+      BASE_URL: http://localhost:3000
+      POSTGRES_URL: postgresql://user:password@localhost:5432/reachard
+      STRIPE_SECRET_KEY: sk_test_validation
+      STRIPE_WEBHOOK_SECRET: whsec_validation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build

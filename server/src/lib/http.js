@@ -78,3 +78,30 @@ export function writeLog(level, event, data = {}) {
     console.log(line);
   }
 }
+
+export async function fetchWithTimeout(input, init = {}, options = {}) {
+  const controller = new AbortController();
+  const timeoutMs = Math.max(1_000, Number(options.timeoutMs || 15_000));
+  const startedAt = Date.now();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    writeLog("info", "upstream.request", {
+      provider: options.provider || "unknown",
+      status: response.status,
+      durationMs: Date.now() - startedAt
+    });
+    return response;
+  } catch (error) {
+    if (controller.signal.aborted) {
+      const timeoutError = new Error(`${options.provider || "Upstream"} request timed out after ${timeoutMs}ms.`);
+      timeoutError.status = 504;
+      timeoutError.publicMessage = "The data provider took too long to respond. Try again shortly.";
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}

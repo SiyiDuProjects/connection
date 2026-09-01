@@ -5,6 +5,7 @@ import { db } from '@/lib/db/drizzle';
 import {
   apiUsage,
   creditLedger,
+  productEvents,
   teamMembers,
   teams,
   users
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
   const search = clean(request.nextUrl.searchParams.get('search'));
   const userFilter = search ? ilike(users.email, `%${search}%`) : undefined;
 
-  const [summaryRows, recentUsage, userRows] = await Promise.all([
+  const [summaryRows, recentUsage, userRows, funnelRows] = await Promise.all([
     db
       .select({
         totalUsers: sql<number>`count(distinct ${users.id})::int`,
@@ -74,7 +75,16 @@ export async function GET(request: NextRequest) {
         teams.subscriptionStatus
       )
       .orderBy(desc(users.createdAt))
-      .limit(25)
+      .limit(25),
+    db
+      .select({
+        event: productEvents.event,
+        count: sql<number>`count(*)::int`,
+        users: sql<number>`count(distinct ${productEvents.userId})::int`
+      })
+      .from(productEvents)
+      .groupBy(productEvents.event)
+      .orderBy(productEvents.event)
   ]);
 
   return Response.json({
@@ -84,6 +94,7 @@ export async function GET(request: NextRequest) {
       totalCreditsGranted: 0,
       totalCreditsSpent: 0
     },
+    funnel: funnelRows,
     users: userRows,
     recentUsage
   });

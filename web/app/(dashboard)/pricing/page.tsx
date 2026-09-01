@@ -5,6 +5,7 @@ import { SubmitButton } from './submit-button';
 import { Button } from '@/components/ui/button';
 import { cookies, headers } from 'next/headers';
 import { normalizeLanguage, translate, type Language } from '@/lib/i18n';
+import { configuredPriceIdForPlan } from '@/lib/payments/plans';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,11 +51,11 @@ export default async function PricingPage() {
     console.error('Could not load Stripe pricing.', error);
   }
 
-  const basePlan = products.find((product) => product.name === 'Base');
-  const plusPlan = products.find((product) => product.name === 'Plus');
+  const basePlan = findPlanProduct('Base', products, prices);
+  const plusPlan = findPlanProduct('Plus', products, prices);
 
-  const basePrice = prices.find((price) => price.productId === basePlan?.id);
-  const plusPrice = prices.find((price) => price.productId === plusPlan?.id);
+  const basePrice = findPlanPrice(basePlan, prices);
+  const plusPrice = findPlanPrice(plusPlan, prices);
 
   return (
     <main className="mx-auto max-w-5xl bg-background px-4 py-14 text-foreground sm:px-6 lg:px-8">
@@ -86,6 +87,26 @@ export default async function PricingPage() {
       </div>
     </main>
   );
+}
+
+function findPlanProduct(name: 'Base' | 'Plus', products: StripeProduct[], prices: StripePrice[]) {
+  const configuredPriceId = configuredPriceIdForPlan(name);
+  if (configuredPriceId) {
+    const configuredPrice = prices.find((price) => price.id === configuredPriceId);
+    return products.find(
+      (product) => product.id === configuredPrice?.productId && product.name === name
+    );
+  }
+  return products.find((product) => product.name === name);
+}
+
+function findPlanPrice(product: StripeProduct | undefined, prices: StripePrice[]) {
+  if (!product) return undefined;
+  const candidates = prices.filter((price) => price.productId === product.id && price.interval === 'month');
+  const configuredPriceId = configuredPriceIdForPlan(product.name);
+  if (configuredPriceId) return candidates.find((price) => price.id === configuredPriceId);
+  if (product.defaultPriceId) return candidates.find((price) => price.id === product.defaultPriceId);
+  return candidates.length === 1 ? candidates[0] : undefined;
 }
 
 function PricingCard({
@@ -124,7 +145,11 @@ function PricingCard({
         {configured ? <span className="text-base font-medium text-muted-foreground"> / {interval}</span> : null}
       </p>
       <p className="mt-2 text-sm font-medium text-muted-foreground">
-        {configured && trialDays ? t('pricing.trial', { days: trialDays }) : t('pricing.unavailable')}
+        {configured
+          ? trialDays
+            ? t('pricing.trial', { days: trialDays })
+            : t('pricing.billedMonthly')
+          : t('pricing.unavailable')}
       </p>
       <ul className="mt-7 space-y-3">
         {copy.features.map((feature) => (

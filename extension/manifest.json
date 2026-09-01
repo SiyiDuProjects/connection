@@ -3,17 +3,11 @@
   "name": "Reachard",
   "description": "Find company contacts from job pages, company sites, and LinkedIn profiles.",
   "version": "0.1.0",
-  "permissions": ["storage", "tabs", "scripting"],
+  "permissions": ["storage"],
   "host_permissions": [
-    "https://*/*",
-    "http://*/*",
-    "https://www.linkedin.com/*",
     "https://reachard.co/*",
     "https://www.reachard.co/*",
     "https://contacts.reachard.co/*",
-    "https://reachard.studio/*",
-    "https://www.reachard.studio/*",
-    "https://contacts.reachard.studio/*",
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*",
     "http://localhost:8787/*",
@@ -32,8 +26,6 @@
     },
     {
       "matches": [
-        "https://reachard.studio/*",
-        "https://www.reachard.studio/*",
         "https://reachard.co/*",
         "https://www.reachard.co/*",
         "http://localhost:3000/*",
@@ -49,9 +41,6 @@
       "https://reachard.co/*",
       "https://www.reachard.co/*",
       "https://contacts.reachard.co/*",
-      "https://reachard.studio/*",
-      "https://www.reachard.studio/*",
-      "https://contacts.reachard.studio/*",
       "http://localhost:3000/*",
       "http://127.0.0.1:3000/*"
     ]

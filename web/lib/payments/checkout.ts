@@ -1,17 +1,21 @@
-import Stripe from 'stripe';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { creditLedger, teamMembers, teams, users } from '@/lib/db/schema';
-import { stripe } from '@/lib/payments/stripe';
+import { resolveSubscriptionPlan, stripe } from '@/lib/payments/stripe';
 import {
   applyPendingFriendInviteRewards,
   grantFriendInvitePurchaseReward
 } from '@/lib/payments/friend-invite-rewards';
+import { recordProductEvent } from '@/lib/product-events';
 
 export async function handleSuccessfulCheckoutSession(sessionId: string) {
   const session = await stripe.checkout.sessions.retrieve(sessionId, {
     expand: ['customer', 'subscription'],
   });
+
+  if (!['paid', 'no_payment_required'].includes(session.payment_status)) {
+    return null;
+  }
 
   if (!session.customer || typeof session.customer === 'string') {
     throw new Error('Invalid customer data from Stripe.');
@@ -37,7 +41,8 @@ export async function handleSuccessfulCheckoutSession(sessionId: string) {
     throw new Error('No plan found for this subscription.');
   }
 
-  const productId = (plan.product as Stripe.Product).id;
+  const reachardPlan = await resolveSubscriptionPlan(subscription);
+  const productId = reachardPlan.productId;
 
   if (!productId) {
     throw new Error('No product ID found for this subscription.');
@@ -76,13 +81,19 @@ export async function handleSuccessfulCheckoutSession(sessionId: string) {
       stripeCustomerId: customerId,
       stripeSubscriptionId: subscriptionId,
       stripeProductId: productId,
-      planName: (plan.product as Stripe.Product).name,
+      planName: reachardPlan.name,
       subscriptionStatus: subscription.status,
       updatedAt: new Date(),
     })
     .where(eq(teams.id, userTeam.teamId));
 
-  await grantInitialSubscriptionCredits(user.id, subscriptionId, session.id);
+  await grantInitialSubscriptionCredits(
+    user.id,
+    subscriptionId,
+    session.id,
+    reachardPlan.name,
+    reachardPlan.monthlyCredits
+  );
   await grantFriendInvitePurchaseReward({
     invitedUserId: user.id,
     checkoutSessionId: session.id,
@@ -90,13 +101,25 @@ export async function handleSuccessfulCheckoutSession(sessionId: string) {
   });
   await applyPendingFriendInviteRewards(user.id);
 
+  await recordProductEvent(
+    user.id,
+    session.payment_status === 'paid' ? 'subscription.paid' : 'subscription.started',
+    {
+      checkoutSessionId: session.id,
+      subscriptionId,
+      planName: reachardPlan.name
+    }
+  );
+
   return user;
 }
 
 async function grantInitialSubscriptionCredits(
   userId: number,
   subscriptionId: string,
-  checkoutSessionId: string
+  checkoutSessionId: string,
+  planName: string,
+  amount: number
 ) {
   const existingGrant = await db
     .select({ id: creditLedger.id })
@@ -114,10 +137,13 @@ async function grantInitialSubscriptionCredits(
     return;
   }
 
-  await db.insert(creditLedger).values({
-    userId,
-    amount: Number(process.env.MONTHLY_CREDITS || 20),
-    action: 'subscription.initial_grant',
-    metadata: { subscriptionId, checkoutSessionId }
-  });
+  await db
+    .insert(creditLedger)
+    .values({
+      userId,
+      amount,
+      action: 'subscription.initial_grant',
+      metadata: { subscriptionId, checkoutSessionId, planName }
+    })
+    .onConflictDoNothing();
 }

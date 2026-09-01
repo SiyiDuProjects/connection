@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { db } from '@/lib/db/drizzle';
 import { users, userSettings } from '@/lib/db/schema';
 import { getSettings, getUser } from '@/lib/db/queries';
+import { getOnboardingStatus } from '@/lib/onboarding';
+import { recordProductEvent } from '@/lib/product-events';
 
 const settingsSchema = z.object({
   name: z.string().max(100).optional(),
@@ -60,6 +62,7 @@ export async function POST(request: Request) {
 
   const payload = parsed.data;
   const existing = await getSettings(user.id);
+  const wasOnboardingComplete = getOnboardingStatus(user, existing).complete;
   const name = clean(payload.name);
   const has = (key: keyof typeof payload) => Object.prototype.hasOwnProperty.call(payload, key);
   const values = {
@@ -102,6 +105,11 @@ export async function POST(request: Request) {
       target: userSettings.userId,
       set: values
     });
+
+  const updatedUser = { name: has('name') && name ? name : user.name };
+  if (!wasOnboardingComplete && getOnboardingStatus(updatedUser, values).complete) {
+    await recordProductEvent(user.id, 'onboarding.completed');
+  }
 
   return Response.json({ ok: true });
 }

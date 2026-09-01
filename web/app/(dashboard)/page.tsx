@@ -21,6 +21,10 @@ const people = [
 export default function HomePage() {
   const [copied, setCopied] = useState(false);
   const shouldReduceMotion = useReducedMotion();
+  const chromeStoreUrl = String(process.env.NEXT_PUBLIC_CHROME_STORE_URL || '').trim();
+  const primaryCta = chromeStoreUrl
+    ? { href: chromeStoreUrl, label: 'Add to Chrome', external: true }
+    : { href: '/sign-up', label: 'Join private beta', external: false };
   const draftBody = useMemo(
     () =>
       "Hi Jenny -\n\nI'm a Berkeley student interested in product and payments infrastructure. I saw Stripe's Senior Product Manager role and wanted to ask one thoughtful question about the team.",
@@ -51,7 +55,7 @@ export default function HomePage() {
         <div className="relative z-10 flex max-w-4xl flex-col items-center text-center">
           <h1 className="hero-title max-w-4xl text-white">
             <WordReveal
-              lines={['Your next referral is', 'hiding in the job post.']}
+              lines={['Open a job post.', 'Know who to contact.']}
               reduceMotion={shouldReduceMotion}
             />
           </h1>
@@ -61,20 +65,25 @@ export default function HomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={spring490(1.2)}
           >
-            Reachard finds the insiders, ranks the strongest paths, and drafts the message that gets you in.
+            Reachard ranks the three people worth contacting for that role and drafts a message grounded in your background.
           </motion.p>
           <motion.div
             initial={shouldReduceMotion ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={spring490(1.3)}
           >
-            <Link href="/sign-up" className="reachard-mountain-button chrome-cta-button mt-9 text-white">
+            <a
+              href={primaryCta.href}
+              target={primaryCta.external ? '_blank' : undefined}
+              rel={primaryCta.external ? 'noreferrer' : undefined}
+              className="reachard-mountain-button chrome-cta-button mt-9 text-white"
+            >
               <span className="reachard-mountain-button__border" aria-hidden="true" />
               <span className="relative z-10 inline-flex items-center justify-center gap-[6px]">
                 <Chrome />
-                <span>Add to Chrome</span>
+                <span>{primaryCta.label}</span>
               </span>
-            </Link>
+            </a>
           </motion.div>
         </div>
 
@@ -133,7 +142,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <LandingFooter />
+      <LandingFooter primaryCta={primaryCta} />
     </main>
   );
 }
@@ -178,12 +187,16 @@ function WordReveal({ lines, reduceMotion }: { lines: string[]; reduceMotion: bo
   );
 }
 
-function LandingFooter() {
+function LandingFooter({
+  primaryCta
+}: {
+  primaryCta: { href: string; label: string; external: boolean };
+}) {
   const footerSections = [
     {
       title: 'Product',
       links: [
-        { label: 'Add to Chrome', href: '/sign-up' },
+        { label: primaryCta.label, href: primaryCta.href, external: primaryCta.external },
         { label: 'Pricing', href: '/pricing' },
         { label: 'Dashboard', href: '/dashboard' }
       ]
@@ -194,13 +207,20 @@ function LandingFooter() {
         { label: 'Log in', href: '/sign-in' },
         { label: 'Create account', href: '/sign-up' }
       ]
+    },
+    {
+      title: 'Legal',
+      links: [
+        { label: 'Privacy', href: '/privacy' },
+        { label: 'Terms', href: '/terms' }
+      ]
     }
   ];
 
   return (
     <footer className="mt-10 text-foreground">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-        <div className="grid gap-10 border-b border-border pb-10 sm:grid-cols-[1fr_auto_auto] sm:gap-16">
+        <div className="grid gap-10 border-b border-border pb-10 sm:grid-cols-[1fr_auto_auto_auto] sm:gap-12">
           <div className="flex min-h-36 flex-col justify-between gap-10">
             <Link href="/" className="flex w-fit items-center gap-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-primary text-base font-semibold text-primary-foreground">
@@ -223,6 +243,8 @@ function LandingFooter() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    target={'external' in item && item.external ? '_blank' : undefined}
+                    rel={'external' in item && item.external ? 'noreferrer' : undefined}
                     className="nav-link text-muted-foreground transition-colors hover:text-foreground"
                   >
                     {item.label}

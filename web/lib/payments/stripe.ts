@@ -6,6 +6,12 @@ import {
   getUser,
   updateTeamSubscription
 } from '@/lib/db/queries';
+import {
+  getReachardPlanByName,
+  requireReachardPlanByName,
+  type ReachardPlan
+} from '@/lib/payments/plans';
+import { recordProductEvent } from '@/lib/product-events';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-04-30.basil'
@@ -24,11 +30,12 @@ export async function createCheckoutSession({
     redirect(`/sign-up?redirect=checkout&priceId=${priceId}`);
   }
 
+  const checkoutPlan = await resolveCheckoutPlan(priceId);
+
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
     line_items: [
       {
-        price: priceId,
+        price: checkoutPlan.priceId,
         quantity: 1
       }
     ],
@@ -38,9 +45,14 @@ export async function createCheckoutSession({
     customer: team.stripeCustomerId || undefined,
     client_reference_id: user.id.toString(),
     allow_promotion_codes: true,
-    subscription_data: {
-      trial_period_days: 14
-    }
+    subscription_data: checkoutPlan.trialPeriodDays
+      ? { trial_period_days: checkoutPlan.trialPeriodDays }
+      : undefined
+  });
+
+  await recordProductEvent(user.id, 'checkout.started', {
+    checkoutSessionId: session.id,
+    planName: checkoutPlan.name
   });
 
   redirect(session.url!);
@@ -128,29 +140,106 @@ export async function handleSubscriptionChange(
     return;
   }
 
-  if (status === 'active' || status === 'trialing') {
-    const plan = subscription.items.data[0]?.plan;
-    await updateTeamSubscription(team.id, {
-      stripeSubscriptionId: subscriptionId,
-      stripeProductId: plan?.product as string,
-      planName: (plan?.product as Stripe.Product).name,
-      subscriptionStatus: status
-    });
-  } else if (status === 'canceled' || status === 'unpaid') {
+  if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') {
     await updateTeamSubscription(team.id, {
       stripeSubscriptionId: null,
       stripeProductId: null,
       planName: null,
       subscriptionStatus: status
     });
+    return;
   }
+
+  const plan = await resolveSubscriptionPlan(subscription);
+  await updateTeamSubscription(team.id, {
+    stripeSubscriptionId: subscriptionId,
+    stripeProductId: plan.productId,
+    planName: plan.name,
+    subscriptionStatus: status
+  });
+}
+
+export async function cancelSubscriptionAtPeriodEnd(subscriptionId: string) {
+  if (!subscriptionId) return;
+  await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
+}
+
+export async function resolveSubscriptionPlan(subscription: Stripe.Subscription) {
+  const price = subscription.items.data[0]?.price;
+  if (!price) throw new Error('Subscription does not contain a price.');
+  const productValue = typeof price.product === 'string'
+    ? await stripe.products.retrieve(price.product)
+    : price.product;
+  const product = requireAvailableProduct(productValue);
+  const plan = requireReachardPlanByName(product.name);
+  return {
+    ...plan,
+    priceId: price.id,
+    productId: product.id
+  };
+}
+
+export async function resolveCheckoutPlan(priceId: string) {
+  if (!priceId) throw new Error('A valid Reachard price is required.');
+
+  const price = await stripe.prices.retrieve(priceId, { expand: ['product'] });
+  const productValue = typeof price.product === 'string'
+    ? await stripe.products.retrieve(price.product)
+    : price.product;
+  const product = requireAvailableProduct(productValue);
+  const plan = getReachardPlanByName(product.name);
+
+  if (!plan || !product.active || !price.active || price.type !== 'recurring' || price.recurring?.interval !== 'month') {
+    throw new Error('This Stripe price is not an active Reachard monthly plan.');
+  }
+
+  const canonicalPriceId = await canonicalPriceIdForPlan(plan, product);
+  if (price.id !== canonicalPriceId) {
+    throw new Error('This Stripe price is not the configured price for this Reachard plan.');
+  }
+
+  return {
+    ...plan,
+    priceId: price.id,
+    productId: product.id,
+    trialPeriodDays: price.recurring?.trial_period_days || 0
+  };
+}
+
+async function canonicalPriceIdForPlan(plan: ReachardPlan, product: Stripe.Product) {
+  if (plan.configuredPriceId) return plan.configuredPriceId;
+
+  const defaultPriceId = typeof product.default_price === 'string'
+    ? product.default_price
+    : product.default_price?.id;
+  if (defaultPriceId) return defaultPriceId;
+
+  const prices = await stripe.prices.list({
+    product: product.id,
+    active: true,
+    type: 'recurring',
+    limit: 100
+  });
+  const monthlyPrices = prices.data.filter((candidate) => candidate.recurring?.interval === 'month');
+  if (monthlyPrices.length !== 1) {
+    throw new Error(`Configure STRIPE_${plan.key.toUpperCase()}_PRICE_ID because ${plan.name} has multiple active prices.`);
+  }
+  return monthlyPrices[0].id;
+}
+
+function requireAvailableProduct(product: Stripe.Product | Stripe.DeletedProduct) {
+  if ('deleted' in product && product.deleted) {
+    throw new Error('The Stripe product for this plan has been deleted.');
+  }
+  return product as Stripe.Product;
 }
 
 export async function getStripePrices() {
   const prices = await stripe.prices.list({
     expand: ['data.product'],
     active: true,
-    type: 'recurring'
+    type: 'recurring',
+    limit: 100
   });
 
   return prices.data.map((price) => ({
@@ -167,7 +256,8 @@ export async function getStripePrices() {
 export async function getStripeProducts() {
   const products = await stripe.products.list({
     active: true,
-    expand: ['data.default_price']
+    expand: ['data.default_price'],
+    limit: 100
   });
 
   return products.data.map((product) => ({

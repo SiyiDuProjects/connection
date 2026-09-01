@@ -1,7 +1,11 @@
 import { buildPeopleSearchPlan } from "./contact-intelligence.js";
+import { fetchWithTimeout } from "./http.js";
 
 const APOLLO_BASE_URL = "https://api.apollo.io/api/v1";
 const revealCache = new Map();
+const REVEAL_CACHE_MAX = 5_000;
+const REVEAL_SUCCESS_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
+const REVEAL_MISS_TTL_MS = 24 * 60 * 60 * 1_000;
 
 export async function searchApolloContacts(job) {
   requireApolloKey();
@@ -36,7 +40,8 @@ export async function revealApolloEmail(contact) {
   if (contact.email) return contact.email;
   if (!contact.apolloId && !contact.linkedinUrl && !contact.name) return "";
   const cacheKey = contact.linkedinUrl || contact.apolloId || `${contact.name}|${contact.companyDomain || contact.companyName}`;
-  if (cacheKey && revealCache.has(cacheKey)) return revealCache.get(cacheKey);
+  const cached = getCachedReveal(cacheKey);
+  if (cached !== undefined) return cached;
 
   const data = await apolloPost("/people/match", compactPayload({
     id: contact.apolloId,
@@ -45,22 +50,46 @@ export async function revealApolloEmail(contact) {
     organization_name: contact.companyName,
     domain: contact.companyDomain,
     reveal_personal_emails: false,
-    reveal_phone_number: false
+    reveal_phone_number: false,
+    run_waterfall_email: false,
+    run_waterfall_phone: false
   }));
 
   const person = data.person || data.contact || data;
   const status = String(person.email_status || person.emailStatus || "").toLowerCase();
   const email = person.email || "";
   const usableEmail = isUsableWorkEmail(email, status) ? email : "";
-  if (cacheKey) revealCache.set(cacheKey, usableEmail);
+  setCachedReveal(cacheKey, usableEmail);
   return usableEmail;
+}
+
+function getCachedReveal(key) {
+  if (!key) return undefined;
+  const cached = revealCache.get(key);
+  if (!cached) return undefined;
+  if (cached.expiresAt <= Date.now()) {
+    revealCache.delete(key);
+    return undefined;
+  }
+  return cached.email;
+}
+
+function setCachedReveal(key, email) {
+  if (!key) return;
+  if (revealCache.size >= REVEAL_CACHE_MAX) {
+    revealCache.delete(revealCache.keys().next().value);
+  }
+  revealCache.set(key, {
+    email,
+    expiresAt: Date.now() + (email ? REVEAL_SUCCESS_TTL_MS : REVEAL_MISS_TTL_MS)
+  });
 }
 
 async function apolloPost(path, payload) {
   const url = new URL(`${APOLLO_BASE_URL}${path}`);
   appendQueryParams(url.searchParams, payload);
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -68,6 +97,9 @@ async function apolloPost(path, payload) {
       "accept": "application/json",
       "X-Api-Key": process.env.APOLLO_API_KEY
     }
+  }, {
+    provider: "apollo",
+    timeoutMs: process.env.APOLLO_TIMEOUT_MS || 15_000
   });
 
   const data = await response.json().catch(() => ({}));
@@ -141,7 +173,9 @@ function compactPayload(payload) {
 }
 
 function isUsableWorkEmail(email, status) {
-  if (!email) return false;
+  const value = String(email || "").trim().toLowerCase();
+  if (!value || value === "[email protected]" || value === "[email protected]") return false;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return false;
   if (status === "invalid" || status === "unavailable") return false;
   return true;
 }

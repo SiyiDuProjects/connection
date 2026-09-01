@@ -32,17 +32,46 @@ app.use(express.json({ limit: "64kb" }));
 app.use(cors({
   origin(origin, callback) {
     if (!origin) return callback(null, true);
+    const extensionOrigins = [
+      process.env.ALLOWED_EXTENSION_ORIGINS,
+      process.env.EXTENSION_ORIGIN
+    ]
+      .filter(Boolean)
+      .flatMap((value) => String(value).split(","))
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const webOrigins = [process.env.ALLOWED_WEB_ORIGINS, process.env.WEB_BASE_URL]
+      .filter(Boolean)
+      .flatMap((value) => String(value).split(","))
+      .map((value) => {
+        try {
+          return new URL(value.trim()).origin;
+        } catch {
+          return "";
+        }
+      })
+      .filter(Boolean);
     const allowed = [
-      process.env.EXTENSION_ORIGIN,
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
       "http://localhost:8787",
-      "http://127.0.0.1:8787"
-    ].filter(Boolean);
+      "http://127.0.0.1:8787",
+      ...webOrigins
+    ];
 
-    if (origin.startsWith("chrome-extension://") || allowed.includes(origin)) {
+    if (allowed.includes(origin)) {
       return callback(null, true);
     }
+    if (origin.startsWith("chrome-extension://")) {
+      if (extensionOrigins.length === 0 || extensionOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+    }
 
-    return callback(new Error("Origin not allowed"));
+    const error = new Error("Origin not allowed");
+    error.status = 403;
+    error.publicMessage = "Origin not allowed.";
+    return callback(error);
   }
 }));
 app.use("/api", apiLimiter);
@@ -133,24 +162,24 @@ app.post("/api/contacts/reveal", requireCredits("contacts.reveal", creditCost("C
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
     if (!onboarding.complete) return fail(res, 428, "Complete your profile before using Reachard.", onboardingAction(onboarding));
-    const contact = req.body?.contact;
-    if (!contact) return fail(res, 400, "Choose a contact before revealing an email.");
+    const contact = normalizeRevealContact(req.body?.contact);
+    if (!contact) return fail(res, 400, "Choose a valid contact before revealing an email.");
 
-    const email = contact.email || await revealEmail(contact).catch((error) => {
+    const email = await revealEmail(contact).catch((error) => {
       writeLog("warn", "contacts.reveal_provider_failed", {
         requestId: req.requestId,
-        provider: contact.provider || providerStatus().contactProvider,
+        provider: revealProviderName(),
         error: error.message
       });
       throw publicError("Email reveal is temporarily unavailable. Try again shortly.", 503);
     });
     if (!email) {
-      return fail(res, 404, "No email was found for this contact.", {
+      return fail(res, 404, "No work email was found. No Contact Kit was used.", {
         credits: { remaining: await getCreditBalance(req.user.id) }
       });
     }
 
-    await chargeAndRecord(req, "contacts.reveal", { provider: contact.provider });
+    await chargeAndRecord(req, "contacts.reveal", { provider: revealProviderName() });
     ok(res, { email, credits: { remaining: await getCreditBalance(req.user.id) } });
   } catch (error) {
     await recordUsage(req, "contacts.reveal", 0, "error", { error: error.message }).catch(() => {});
@@ -304,16 +333,19 @@ function normalizeContext(input, settings = {}) {
   const targetRole = clean(settings.target_role || settings.targetRole);
   const jobTitle = clean(input?.jobTitle);
   const sourceUrl = clean(input?.sourceUrl || input?.jobUrl);
+  const type = clean(input?.type || "linkedin_job");
+  const searchPreferences = normalizeSearchPreferences(settings);
+  const companyContext = ["linkedin_company", "company_site"].includes(type);
   return {
-    type: clean(input?.type || "linkedin_job"),
+    type,
     source: clean(input?.source),
     companyName: clean(input?.companyName),
     companyDomain: cleanDomain(input?.companyDomain),
     jobTitle: jobTitle || targetRole,
     originalJobTitle: jobTitle,
     targetRole,
-    searchPreferences: normalizeSearchPreferences(settings),
-    jobLocation: clean(input?.jobLocation),
+    searchPreferences,
+    jobLocation: clean(input?.jobLocation) || (companyContext ? searchPreferences.region.label : ""),
     jobUrl: sourceUrl,
     sourceUrl,
     jobDescription: cleanMultiline(input?.jobDescription),
@@ -322,6 +354,44 @@ function normalizeContext(input, settings = {}) {
     personLinkedInUrl: clean(input?.personLinkedInUrl),
     pageTitle: clean(input?.pageTitle)
   };
+}
+
+function normalizeRevealContact(input) {
+  if (!input || typeof input !== "object") return null;
+  const contact = {
+    id: clean(input.id),
+    apolloId: clean(input.apolloId),
+    name: clean(input.name),
+    title: clean(input.title),
+    companyName: clean(input.companyName),
+    companyDomain: cleanDomain(input.companyDomain),
+    linkedinUrl: normalizeLinkedinProfileUrl(input.linkedinUrl)
+  };
+  if (!contact.linkedinUrl && !contact.name && !contact.apolloId) return null;
+  return contact;
+}
+
+function normalizeLinkedinProfileUrl(value) {
+  const raw = clean(value);
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.replace(/^www\./i, "").toLowerCase();
+    if (host !== "linkedin.com" || !url.pathname.startsWith("/in/")) return "";
+    url.protocol = "https:";
+    url.hostname = "www.linkedin.com";
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function revealProviderName() {
+  if (String(process.env.APOLLO_MOCK || "").toLowerCase() === "true") return "mock";
+  const provider = String(process.env.CONTACT_PROVIDER || "apollo").toLowerCase();
+  return provider === "rapidapi" ? "apollo" : provider;
 }
 
 function onboardingAction(onboarding) {
@@ -379,8 +449,6 @@ function getWebRedirectBaseUrl() {
     const allowedHosts = new Set([
       "reachard.co",
       "www.reachard.co",
-      "reachard.studio",
-      "www.reachard.studio",
       "localhost",
       "127.0.0.1"
     ]);

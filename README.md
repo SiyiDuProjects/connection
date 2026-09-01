@@ -1,10 +1,10 @@
 # Reachard
 
-Chrome Extension + Express API + Next.js SaaS app for finding company contacts from LinkedIn job pages.
+Chrome Extension + Express API + Next.js SaaS app for finding relevant company contacts from job pages, company sites, and public professional profiles.
 
 ## Structure
 
-- `extension/`: Manifest V3 Chrome extension injected only on LinkedIn job pages.
+- `extension/`: Manifest V3 Chrome extension for supported job, company, and public professional-profile pages.
 - `server/`: Express API proxy that keeps contact provider credentials private and charges Contact Kit unlocks.
 - `web/`: Reachard web app with auth, Stripe billing, dashboard, Contact Kits, preferences, and extension tokens.
 
@@ -58,7 +58,11 @@ APP_URL=http://localhost:3000
 AUTH_SECRET=generate-a-long-random-secret
 EMAIL_FROM="Reachard <noreply@yourdomain.com>"
 RESEND_API_KEY=re_...
-MONTHLY_CREDITS=20
+BASE_MONTHLY_CREDITS=20
+PLUS_MONTHLY_CREDITS=60
+STRIPE_BASE_PRICE_ID=price_...
+STRIPE_PLUS_PRICE_ID=price_...
+NEXT_PUBLIC_CHROME_STORE_URL=
 RAPIDAPI_KEY=your-rapidapi-key
 RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
 ```
@@ -140,6 +144,6 @@ Production VPS access uses the shared local SSH handle documented in `/Users/byt
 6. Paste the token from `Dashboard > Extension`.
 7. Open a LinkedIn job page like `https://www.linkedin.com/jobs/view/...`.
 
-The extension defaults to `https://contacts.reachard.studio`. Change the API base URL in the extension options page if you need to use a local or staging server.
+The extension defaults to `https://contacts.reachard.co`. Change the API base URL in the extension options page if you need to use a local or staging server.
 
-The unpacked development extension has a stable ID from `extension/manifest.json`: `ojajfgpfdkmaiccoeffhbdbccefpbala`. Set the web app `ALLOWED_EXTENSION_IDS` environment variable to that ID, or to a comma-separated list if you also publish a Chrome Web Store build.
+Set `ALLOWED_EXTENSION_IDS` to the actual ID shown by the installed development build. A Chrome Web Store build receives its own store ID, which must be added before account connection will work. Keep `NEXT_PUBLIC_CHROME_STORE_URL` empty during private beta; the website then shows `Join private beta` instead of pretending the extension is already installable. After publication, set it to the verified Chrome Web Store listing URL.

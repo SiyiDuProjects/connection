@@ -55,7 +55,8 @@ export function validatedActionWithUser<S extends z.ZodType<any, any>, T>(
 
 type ActionWithTeamFunction<T> = (
   formData: FormData,
-  team: TeamDataWithMembers
+  team: TeamDataWithMembers,
+  user: User
 ) => Promise<T>;
 
 export function withTeam<T>(action: ActionWithTeamFunction<T>) {
@@ -70,6 +71,17 @@ export function withTeam<T>(action: ActionWithTeamFunction<T>) {
       throw new Error('Team not found');
     }
 
-    return action(formData, team);
+    return action(formData, team, user);
   };
+}
+
+export function withOwnerTeam<T>(action: ActionWithTeamFunction<T>) {
+  return withTeam(async (formData, team, user) => {
+    const membership = team.teamMembers.find((member) => member.userId === user.id);
+    if (membership?.role !== 'owner') {
+      throw new Error('Only team owners can manage billing.');
+    }
+
+    return action(formData, team, user);
+  });
 }

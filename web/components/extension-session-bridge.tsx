@@ -1,19 +1,10 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { normalizeLanguage } from '@/lib/i18n';
-
-const SYNC_LOCK_KEY = 'reachard:extension-sync-lock';
-const SYNC_LOCK_TTL_MS = 5000;
 
 type UserState = {
   id?: number;
   email?: string;
-};
-
-type ExtensionTokenResponse = {
-  token?: string;
-  extensionId?: string;
 };
 
 type ExtensionMessageResponse = {
@@ -42,35 +33,7 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
         type: 'GET_EXTENSION_SESSION_STATUS'
       });
       if (cancelled) return;
-      if (existing?.ok && existing.hasToken) {
-        syncedUserId.current = userId;
-        return;
-      }
-
-      if (!claimSyncLock()) return;
-
-      try {
-        const tokenResponse = await fetch('/api/extension-token', { method: 'POST' });
-        if (!tokenResponse.ok) return;
-
-        const payload = (await tokenResponse.json()) as ExtensionTokenResponse;
-        if (cancelled || !payload.token) return;
-
-        const connected = await sendExtensionBridgeMessage({
-          type: 'CONNECT_EXTENSION_TOKEN',
-          payload: {
-            token: payload.token,
-            webBaseUrl: window.location.origin,
-            language: readWebsiteLanguage(),
-            returnTo: ''
-          }
-        }, {
-          extensionId: payload.extensionId
-        });
-        if (connected?.ok) syncedUserId.current = userId;
-      } finally {
-        releaseSyncLock();
-      }
+      if (existing?.ok && existing.hasToken) syncedUserId.current = userId;
     }
 
     syncExtensionSession().catch(() => {});
@@ -81,28 +44,6 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
   }, [user?.id]);
 
   return null;
-}
-
-function readWebsiteLanguage() {
-  const languageCookie = document.cookie
-    .split('; ')
-    .find((row) => row.startsWith('language='))
-    ?.split('=')[1];
-
-  return normalizeLanguage(languageCookie || window.navigator.language);
-}
-
-function claimSyncLock() {
-  const now = Date.now();
-  const existing = Number(window.localStorage.getItem(SYNC_LOCK_KEY) || 0);
-  if (Number.isFinite(existing) && now - existing < SYNC_LOCK_TTL_MS) return false;
-
-  window.localStorage.setItem(SYNC_LOCK_KEY, String(now));
-  return true;
-}
-
-function releaseSyncLock() {
-  window.localStorage.removeItem(SYNC_LOCK_KEY);
 }
 
 export async function clearExtensionSessionBeforeSignOut() {

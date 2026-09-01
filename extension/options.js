@@ -55,7 +55,7 @@ let language = DEFAULT_LANGUAGE;
 boot();
 
 async function boot() {
-  const stored = await chrome.storage.sync.get(["apiBaseUrl", "webBaseUrl", "extensionApiToken", "extensionLanguage"]);
+  const stored = await chrome.storage.sync.get(["apiBaseUrl", "webBaseUrl", "extensionLanguage"]);
   language = normalizeLanguage(stored.extensionLanguage || browserLanguage());
   applyTranslations();
   webInput.value = normalizeWebBaseUrl(stored.webBaseUrl);
@@ -141,7 +141,6 @@ function normalizeWebBaseUrl(value) {
   if (!url) return DEFAULT_WEB_BASE_URL;
   if (url === DEFAULT_API_BASE_URL) return DEFAULT_WEB_BASE_URL;
   if (url.includes("contacts.reachard.co")) return DEFAULT_WEB_BASE_URL;
-  if (url.includes("contacts.reachard.studio")) return DEFAULT_WEB_BASE_URL;
   return url;
 }
 
@@ -154,9 +153,6 @@ function normalizeApiBaseUrl(value, webBaseUrl) {
     return DEFAULT_API_BASE_URL;
   }
   if (url.includes("reachard.co") && !url.includes("contacts.reachard.co")) {
-    return DEFAULT_API_BASE_URL;
-  }
-  if (url.includes("reachard.studio") && !url.includes("contacts.reachard.studio")) {
     return DEFAULT_API_BASE_URL;
   }
   return url;

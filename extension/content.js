@@ -30,6 +30,17 @@
       topMatches: "Top Matches",
       preparingContact: "Preparing this contact...",
       findingContacts: "Finding relevant company contacts...",
+      jobPageDetected: "Job page detected",
+      companyPageDetected: "Company page detected",
+      profileDetected: "LinkedIn profile detected",
+      findJobContacts: "Find contacts for this role",
+      findCompanyContacts: "Find company contacts",
+      prepareContact: "Prepare this contact",
+      revealEmail: "Reveal work email",
+      checkingEmail: "Checking email...",
+      viewJob: "View job",
+      viewCompany: "View company",
+      viewProfile: "View profile",
       optionalRole: "Optional role or ask",
       rolePlaceholder: "Software Engineer Intern, product team, or leave blank",
       contactKitLeft: "Contact Kit left",
@@ -76,6 +87,17 @@
       topMatches: "最佳匹配",
       preparingContact: "正在准备这个联系人...",
       findingContacts: "正在查找相关公司联系人...",
+      jobPageDetected: "已识别职位页面",
+      companyPageDetected: "已识别公司页面",
+      profileDetected: "已识别 LinkedIn 个人主页",
+      findJobContacts: "查找该岗位的联系人",
+      findCompanyContacts: "查找公司联系人",
+      prepareContact: "准备这个联系人",
+      revealEmail: "查找工作邮箱",
+      checkingEmail: "正在查找邮箱...",
+      viewJob: "查看职位",
+      viewCompany: "查看公司",
+      viewProfile: "查看主页",
       optionalRole: "可选职位或诉求",
       rolePlaceholder: "软件工程实习生、产品团队，或留空",
       contactKitLeft: "个 Contact Kit 剩余",
@@ -450,18 +472,29 @@
         if (!["http:", "https:"].includes(location.protocol)) return null;
         if (isExcludedGenericHost(location.hostname)) return null;
         if (location.hostname.endsWith("linkedin.com")) return null;
+        if (looksLikeAuthenticationPage()) return null;
 
-        const companyName = metaContent("og:site_name")
+        const jobPosting = structuredJobPosting();
+        const companyName = platformCompanyName()
+          || cleanText(jobPosting?.hiringOrganization?.name)
+          || metaContent("og:site_name")
           || metaContent("application-name")
           || hostCompanyName(location.hostname);
-        const jobTitle = looksLikeJobPage() ? textFrom(["h1", '[class*="job-title"]', '[class*="posting-title"]']) : "";
-        const jobDescription = looksLikeJobPage() ? textFrom(['[class*="job-description"]', '[class*="posting"]', '[class*="description"]', "main"]) : "";
+        const jobPage = Boolean(jobPosting) || looksLikeJobPage();
+        if (!jobPage && !isKnownJobPlatform(location.hostname) && !looksLikeCompanyPage()) return null;
+        const jobTitle = jobPage
+          ? cleanText(jobPosting?.title) || textFrom(["h1", '[class*="job-title"]', '[class*="posting-title"]'])
+          : "";
+        const jobDescription = jobPage
+          ? htmlText(jobPosting?.description) || textFrom(['[class*="job-description"]', '[class*="posting"]', '[class*="description"]', "main"])
+          : "";
 
         return {
           type: jobTitle || jobDescription ? PAGE_TYPES.EXTERNAL_JOB : PAGE_TYPES.COMPANY_SITE,
           companyName,
-          companyDomain: location.hostname,
+          companyDomain: isKnownJobPlatform(location.hostname) ? "" : location.hostname,
           jobTitle,
+          jobLocation: structuredJobLocation(jobPosting?.jobLocation),
           jobDescription,
           pageTitle: document.title || companyName
         };
@@ -629,15 +662,41 @@
     if (context.type === PAGE_TYPES.LINKEDIN_PERSON) {
       return [context.personTitle, context.companyName].filter(Boolean).join(" - ") || t("linkedInPeopleProfile");
     }
-    return [context.jobTitle, context.jobLocation, context.source].filter(Boolean).join(" - ")
+    if (isCompanyContext(context)) {
+      return [context.companyName || context.companyDomain, context.source].filter(Boolean).join(" - ")
+        || context.pageTitle
+        || t("companyContext");
+    }
+    return [context.jobTitle, context.companyName || context.companyDomain, context.jobLocation, context.source].filter(Boolean).join(" - ")
       || context.pageTitle
       || t("companyContext");
+  }
+
+  function isCompanyContext(context) {
+    return [PAGE_TYPES.LINKEDIN_COMPANY, PAGE_TYPES.COMPANY_SITE].includes(context?.type);
+  }
+
+  function contextDetectedLabel(context) {
+    if (context.type === PAGE_TYPES.LINKEDIN_PERSON) return t("profileDetected");
+    if (isCompanyContext(context)) return t("companyPageDetected");
+    return t("jobPageDetected");
+  }
+
+  function searchButtonLabel(context) {
+    if (context.type === PAGE_TYPES.LINKEDIN_PERSON) return t("prepareContact");
+    if (isCompanyContext(context)) return t("findCompanyContacts");
+    return t("findJobContacts");
   }
 
   function renderSourceAction(context) {
     const url = safeHttpUrl(context.sourceUrl || context.jobUrl);
     if (!url) return "";
-    return `<button class="fc-link-button" type="button" data-action-url="${escapeAttr(url)}">View job</button>`;
+    const label = context.type === PAGE_TYPES.LINKEDIN_PERSON
+      ? t("viewProfile")
+      : isCompanyContext(context)
+        ? t("viewCompany")
+        : t("viewJob");
+    return `<button class="fc-link-button" type="button" data-action-url="${escapeAttr(url)}">${escapeHtml(label)}</button>`;
   }
 
   function renderBody() {
@@ -668,11 +727,11 @@
           <span class="fc-ready-dot"></span>
           <span>${hasContext ? "Ready to search" : "Unsupported page"}</span>
         </div>
-        <h2 class="fc-title">${escapeHtml(hasContext ? "Job page detected!" : t("unsupportedPage"))}</h2>
+        <h2 class="fc-title">${escapeHtml(hasContext ? contextDetectedLabel(context) : t("unsupportedPage"))}</h2>
         <div class="fc-subtitle">${escapeHtml(hasContext ? subtitle || title : "Open a job, company, or LinkedIn profile page to search.")}</div>
         ${renderMissingJobTitleInput()}
         <button class="fc-primary-wide" type="button" data-start-search ${canSearch ? "" : "disabled"}>
-          ${state.loading ? escapeHtml(loadingLabel()) : "Start search"}
+          ${state.loading ? escapeHtml(loadingLabel()) : escapeHtml(searchButtonLabel(context))}
         </button>
         ${renderSourceAction(context)}
       </section>
@@ -707,7 +766,7 @@
       return "";
     }
 
-    const sectionTitle = state.pageContext?.type === PAGE_TYPES.LINKEDIN_PERSON ? t("contact") : "Best match";
+    const sectionTitle = state.pageContext?.type === PAGE_TYPES.LINKEDIN_PERSON ? t("contact") : t("topMatches");
     return `
       <div class="fc-section-title">${escapeHtml(sectionTitle)}</div>
       ${state.contacts.map(renderContact).join("")}
@@ -913,7 +972,7 @@
         ${email ? `<div class="fc-email">${escapeHtml(email)}</div>` : ""}
         <div class="fc-actions">
           ${email && linkedInUrl ? `<button class="fc-secondary" type="button" data-action-url="${escapeAttr(linkedInUrl)}">LinkedIn</button>` : ""}
-          ${email ? "" : `<button class="fc-primary-action" type="button" data-reveal="${escapeAttr(id)}" ${isRevealing ? "disabled" : ""}>${isRevealing ? t("unlocking") : "View contact"}</button>`}
+          ${email ? "" : `<button class="fc-primary-action" type="button" data-reveal="${escapeAttr(id)}" ${isRevealing ? "disabled" : ""}>${isRevealing ? t("checkingEmail") : t("revealEmail")}</button>`}
           ${email ? `<button class="fc-primary-action" type="button" data-draft="${escapeAttr(id)}" ${isDrafting ? "disabled" : ""}>${isDrafting ? t("writing") : "Draft intro"}</button>` : ""}
         </div>
         ${draft ? renderDraftPreview(id, draft) : ""}
@@ -989,7 +1048,7 @@
 
       const response = await sendRuntimeMessage({
         type: "CONTACTS_SEARCH",
-        payload: { pageContext: state.pageContext }
+        payload: { pageContext: effectivePageContext() }
       });
       if (!response?.ok) throw apiError(response, t("couldNotFindContacts"));
       setCredits(response);
@@ -1317,9 +1376,119 @@
   function looksLikeJobPage() {
     const path = `${location.pathname} ${location.search}`.toLowerCase();
     const title = document.title.toLowerCase();
-    return /\b(job|jobs|career|careers|position|positions|opening|openings|posting|requisition)\b/.test(path)
-      || /\b(job|career|position|opening)\b/.test(title)
-      || Boolean(document.querySelector('[class*="job"], [id*="job"], [data-testid*="job"]'));
+    const explicitJobPath = /(?:^|[/?&=_-])(viewjob|job|position|opening|posting|requisition)(?:$|[/?&=_-])/.test(path)
+      || /\/(jobs|positions|openings)\/[^/?#]+/.test(path);
+    const explicitJobTitle = /\b(job application for|apply for this job|job requisition)\b/.test(title);
+    return explicitJobPath
+      || explicitJobTitle
+      || Boolean(
+        document.querySelector('[class*="job-title"], [data-testid*="job-title"], [class*="posting-title"]')
+        && document.querySelector('[class*="job-description"], [data-testid*="job-description"], [class*="posting-description"]')
+      );
+  }
+
+  function looksLikeAuthenticationPage() {
+    const path = location.pathname.toLowerCase();
+    return /\/(access|auth|login|logout|sign-in|signin|sign-up|signup)(?:\/|$)/.test(path);
+  }
+
+  function looksLikeCompanyPage() {
+    const path = location.pathname.toLowerCase();
+    if (path === "/" || /^\/[a-z]{2}(?:-[a-z]{2})?\/?$/.test(path)) return true;
+    return /\/(about|company|careers|jobs|team|contact)(?:\/|$)/.test(path)
+      || Boolean(document.querySelector('a[href*="linkedin.com/company/"]'));
+  }
+
+  function platformCompanyName() {
+    const host = location.hostname.replace(/^www\./i, "").toLowerCase();
+    const title = cleanText(document.title);
+
+    if (host === "job-boards.greenhouse.io" || host.endsWith(".greenhouse.io")) {
+      const fromTitle = title.match(/\bat\s+(.+)$/i)?.[1];
+      const fromLogo = document.querySelector('img[alt$=" Logo"]')?.getAttribute("alt")?.replace(/\s+Logo$/i, "");
+      return cleanText(fromTitle || fromLogo);
+    }
+
+    if (host === "jobs.lever.co" || host.endsWith(".lever.co")) {
+      return cleanText(title.split(" - ")[0]);
+    }
+
+    if (host === "jobs.ashbyhq.com" || host.endsWith(".ashbyhq.com")) {
+      return cleanText(title.match(/@\s+(.+)$/)?.[1] || title.split(" | ")[0]).replace(/\s+Jobs$/i, "");
+    }
+
+    if (host.endsWith(".myworkdayjobs.com")) {
+      // Workday often exposes a payroll/legal entity (for example
+      // "2100 NVIDIA USA") instead of the public company brand. The tenant
+      // subdomain is stable and is a better search key for this platform.
+      return hostCompanyName(host);
+    }
+
+    return "";
+  }
+
+  function structuredJobPosting() {
+    for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+      try {
+        const value = JSON.parse(script.textContent || "null");
+        const items = Array.isArray(value) ? value : [value];
+        for (const item of items) {
+          const candidates = item?.["@graph"] ? item["@graph"] : [item];
+          const posting = candidates.find((candidate) => {
+            const type = candidate?.["@type"];
+            return type === "JobPosting" || (Array.isArray(type) && type.includes("JobPosting"));
+          });
+          if (posting) return posting;
+        }
+      } catch (_error) {
+        // Ignore malformed structured data and continue with DOM selectors.
+      }
+    }
+    return null;
+  }
+
+  function structuredJobLocation(value) {
+    const locations = Array.isArray(value) ? value : value ? [value] : [];
+    return locations.map((item) => {
+      const address = item?.address || item;
+      return [address?.addressLocality, address?.addressRegion, address?.addressCountry?.name || address?.addressCountry]
+        .filter(Boolean)
+        .join(", ");
+    }).filter(Boolean).join(" | ");
+  }
+
+  function htmlText(value) {
+    const html = String(value || "").trim();
+    if (!html) return "";
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    return cleanMultiline(template.content.textContent || "");
+  }
+
+  function isKnownJobPlatform(hostname) {
+    const host = String(hostname || "").replace(/^www\./i, "").toLowerCase();
+    return [
+      "greenhouse.io",
+      "lever.co",
+      "myworkdayjobs.com",
+      "ashbyhq.com",
+      "smartrecruiters.com",
+      "icims.com",
+      "jobvite.com",
+      "workable.com"
+    ].some((platform) => host === platform || host.endsWith(`.${platform}`));
+  }
+
+  function shouldWatchDynamicPage() {
+    const host = location.hostname.replace(/^www\./i, "").toLowerCase();
+    return host === "linkedin.com"
+      || host.endsWith(".linkedin.com")
+      || host === "indeed.com"
+      || host.endsWith(".indeed.com")
+      || host === "joinhandshake.com"
+      || host.endsWith(".joinhandshake.com")
+      || isKnownJobPlatform(host)
+      || looksLikeJobPage();
   }
 
   function metaContent(name) {
@@ -1329,9 +1498,7 @@
   function isExcludedGenericHost(hostname) {
     const host = hostname.replace(/^www\./i, "").toLowerCase();
     return [
-      "reachard.studio",
       "reachard.co",
-      "contacts.reachard.studio",
       "contacts.reachard.co",
       "localhost",
       "127.0.0.1",
@@ -1356,8 +1523,6 @@
     const host = location.hostname.replace(/^www\./i, "").toLowerCase();
     return host === "reachard.co"
       || host === "contacts.reachard.co"
-      || host === "reachard.studio"
-      || host === "contacts.reachard.studio"
       || ((host === "localhost" || host === "127.0.0.1") && location.port === "3000");
   }
 
@@ -1465,42 +1630,44 @@
 
     ensureButton();
     loadExtensionLanguage();
-    const observer = new MutationObserver((mutations) => {
-      const hasPageMutation = mutations.some((mutation) => {
-        const target = mutation.target;
-        if (target?.closest?.(`#${ROOT_ID}, #${PANEL_ID}`)) return false;
-        return Array.from(mutation.addedNodes || []).some((node) => {
-          if (node.nodeType !== Node.ELEMENT_NODE) return true;
-          return !node.closest?.(`#${ROOT_ID}, #${PANEL_ID}`);
-        }) || Array.from(mutation.removedNodes || []).some((node) => {
-          if (node.nodeType !== Node.ELEMENT_NODE) return true;
-          return node.id !== ROOT_ID && node.id !== PANEL_ID;
+    let observer = null;
+    const startObserverIfNeeded = () => {
+      if (observer || !shouldWatchDynamicPage()) return;
+      observer = new MutationObserver((mutations) => {
+        const hasPageMutation = mutations.some((mutation) => {
+          const target = mutation.target;
+          if (target?.closest?.(`#${ROOT_ID}, #${PANEL_ID}`)) return false;
+          return Array.from(mutation.addedNodes || []).some((node) => {
+            if (node.nodeType !== Node.ELEMENT_NODE) return true;
+            return !node.closest?.(`#${ROOT_ID}, #${PANEL_ID}`);
+          }) || Array.from(mutation.removedNodes || []).some((node) => {
+            if (node.nodeType !== Node.ELEMENT_NODE) return true;
+            return node.id !== ROOT_ID && node.id !== PANEL_ID;
+          });
         });
+        if (hasPageMutation) scheduleEnsureButton();
       });
-      if (hasPageMutation) scheduleEnsureButton();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    window.addEventListener("scroll", scheduleEnsureButton, true);
-    window.addEventListener("resize", scheduleEnsureButton);
+      observer.observe(document.body, { childList: true, subtree: true });
+    };
+    startObserverIfNeeded();
 
     let lastUrl = location.href;
     const intervalId = window.setInterval(() => {
       if (location.href !== lastUrl) {
         lastUrl = location.href;
         document.getElementById(ROOT_ID)?.remove();
+        startObserverIfNeeded();
+        scheduleEnsureButton();
       }
-      scheduleEnsureButton();
-    }, 1000);
+    }, 1500);
 
     window[CLEANUP_KEY] = () => {
-      observer.disconnect();
+      observer?.disconnect();
       if (refreshTimer) window.clearTimeout(refreshTimer);
       if (window[AUTH_LISTENER_KEY]) {
         chrome.runtime.onMessage.removeListener(window[AUTH_LISTENER_KEY]);
         window[AUTH_LISTENER_KEY] = null;
       }
-      window.removeEventListener("scroll", scheduleEnsureButton, true);
-      window.removeEventListener("resize", scheduleEnsureButton);
       window.clearInterval(intervalId);
       document.getElementById(ROOT_ID)?.remove();
       document.getElementById(PANEL_ID)?.remove();

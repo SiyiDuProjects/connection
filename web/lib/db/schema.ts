@@ -207,6 +207,16 @@ export const apiUsage = pgTable('api_usage', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+export const productEvents = pgTable('product_events', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id),
+  event: varchar('event', { length: 80 }).notNull(),
+  metadata: jsonb('metadata').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
 export const stripeWebhookEvents = pgTable('stripe_webhook_events', {
   id: text('id').primaryKey(),
   type: text('type').notNull(),
@@ -335,6 +345,13 @@ export const apiUsageRelations = relations(apiUsage, ({ one }) => ({
   }),
 }));
 
+export const productEventsRelations = relations(productEvents, ({ one }) => ({
+  user: one(users, {
+    fields: [productEvents.userId],
+    references: [users.id],
+  }),
+}));
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Team = typeof teams.$inferSelect;
@@ -354,6 +371,7 @@ export type UserSettings = typeof userSettings.$inferSelect;
 export type ExtensionApiToken = typeof extensionApiTokens.$inferSelect;
 export type CreditLedger = typeof creditLedger.$inferSelect;
 export type ApiUsage = typeof apiUsage.$inferSelect;
+export type ProductEvent = typeof productEvents.$inferSelect;
 export type TeamDataWithMembers = Team & {
   teamMembers: (TeamMember & {
     user: Pick<User, 'id' | 'name' | 'email'>;

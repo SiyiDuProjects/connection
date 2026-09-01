@@ -39,6 +39,11 @@ jobs:
         run: |
           find src -name '*.js' -print0 | xargs -0 -n1 node --check
 
+      - name: Run ranking regression fixtures
+        run: |
+          npm run test:intelligence
+          npm run test:intelligence:large
+
   deploy:
     needs: validate
     runs-on: ubuntu-latest

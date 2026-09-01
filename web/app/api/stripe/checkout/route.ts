@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const user = await handleSuccessfulCheckoutSession(sessionId);
+    if (!user) {
+      return NextResponse.redirect(new URL('/pricing?checkout=pending', request.url));
+    }
     await setSession(user);
     return NextResponse.redirect(new URL('/dashboard', request.url));
   } catch (error) {

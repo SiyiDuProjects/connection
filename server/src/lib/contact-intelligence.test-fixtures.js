@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { buildPeopleSearchPlan, normalizeContactForScoring, rankCandidatesV2, scoreCandidate } from "./contact-intelligence.js";
+import { rankContacts } from "./ranking.js";
 
 const productJob = {
   companyName: "Acme",
@@ -138,6 +139,86 @@ function run() {
 
   assert.equal(normalizedApollo.provider, "apollo");
   assert.equal(normalizedExplorium.provider, "explorium");
+
+  const providerFilteredOnly = scoreCandidate({
+    provider: "rapidapi",
+    name: "Filtered Person",
+    title: "Product Manager",
+    metadata: { companySearchRestricted: true }
+  }, productJob);
+  assert.equal(providerFilteredOnly.companyName, "", "missing provider company data must not be copied from the job");
+  assert.equal(providerFilteredOnly.companyDomain, "", "missing provider domain must not be copied from the job");
+  assert.equal(providerFilteredOnly.dimensions.companyFit, 7, "provider filtering is useful but is not an exact company verification");
+  assert.ok(providerFilteredOnly.missingFields.includes("company"));
+
+  const neutralRanking = rankContacts([
+    {
+      name: "Morgan Marketing",
+      title: "Marketing Director",
+      companyName: "Acme",
+      companyDomain: "acme.com",
+      location: "London, UK",
+      education: "University of Leeds"
+    },
+    {
+      name: "Bailey Data",
+      title: "Senior Data Engineer",
+      companyName: "Acme",
+      companyDomain: "acme.com",
+      location: "San Francisco, CA",
+      education: "UC Berkeley"
+    }
+  ], {
+    companyName: "Acme",
+    companyDomain: "acme.com",
+    jobTitle: "Marketing Manager",
+    jobLocation: "London, UK"
+  });
+
+  assert.equal(neutralRanking[0].name, "Morgan Marketing");
+
+  const alumniAwareRanking = rankContacts([
+    {
+      name: "Avery Engineering",
+      title: "Engineering Manager, Platform",
+      companyName: "Acme",
+      companyDomain: "acme.com",
+      location: "San Francisco, CA",
+      education: "MIT",
+      linkedinUrl: "https://linkedin.com/in/avery"
+    },
+    {
+      name: "Blake Engineering",
+      title: "Engineering Manager, Platform",
+      companyName: "Acme",
+      companyDomain: "acme.com",
+      location: "San Francisco, CA",
+      education: "University of California, Berkeley",
+      linkedinUrl: "https://linkedin.com/in/blake"
+    },
+    {
+      name: "Cameron Alumni",
+      title: "Marketing Coordinator",
+      companyName: "Acme",
+      companyDomain: "acme.com",
+      location: "San Francisco, CA",
+      education: "UC Berkeley",
+      linkedinUrl: "https://linkedin.com/in/cameron"
+    }
+  ], {
+    ...engineeringJob,
+    searchPreferences: {
+      school: { label: "UC Berkeley", linkedinId: "berkeley" }
+    }
+  });
+
+  assert.equal(alumniAwareRanking[0].name, "Blake Engineering", "alumni should break ties between equally relevant contacts");
+  assert.ok(
+    alumniAwareRanking.findIndex((contact) => contact.name === "Avery Engineering")
+      < alumniAwareRanking.findIndex((contact) => contact.name === "Cameron Alumni"),
+    "a direct hiring-side role should outrank an unrelated alum"
+  );
+  assert.ok(alumniAwareRanking[0].reasons.some((reason) => reason.startsWith("Alumni connection:")));
 
   const searchPlan = buildPeopleSearchPlan(productJob);
   assert.equal(searchPlan.excludeBroadExecutives, true);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,15 +11,11 @@ type ConnectState = 'sending' | 'connected' | 'failed';
 
 export function ConnectExtensionClient({
   extensionId,
-  token,
-  tokenId,
   webBaseUrl,
   apiBaseUrl,
   blockedReason
 }: {
   extensionId: string;
-  token: string;
-  tokenId: number | null;
   webBaseUrl: string;
   apiBaseUrl: string;
   blockedReason?: string;
@@ -27,17 +23,7 @@ export function ConnectExtensionClient({
   const [state, setState] = useState<ConnectState>('sending');
   const { language, t } = useI18n();
   const [message, setMessage] = useState(t('connect.syncing'));
-
-  const payload = useMemo(
-    () => ({
-      type: 'CONNECT_EXTENSION_TOKEN',
-      token,
-      webBaseUrl,
-      apiBaseUrl,
-      language
-    }),
-    [apiBaseUrl, language, token, webBaseUrl]
-  );
+  const started = useRef(false);
 
   useEffect(() => {
     if (blockedReason) {
@@ -49,27 +35,51 @@ export function ConnectExtensionClient({
     if (!extensionId) {
       setState('failed');
       setMessage(t('connect.notFound'));
-      revokePendingToken(tokenId);
       return;
     }
 
-    sendExtensionBridgeMessage({
-      type: 'CONNECT_EXTENSION_TOKEN',
-      payload
-    }, {
-      extensionId
-    }).then((response) => {
-      if (!response?.ok) {
-        setState('failed');
-        setMessage(response?.error || t('connect.notAccepted'));
-        revokePendingToken(tokenId);
-        return;
+    if (started.current) return;
+    started.current = true;
+    let tokenId: number | null = null;
+
+    async function connect() {
+      const tokenResponse = await fetch('/api/extension-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ extensionId })
+      });
+      const tokenPayload = await tokenResponse.json().catch(() => ({}));
+      tokenId = Number(tokenPayload.tokenId) || null;
+      if (!tokenResponse.ok || !tokenPayload.token) {
+        throw new Error(tokenPayload.error || t('connect.notAccepted'));
       }
 
+      const response = await sendExtensionBridgeMessage({
+        type: 'CONNECT_EXTENSION_TOKEN',
+        payload: {
+          type: 'CONNECT_EXTENSION_TOKEN',
+          token: tokenPayload.token,
+          webBaseUrl,
+          apiBaseUrl,
+          language
+        }
+      }, { extensionId });
+
+      if (!response?.ok) {
+        throw new Error(response?.error || t('connect.notAccepted'));
+      }
+
+      await recordExtensionConnected();
       setState('connected');
       setMessage(t('connect.signedInMessage'));
+    }
+
+    connect().catch((error) => {
+      setState('failed');
+      setMessage(error instanceof Error ? error.message : t('connect.notAccepted'));
+      revokePendingToken(tokenId);
     });
-  }, [blockedReason, extensionId, payload, tokenId, t]);
+  }, [apiBaseUrl, blockedReason, extensionId, language, t, webBaseUrl]);
 
   const Icon = state === 'connected' ? CheckCircle2 : state === 'failed' ? XCircle : Loader2;
 
@@ -98,6 +108,15 @@ export function ConnectExtensionClient({
       </div>
     </div>
   );
+}
+
+function recordExtensionConnected() {
+  return fetch('/api/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event: 'extension.connected' }),
+    keepalive: true
+  }).catch(() => undefined);
 }
 
 function revokePendingToken(tokenId: number | null) {

@@ -16,12 +16,17 @@ import {
   ActivityType,
   friendInviteRedemptions,
   friendInvites,
-  invitations
+  invitations,
+  emailVerificationTokens,
+  userSettings
 } from '@/lib/db/schema';
 import { comparePasswords, hashPassword, setSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { createCheckoutSession } from '@/lib/payments/stripe';
+import {
+  cancelSubscriptionAtPeriodEnd,
+  createCheckoutSession
+} from '@/lib/payments/stripe';
 import { getUser, getUserWithTeam } from '@/lib/db/queries';
 import { revokeExtensionTokens } from '@/lib/extension-tokens';
 import {
@@ -82,7 +87,8 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
   const userWithTeam = await db
     .select({
       user: users,
-      team: teams
+      team: teams,
+      teamRole: teamMembers.role
     })
     .from(users)
     .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
@@ -97,7 +103,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
     };
   }
 
-  const { user: foundUser, team: foundTeam } = userWithTeam[0];
+  const { user: foundUser, team: foundTeam, teamRole } = userWithTeam[0];
 
   const isPasswordValid = await comparePasswords(
     password,
@@ -118,6 +124,9 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 
   const redirectTo = formData.get('redirect') as string | null;
   if (redirectTo === 'checkout') {
+    if (teamRole !== 'owner') {
+      redirect('/dashboard');
+    }
     const priceId = formData.get('priceId') as string;
     return createCheckoutSession({ team: foundTeam, priceId });
   }
@@ -326,27 +335,18 @@ export const updatePassword = validatedActionWithUser(
 
     if (!isPasswordValid) {
       return {
-        currentPassword,
-        newPassword,
-        confirmPassword,
         error: 'Current password is incorrect.'
       };
     }
 
     if (currentPassword === newPassword) {
       return {
-        currentPassword,
-        newPassword,
-        confirmPassword,
         error: 'New password must be different from the current password.'
       };
     }
 
     if (confirmPassword !== newPassword) {
       return {
-        currentPassword,
-        newPassword,
-        confirmPassword,
         error: 'New password and confirmation password do not match.'
       };
     }
@@ -380,18 +380,28 @@ export const deleteAccount = validatedActionWithUser(
     const isPasswordValid = await comparePasswords(password, user.passwordHash);
     if (!isPasswordValid) {
       return {
-        password,
         error: 'Incorrect password. Account deletion failed.'
       };
     }
 
     const userWithTeam = await getUserWithTeam(user.id);
 
+    if (userWithTeam?.teamRole === 'owner' && userWithTeam.stripeSubscriptionId) {
+      await cancelSubscriptionAtPeriodEnd(userWithTeam.stripeSubscriptionId);
+    }
+
+    await revokeExtensionTokens(user.id);
+
     await logActivity(
       userWithTeam?.teamId,
       user.id,
       ActivityType.DELETE_ACCOUNT
     );
+
+    await Promise.all([
+      db.delete(emailVerificationTokens).where(eq(emailVerificationTokens.userId, user.id)),
+      db.delete(userSettings).where(eq(userSettings.userId, user.id))
+    ]);
 
     // Soft delete
     await db
@@ -453,7 +463,7 @@ export const updateAccount = validatedActionWithUser(
 );
 
 const removeTeamMemberSchema = z.object({
-  memberId: z.number()
+  memberId: z.coerce.number().int().positive()
 });
 
 export const removeTeamMember = validatedActionWithUser(
@@ -464,6 +474,29 @@ export const removeTeamMember = validatedActionWithUser(
 
     if (!userWithTeam?.teamId) {
       return { error: 'User is not part of a team' };
+    }
+
+    if (userWithTeam.teamRole !== 'owner') {
+      return { error: 'Only team owners can remove members' };
+    }
+
+    const [member] = await db
+      .select({ userId: teamMembers.userId })
+      .from(teamMembers)
+      .where(
+        and(
+          eq(teamMembers.id, memberId),
+          eq(teamMembers.teamId, userWithTeam.teamId)
+        )
+      )
+      .limit(1);
+
+    if (!member) {
+      return { error: 'Team member not found' };
+    }
+
+    if (member.userId === user.id) {
+      return { error: 'Owners cannot remove themselves' };
     }
 
     await db
@@ -493,11 +526,16 @@ const inviteTeamMemberSchema = z.object({
 export const inviteTeamMember = validatedActionWithUser(
   inviteTeamMemberSchema,
   async (data, _, user) => {
-    const { email, role } = data;
+    const email = data.email.toLowerCase();
+    const { role } = data;
     const userWithTeam = await getUserWithTeam(user.id);
 
     if (!userWithTeam?.teamId) {
       return { error: 'User is not part of a team' };
+    }
+
+    if (userWithTeam.teamRole !== 'owner') {
+      return { error: 'Only team owners can invite members' };
     }
 
     const existingMember = await db

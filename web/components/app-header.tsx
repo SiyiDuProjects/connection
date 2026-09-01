@@ -111,6 +111,10 @@ function HeaderActions({
   );
   const user = account?.user || userData;
   const actionClass = getActionClass(variant);
+  const chromeStoreUrl = String(process.env.NEXT_PUBLIC_CHROME_STORE_URL || '').trim();
+  const chromeCta = chromeStoreUrl
+    ? { href: chromeStoreUrl, label: 'Add to Chrome', external: true }
+    : { href: '/sign-up', label: 'Join private beta', external: false };
 
   if (!user) {
     return (
@@ -119,7 +123,9 @@ function HeaderActions({
           Log in
         </Link>
         <Link
-          href="/sign-up"
+          href={chromeCta.href}
+          target={chromeCta.external ? '_blank' : undefined}
+          rel={chromeCta.external ? 'noreferrer' : undefined}
           className={cn(
             'chrome-cta-button rounded-[10px] transition-[background,color,transform] duration-200 ease-out active:scale-[0.98]',
             variant === 'hero'
@@ -128,7 +134,7 @@ function HeaderActions({
           )}
         >
           <Chrome />
-          <span>Add to Chrome</span>
+          <span>{chromeCta.label}</span>
         </Link>
       </div>
     );

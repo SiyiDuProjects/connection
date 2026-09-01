@@ -19,14 +19,27 @@ export async function GET() {
   });
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   const user = await getUser();
   if (!user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const payload = await request.json().catch(() => ({}));
+  const extensionId = clean(payload.extensionId) || getDefaultExtensionId();
+  const allowedIds = getAllowedExtensionIds();
+  if (!extensionId) {
+    return Response.json({ error: 'Chrome extension id is required.' }, { status: 400 });
+  }
+  if (allowedIds.length > 0 && !allowedIds.includes(extensionId)) {
+    return Response.json({ error: 'This Chrome extension is not allowed.' }, { status: 403 });
+  }
+  if (process.env.NODE_ENV === 'production' && allowedIds.length === 0) {
+    return Response.json({ error: 'Production Chrome extension allowlist is not configured.' }, { status: 503 });
+  }
+
   const token = await createExtensionToken(user.id);
-  return Response.json({ ...token, extensionId: getDefaultExtensionId() });
+  return Response.json({ ...token, extensionId });
 }
 
 export async function DELETE() {
@@ -57,6 +70,10 @@ export async function PATCH(request: Request) {
 }
 
 function getDefaultExtensionId() {
+  return getAllowedExtensionIds()[0] || '';
+}
+
+function getAllowedExtensionIds() {
   return [
     process.env.ALLOWED_EXTENSION_IDS,
     process.env.CHROME_EXTENSION_ID,
@@ -65,5 +82,9 @@ function getDefaultExtensionId() {
     .filter(Boolean)
     .flatMap((value) => String(value).split(','))
     .map((value) => value.trim())
-    .filter(Boolean)[0] || '';
+    .filter(Boolean);
+}
+
+function clean(value: unknown) {
+  return String(value || '').trim();
 }
