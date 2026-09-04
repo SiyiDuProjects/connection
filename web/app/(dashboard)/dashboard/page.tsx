@@ -3,6 +3,8 @@
 import { CreditCard, FileText, History, Info, ShieldCheck, UserRound } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
+import { Button, Card, Chip, Input } from '@heroui/react';
+import { ProfileTextField, ProfileTextArea, PreferenceOptions, ProfileModal, ProfileActions, ResolvedOptions } from '@/components/ui/profile-controls';
 import { RecentOutreachList, recentOutreach } from './recent-outreach-list';
 import { useI18n } from '@/components/language-provider';
 import {
@@ -104,6 +106,7 @@ export default function DashboardPage() {
   const { language, t } = useI18n();
   const { data, mutate } = useSWR<AccountData>('/api/account', fetcher);
   const { data: inviteData, mutate: mutateInvite } = useSWR<InviteData>('/api/invite-friend', fetcher);
+  const resumeInputRef = useRef<HTMLInputElement>(null);
   const [resumeStatus, setResumeStatus] = useState('');
   const [resumeSaving, setResumeSaving] = useState(false);
   const [editingPreference, setEditingPreference] = useState<PreferenceKey | ''>('');
@@ -539,14 +542,14 @@ export default function DashboardPage() {
         onCopyInviteLink={copyInviteLink}
       />
 
-      <section id="recent-outreach" className="mx-auto mt-4 max-w-[760px] rounded-[16px] border border-border bg-card px-6 py-6 shadow-apple-card">
+      <Card id="recent-outreach" className="mx-auto mt-4 max-w-[760px]">
         <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
           <h2 className="section-title">
             {t('dashboard.recentOutreach')}
           </h2>
           <RecentOutreachList outreach={outreach} plain />
         </div>
-      </section>
+      </Card>
 
       <DashboardCard id="plan" title={t('dashboard.plan')}>
         <SettingsItem title={t('dashboard.credits')}>
@@ -614,22 +617,22 @@ export default function DashboardPage() {
       {editPanel === 'personal' ? (
         <EditPanelModal title={t('dashboard.editProfileTitle')} onClose={() => setEditPanel('')}>
           <div className="space-y-4">
-            <AppleTextField
+            <ProfileTextField
               label={t('dashboard.name')}
               value={personal.name}
               onChange={(value) => updatePersonalDraft('name', value)}
             />
-            <AppleTextField
+            <ProfileTextField
               label={t('dashboard.schoolAffiliation')}
               value={personal.school}
               onChange={(value) => updatePersonalDraft('school', value)}
             />
-            <AppleTextField
+            <ProfileTextField
               label={t('dashboard.region')}
               value={personal.region}
               onChange={(value) => updatePersonalDraft('region', value)}
             />
-            <AppleTextArea
+            <ProfileTextArea
               label={t('dashboard.extraPersonalInfo')}
               value={personal.senderProfile}
               onChange={(value) => updatePersonalDraft('senderProfile', value)}
@@ -648,7 +651,7 @@ export default function DashboardPage() {
       {editPanel === 'outreach' ? (
         <EditPanelModal title={t('dashboard.editOutreachTitle')} onClose={() => setEditPanel('')}>
           <div className="space-y-4">
-            <AppleSelectField
+            <PreferenceOptions
               label={t('dashboard.emailTone')}
               value={outreachDraft?.emailTone || 'warm'}
               options={[
@@ -659,7 +662,7 @@ export default function DashboardPage() {
               ]}
               onChange={(value) => updateOutreachDraft('emailTone', value as OutreachDraft['emailTone'])}
             />
-            <AppleSelectField
+            <PreferenceOptions
               label={t('dashboard.outreachLength')}
               value={outreachDraft?.outreachLength || 'concise'}
               options={[
@@ -669,7 +672,7 @@ export default function DashboardPage() {
               ]}
               onChange={(value) => updateOutreachDraft('outreachLength', value as OutreachDraft['outreachLength'])}
             />
-            <AppleSelectField
+            <PreferenceOptions
               label={t('dashboard.outreachGoal')}
               value={outreachDraft?.outreachGoal || 'advice'}
               options={[
@@ -679,7 +682,7 @@ export default function DashboardPage() {
               ]}
               onChange={(value) => updateOutreachDraft('outreachGoal', value as OutreachDraft['outreachGoal'])}
             />
-            <AppleTextArea
+            <ProfileTextArea
               label={t('dashboard.extraStyleNotes')}
               value={outreachDraft?.outreachStyleNotes || ''}
               onChange={(value) => updateOutreachDraft('outreachStyleNotes', value)}
@@ -704,16 +707,14 @@ export default function DashboardPage() {
             <p className="mt-1 text-[15px] font-normal leading-5 text-[#6e6e73]">
               {t('dashboard.uploadResumeHelp')}
             </p>
-            <label className="mt-5 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[980px] bg-[#0071e3] px-6 text-[17px] font-normal text-white hover:bg-[#0077ed]">
-              {resumeSaving ? t('dashboard.uploading') : t('dashboard.chooseFile')}
-              <input
+            <Button className="mt-5" isDisabled={resumeSaving || !accountSettings} onPress={() => resumeInputRef.current?.click()}>{resumeSaving ? t('dashboard.uploading') : t('dashboard.chooseFile')}</Button>
+              <input ref={resumeInputRef}
                 type="file"
                 accept={RESUME_FILE_ACCEPT}
-                className="sr-only"
+                hidden
                 disabled={resumeSaving || !accountSettings}
                 onChange={importResumeFile}
               />
-            </label>
           </div>
           {resumeStatus ? <p className="mt-4 text-sm font-medium text-[#6e6e73]">{resumeStatus}</p> : null}
           <ModalActions
@@ -739,26 +740,26 @@ function InviteFriendBanner({
 }) {
   const { t } = useI18n();
   return (
-    <section className="mx-auto mt-4 max-w-[760px] rounded-[16px] border border-border bg-card px-6 py-6 shadow-apple-card">
-      <p className="section-title flex items-center gap-3">
+    <Card className="mx-auto mt-4 max-w-[760px]">
+      <Card.Title className="flex items-center gap-3">
         <Info className="h-6 w-6 shrink-0 stroke-[2.1]" aria-hidden="true" />
         {t('dashboard.inviteFriend')}
-      </p>
+      </Card.Title>
       <p className="secondary mt-3 max-w-[620px]">
         {t('dashboard.inviteBody')}
       </p>
-      <button
+      <Button
         type="button"
         onClick={onCopyInviteLink}
-        disabled={inviteCopying}
-        className="mt-8 inline-flex min-h-12 cursor-pointer items-center justify-center rounded-full bg-[#0071e3] px-7 text-[19px] font-normal text-white transition-colors hover:bg-[#0077ed] disabled:cursor-default disabled:opacity-60"
+        isDisabled={inviteCopying}
+        className="mt-6 w-fit"
       >
         {inviteCopying ? t('common.copying') : t('dashboard.copyInviteLink')}
-      </button>
+      </Button>
       {inviteStatus ? (
         <p className="mt-4 text-[15px] font-normal leading-5 text-[#6e6e73]">{inviteStatus}</p>
       ) : null}
-    </section>
+    </Card>
   );
 }
 
@@ -801,34 +802,13 @@ function DashboardCard({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="mx-auto mt-4 max-w-[760px] scroll-mt-8 rounded-[16px] border border-border bg-card px-6 py-6 shadow-apple-card">
-      <h2 className="section-title">
-        {title}
-      </h2>
-      <div className="mt-6">{children}</div>
-    </section>
+    <Card id={id} className="mx-auto mt-4 max-w-[760px] scroll-mt-8"><Card.Header><Card.Title>{title}</Card.Title></Card.Header><Card.Content>{children}</Card.Content></Card>
   );
 }
 
 function ExtensionStatus({ connected }: { connected: boolean }) {
   const { t } = useI18n();
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold leading-none ${
-        connected
-          ? 'bg-[#e8f8f3] text-[#08745f]'
-          : 'bg-[#f5f5f7] text-[#6e6e73]'
-      }`}
-    >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          connected ? 'bg-[#12b886]' : 'bg-[#8e8e93]'
-        }`}
-        aria-hidden="true"
-      />
-      {connected ? t('dashboard.connected') : t('dashboard.notConnected')}
-    </span>
-  );
+  return <Chip size="sm" color={connected ? 'accent' : 'default'} variant="soft">{connected ? t('dashboard.connected') : t('dashboard.notConnected')}</Chip>;
 }
 
 function SettingsSection({
@@ -881,165 +861,24 @@ function EditButton({
 }) {
   const { t } = useI18n();
   return (
-    <button
+    <Button
       type="button"
       onClick={onClick}
-      className="text-[17px] font-normal leading-6 text-[#0066cc] underline underline-offset-2 hover:text-[#004999]"
+      variant="ghost"
     >
       {label || t('common.edit')}
-    </button>
+    </Button>
   );
 }
 
-function EditPanelModal({
-  title,
-  children,
-  onClose
-}: {
-  title: string;
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
+function EditPanelModal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   const { t } = useI18n();
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-10">
-      <section role="dialog" aria-modal="true" aria-labelledby="edit-panel-title" className="relative w-full max-w-[680px] rounded-[18px] bg-white px-6 py-12 shadow-[0_18px_60px_rgba(0,0,0,0.18)] sm:px-16">
-        <button
-          type="button"
-          aria-label={t('common.close')}
-          onClick={onClose}
-          className="absolute right-6 top-6 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#e8e8ed] text-[26px] font-semibold leading-none text-[#6e6e73] hover:bg-[#dedee3]"
-        >
-          ×
-        </button>
-        <h2 id="edit-panel-title" className="mb-8 text-center text-[36px] font-semibold leading-tight tracking-[-0.022em] text-[#1d1d1f]">
-          {title}
-        </h2>
-        {children}
-      </section>
-    </div>
-  );
+  return <ProfileModal title={title} onClose={onClose} closeLabel={t('common.close')}>{children}</ProfileModal>;
 }
 
-function AppleTextField({
-  label,
-  value,
-  onChange
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
+function ModalActions({ saving, primaryLabel, onPrimary, onCancel }: { saving: boolean; primaryLabel: string; onPrimary: () => void; onCancel: () => void }) {
   const { t } = useI18n();
-  return (
-    <label className="block rounded-[12px] border border-[#86868b] px-4 pb-2 pt-3 focus-within:border-[#0071e3] focus-within:shadow-[inset_0_0_0_1px_#0071e3]">
-      <span className="block text-[13px] font-normal leading-4 text-[#6e6e73]">{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-1 h-7 w-full bg-transparent text-[18px] font-normal leading-7 text-[#1d1d1f] outline-none"
-      />
-    </label>
-  );
-}
-
-function AppleTextArea({
-  label,
-  value,
-  onChange
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block rounded-[12px] border border-[#86868b] px-4 pb-3 pt-3 focus-within:border-[#0071e3] focus-within:shadow-[inset_0_0_0_1px_#0071e3]">
-      <span className="block text-[13px] font-normal leading-4 text-[#6e6e73]">{label}</span>
-      <textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        rows={5}
-        className="mt-2 w-full resize-none bg-transparent text-[18px] font-normal leading-7 text-[#1d1d1f] outline-none"
-      />
-    </label>
-  );
-}
-
-function AppleSelectField({
-  label,
-  value,
-  options,
-  onChange
-}: {
-  label: string;
-  value: string;
-  options: [string, string][];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <fieldset className="rounded-[12px] border border-[#86868b] px-4 pb-4 pt-3">
-      <legend className="px-1 text-[13px] font-normal leading-4 text-[#6e6e73]">{label}</legend>
-      <div className="mt-1 flex flex-wrap gap-2">
-        {options.map(([optionValue, optionLabel]) => (
-          <button
-            key={optionValue}
-            type="button"
-            aria-pressed={value === optionValue}
-            onClick={() => onChange(optionValue)}
-            className={`min-h-10 rounded-full px-4 text-[15px] transition-colors ${
-              value === optionValue
-                ? 'bg-[#0071e3] text-white'
-                : 'bg-[#f5f5f7] text-[#1d1d1f] hover:bg-[#e8e8ed]'
-            }`}
-          >
-            {optionLabel}
-          </button>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
-
-function ModalActions({
-  saving,
-  primaryLabel,
-  onPrimary,
-  onCancel
-}: {
-  saving: boolean;
-  primaryLabel: string;
-  onPrimary: () => void;
-  onCancel: () => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <div className="mt-10">
-      <button
-        type="button"
-        disabled={saving}
-        onClick={onPrimary}
-        className="min-h-14 w-full cursor-pointer rounded-[12px] bg-[#0071e3] px-6 text-[17px] font-normal text-white hover:bg-[#0077ed] disabled:cursor-default disabled:opacity-60"
-      >
-        {saving ? t('common.saving') : primaryLabel}
-      </button>
-      <button
-        type="button"
-        onClick={onCancel}
-        className="mx-auto mt-5 block text-[17px] font-normal text-[#0066cc] hover:text-[#004999]"
-      >
-        {t('common.cancel')}
-      </button>
-    </div>
-  );
+  return <ProfileActions saving={saving} primaryLabel={saving ? t('common.saving') : primaryLabel} cancelLabel={t('common.cancel')} onPrimary={onPrimary} onCancel={onCancel} />;
 }
 
 function PreferenceRow({
@@ -1074,7 +913,7 @@ function PreferenceRow({
           last ? '' : 'border-b border-slate-200'
         }`}
       >
-        <p className="label">{label}</p>
+        <p className="profile-label">{label}</p>
         <div className="mt-1">
           <InlinePreferenceEditor
             field={field}
@@ -1096,7 +935,7 @@ function PreferenceRow({
           last ? '' : 'border-b border-slate-200'
         }`}
       >
-        <p className="label">{label}</p>
+        <p className="profile-label">{label}</p>
         <div className="mt-1">
           <InlinePreferenceEditor
             field={field}
@@ -1117,7 +956,7 @@ function PreferenceRow({
         last ? '' : 'border-b border-slate-200'
       }`}
     >
-      <p className="label">{label}</p>
+      <p className="profile-label">{label}</p>
       <div className="mt-1">
         <EditableValue value={value} onEdit={() => onStart(field)} />
       </div>
@@ -1135,15 +974,15 @@ function EditableValue({
   onEdit: () => void;
 }) {
   return (
-    <button
+    <Button
       type="button"
       onClick={onEdit}
-      className="flex min-h-11 w-full items-center rounded-[8px] p-2 text-left transition-colors hover:bg-[#f9f9f9] focus:outline-none"
+      variant="ghost" fullWidth className="h-auto min-h-11 justify-start text-left"
     >
       <span className={`value block min-w-0 ${multiline ? 'whitespace-pre-wrap' : 'truncate'}`}>
         {value}
       </span>
-    </button>
+    </Button>
   );
 }
 
@@ -1170,7 +1009,7 @@ function PersonalInfoField({
         last ? '' : 'border-b border-slate-200'
       }`}
     >
-      <p className="label">{label}</p>
+      <p className="profile-label">{label}</p>
       <div className="mt-1">
         {editing ? (
           <div className="flex min-h-11 w-full flex-col justify-center rounded-[8px] p-2">{children}</div>
@@ -1231,7 +1070,8 @@ function InlinePreferenceEditor({
 
   return (
     <div className="flex min-h-11 w-full items-center rounded-[8px] p-2">
-      <input
+      <Input
+        aria-label="Extra style notes"
         autoFocus
         value={value}
         disabled={saving}
@@ -1244,70 +1084,21 @@ function InlinePreferenceEditor({
           }
           if (event.key === 'Escape') onCancel();
         }}
-        className="value h-5 w-full min-w-0 bg-transparent p-0 outline-none ring-0 focus:outline-none focus:ring-0"
+        className="w-full"
         placeholder="Extra style notes"
       />
     </div>
   );
 }
 
-function InlineSelect({
-  value,
-  saving,
-  options,
-  onSave
-}: {
-  value: string;
-  saving: boolean;
-  options: [string, string][];
-  onCancel: () => void;
-  onSave: (value: string) => void;
-}) {
-  return (
-    <div className="flex w-full flex-wrap items-center gap-4 rounded-[8px]" aria-busy={saving}>
-      {options.map(([optionValue, label]) => (
-        <button
-          key={optionValue}
-          type="button"
-          aria-pressed={optionValue === value}
-          onClick={() => onSave(optionValue)}
-          className={`flex min-h-11 min-w-0 items-center justify-center truncate rounded-[8px] p-2 text-sm font-semibold transition-colors focus:outline-none ${
-            optionValue === value
-              ? 'bg-[#f3f3f3] text-slate-950'
-              : 'bg-transparent text-neutral-500 hover:bg-[#f9f9f9] hover:text-neutral-950 disabled:opacity-60'
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
+function InlineSelect({ value, saving, options, onSave }: { value: string; saving: boolean; options: [string, string][]; onCancel: () => void; onSave: (value: string) => void }) {
+  const { t } = useI18n();
+  return <PreferenceOptions label={t('onboarding.outreach')} value={value} options={options} onChange={onSave} isDisabled={saving} />;
 }
 
-function ResolveOptions({
-  items,
-  onSelect
-}: {
-  items: ResolvedItem[];
-  onSelect: (item: ResolvedItem) => void;
-}) {
-  return (
-    <div className="mt-2 overflow-hidden rounded-[8px] bg-white">
-      {items.map((item) => (
-        <button
-          key={`${item.type}-${item.id}`}
-          type="button"
-          onClick={() => onSelect(item)}
-          className="block w-full border-b border-slate-200 px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-[#f9f9f9]"
-        >
-          <span className="value block">{item.label}</span>
-          {item.subtitle ? (
-            <span className="secondary mt-0.5 block">{item.subtitle}</span>
-          ) : null}
-        </button>
-      ))}
-    </div>
-  );
+function ResolveOptions({ items, onSelect }: { items: ResolvedItem[]; onSelect: (item: ResolvedItem) => void }) {
+  const { t } = useI18n();
+  return <ResolvedOptions items={items} onSelect={onSelect} label={t('onboarding.search')} />;
 }
 
 function lengthLabel(value?: Settings['outreachLength']) {

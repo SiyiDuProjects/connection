@@ -1,5 +1,9 @@
 @import "tailwindcss";
+@import "@heroui/styles";
 @import "tw-animate-css";
+@import "./reachard.css";
+@import "./hero-workspace.css";
+@import "./hero-auth.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -36,10 +40,6 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --radius-sm: calc(var(--radius) - 6px);
-  --radius-md: calc(var(--radius) - 4px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
   --shadow-apple-card: 0 18px 60px rgb(0 0 0 / 0.06);
   --shadow-apple-float: 0 24px 80px rgb(0 0 0 / 0.12);
   --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -55,32 +55,32 @@
     --card-foreground: #1d1d1f;
     --popover: #ffffff;
     --popover-foreground: #1d1d1f;
-    --primary: #15915b;
+    --primary: #007aff;
     --primary-foreground: #ffffff;
     --secondary: #f2f2f7;
     --secondary-foreground: #1d1d1f;
-    --muted: #f2f2f7;
+    --muted: #71717a;
     --muted-foreground: #6e6e73;
-    --accent: #eaf8ef;
-    --accent-foreground: #0d6b43;
+    --accent: #e8f2ff;
+    --accent-foreground: #005bc4;
     --destructive: #ff3b30;
     --destructive-foreground: #ffffff;
     --border: rgba(60, 60, 67, 0.18);
     --input: #f2f2f7;
-    --ring: #15915b;
-    --chart-1: #15915b;
+    --ring: #007aff;
+    --chart-1: #007aff;
     --chart-2: #34c759;
     --chart-3: #ff9500;
     --chart-4: #af52de;
     --chart-5: #ff2d55;
     --sidebar-background: #ffffff;
     --sidebar-foreground: #1d1d1f;
-    --sidebar-primary: #15915b;
+    --sidebar-primary: #007aff;
     --sidebar-primary-foreground: #ffffff;
     --sidebar-accent: #f2f2f7;
     --sidebar-accent-foreground: #1d1d1f;
     --sidebar-border: rgba(60, 60, 67, 0.18);
-    --sidebar-ring: #15915b;
+    --sidebar-ring: #007aff;
     --font-ui: "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
     --font-serif: "EB Garamond", Georgia, "Times New Roman", serif;
     --radius: 1rem;
@@ -94,27 +94,27 @@
     --card-foreground: #f5f5f7;
     --popover: #1c1c1e;
     --popover-foreground: #f5f5f7;
-    --primary: #23c47a;
+    --primary: #79b4ff;
     --primary-foreground: #ffffff;
     --secondary: #2c2c2e;
     --secondary-foreground: #f5f5f7;
-    --muted: #2c2c2e;
+    --muted: #a1a1aa;
     --muted-foreground: #a1a1a6;
-    --accent: #103b2a;
-    --accent-foreground: #86efac;
+    --accent: #152d4d;
+    --accent-foreground: #afd1ff;
     --destructive: #ff453a;
     --destructive-foreground: #ffffff;
     --border: rgba(84, 84, 88, 0.6);
     --input: #2c2c2e;
-    --ring: #23c47a;
+    --ring: #79b4ff;
     --sidebar-background: #1c1c1e;
     --sidebar-foreground: #f5f5f7;
-    --sidebar-primary: #23c47a;
+    --sidebar-primary: #79b4ff;
     --sidebar-primary-foreground: #ffffff;
     --sidebar-accent: #2c2c2e;
     --sidebar-accent-foreground: #f5f5f7;
     --sidebar-border: rgba(84, 84, 88, 0.6);
-    --sidebar-ring: #23c47a;
+    --sidebar-ring: #79b4ff;
     color-scheme: dark;
   }
 
@@ -161,30 +161,6 @@
 }
 
 @layer components {
-  .apple-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    box-shadow: var(--shadow-apple-card);
-  }
-
-  .apple-soft-card {
-    background: var(--secondary);
-    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-    border-radius: 12px;
-  }
-
-  .apple-chip {
-    align-items: center;
-    background: var(--secondary);
-    border-radius: 9999px;
-    color: var(--secondary-foreground);
-    display: inline-flex;
-    font-size: 12px;
-    font-weight: 600;
-    min-height: 28px;
-    padding: 0 10px;
-  }
 
   .apple-page {
     background: var(--background);
@@ -192,122 +168,7 @@
   }
 }
 
-.reachard-mountain-hero {
-  background-image: url("/images/home/hero-background.png");
-  background-position: top center;
-  background-repeat: no-repeat;
-  background-size: max(100vw, 100rem);
-  isolation: isolate;
-  position: relative;
-}
-
-.reachard-mountain-hero::before {
-  background: radial-gradient(140% 92% at 50% -18%, rgb(255 255 255 / 0) 76%, rgb(255 255 255 / 0.5) 94%, #ffffff 112%);
-  content: "";
-  height: 100vh;
-  inset: 0 0 auto;
-  pointer-events: none;
-  position: absolute;
-  z-index: 0;
-}
-
-.reachard-mountain-button {
-  background:
-    radial-gradient(101.79% 101.79% at 65.61% 81.79%, rgb(255 255 255 / 0.6) 0, rgb(255 255 255 / 0) 100%),
-    radial-gradient(114.65% 114.65% at 9.73% 17.27%, #7edb77 0, #1f9f62 58%, #0f7549 100%);
-  background-blend-mode: overlay, normal;
-  border-radius: 10px;
-  box-shadow:
-    20px 20px 24px rgb(103 173 92 / 0.32),
-    inset -3px -3px 4px rgb(211 255 196 / 0.42),
-    inset 4px 4px 4px rgb(13 112 72 / 0.12);
-  overflow: hidden;
-  position: relative;
-  transition: transform 160ms ease-out, box-shadow 200ms ease-out;
-}
-
-.reachard-mountain-button::after {
-  background: radial-gradient(101.79% 101.79% at 65.61% 81.79%, rgb(255 255 255 / 0.6) 0, rgb(255 255 255 / 0) 100%);
-  border-radius: inherit;
-  content: "";
-  inset: 1px;
-  mix-blend-mode: overlay;
-  opacity: 0;
-  position: absolute;
-  transition: opacity 300ms ease-in-out;
-  z-index: 0;
-}
-
-.reachard-mountain-button:hover {
-  box-shadow:
-    20px 20px 28px rgb(74 151 84 / 0.38),
-    inset -3px -3px 4px rgb(211 255 196 / 0.48),
-    inset 4px 4px 4px rgb(13 112 72 / 0.16);
-  transform: scale(1.03);
-}
-
-.reachard-mountain-button:hover::after {
-  opacity: 0.4;
-}
-
-.reachard-mountain-button:active {
-  transform: scale(0.97);
-}
-
-.reachard-mountain-button__border {
-  background: linear-gradient(176.87deg, rgb(255 255 255 / 0.5) 8.56%, rgb(255 255 255 / 0) 85.04%);
-  border-radius: inherit;
-  inset: -1px;
-  mask-composite: exclude;
-  opacity: 0.45;
-  padding: 3px;
-  position: absolute;
-  z-index: 1;
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-}
-
 @media (max-width: 768px) {
-  .reachard-mountain-hero {
-    background-image: url("/images/home/hero-background.png");
-    background-position: top center;
-    background-size: cover;
-  }
-
-  .reachard-mountain-hero::before {
-    background: radial-gradient(190% 88% at 50% -16%, rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.54) 94%, #ffffff 112%);
-  }
-}
-
-.hero-title {
-  font-family: var(--font-serif);
-  font-size: 56px;
-  font-weight: 500;
-  letter-spacing: -1px;
-  line-height: 1.02;
-  text-shadow: none;
-  text-wrap: balance;
-}
-
-.hero-reveal-line {
-  display: block;
-  height: 1.12em;
-  line-height: 1.02;
-  overflow: hidden;
-}
-
-.hero-reveal-line--second {
-  height: 1.34em;
-  margin-top: 0.02em;
-}
-
-.hero-subtitle {
-  font-family: var(--font-ui);
-  font-size: 16px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  line-height: 1.4;
-  text-shadow: none;
 }
 
 .nav-link {
@@ -326,101 +187,6 @@
   line-height: 1;
 }
 
-.chrome-cta-button {
-  align-items: center;
-  display: inline-flex;
-  font-size: 16px;
-  font-weight: 500;
-  gap: 6px;
-  justify-content: center;
-  letter-spacing: -0.13px;
-  line-height: 24px;
-  min-height: 44px;
-  padding: 10px 20px;
-  width: fit-content;
-}
-
-.chrome-cta-button svg {
-  height: 24px;
-  width: 24px;
-}
-
-.auth-expand {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transform: translateY(-8px);
-  transition:
-    grid-template-rows 260ms ease,
-    opacity 220ms ease,
-    transform 260ms ease;
-}
-
-.auth-expand > * {
-  overflow: hidden;
-}
-
-.auth-expand--open {
-  grid-template-rows: 1fr;
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.auth-expand--open > * {
-  overflow: visible;
-}
-
-.auth-step-panel {
-  overflow: visible;
-  transition: opacity 220ms ease, transform 260ms ease;
-}
-
-.auth-step-panel--verify {
-  min-height: 276px;
-}
-
-.auth-step-panel--morph {
-  min-height: 72px;
-  overflow: visible;
-}
-
-.auth-step-panel--password {
-  min-height: 72px;
-  overflow: visible;
-}
-
-.auth-unified-bubble {
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: transparent;
-  box-sizing: border-box;
-  box-shadow: inset 0 0 0 1px #86868b;
-  overflow: hidden;
-  transition:
-    box-shadow 150ms ease,
-    height 300ms ease,
-    padding 300ms ease;
-}
-
-.auth-unified-bubble--password:focus-within {
-  box-shadow: inset 0 0 0 2px #0071e3;
-}
-
-.auth-unified-bubble--verify {
-  height: 260px;
-}
-
-.auth-step-panel--morph .auth-unified-bubble--verify {
-  height: 56px;
-  padding-bottom: 0;
-  padding-top: 0;
-}
-
-.auth-unified-bubble--password {
-  height: 56px;
-  padding: 0;
-}
-
 .card-text {
   color: #edeef2;
   font-family: var(--font-ui);
@@ -431,7 +197,7 @@
 }
 
 .page-title {
-  color: #0f172a;
+  color: var(--foreground);
   font-family: var(--font-ui);
   font-size: 28px;
   font-weight: 600;
@@ -440,7 +206,7 @@
 }
 
 .section-title {
-  color: #0f172a;
+  color: var(--foreground);
   font-family: var(--font-ui);
   font-size: 20px;
   font-weight: 600;
@@ -448,8 +214,8 @@
   line-height: 1.2;
 }
 
-.label {
-  color: #64748b;
+.profile-label {
+  color: var(--muted);
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 500;
@@ -458,7 +224,7 @@
 }
 
 .value {
-  color: #0f172a;
+  color: var(--foreground);
   font-family: var(--font-ui);
   font-size: 15px;
   font-weight: 500;
@@ -467,7 +233,7 @@
 }
 
 .secondary {
-  color: #94a3b8;
+  color: var(--muted);
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 500;
@@ -522,24 +288,9 @@
 }
 
 @media (min-width: 1024px) {
-  .hero-title {
-    font-size: 80px;
-  }
-
-  .hero-subtitle {
-    font-size: 19px;
-  }
 }
 
 @media (max-width: 640px) {
-  .hero-title {
-    font-size: 46px;
-    line-height: 1.06;
-  }
-
-  .hero-subtitle {
-    font-size: 15px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

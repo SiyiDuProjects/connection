@@ -1,5 +1,7 @@
 'use client';
 
+import { Card } from '@heroui/react';
+
 import { useState } from 'react';
 import useSWR from 'swr';
 import { DashboardSidebar } from '../dashboard-sidebar';
@@ -75,10 +77,10 @@ export default function RecentOutreachPage() {
         />
 
         <section className="flex min-h-0 flex-col overflow-visible">
-          <section className="rounded-[18px] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.035),0_4px_10px_rgba(0,0,0,0.045)] ring-1 ring-black/[0.025]">
+          <Card>
             <h2 className="section-title">{t('dashboard.recentOutreach')}</h2>
             <RecentOutreachList outreach={outreach} />
-          </section>
+          </Card>
         </section>
       </section>
     </main>

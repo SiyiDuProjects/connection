@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export default async function OnboardingPage({
   searchParams
 }: {
-  searchParams: Promise<{ redirect?: string }> | { redirect?: string };
+  searchParams: Promise<{ redirect?: string }>;
 }) {
   const params = await searchParams;
   const user = await getUser();

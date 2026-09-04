@@ -3,6 +3,8 @@ import { Check } from 'lucide-react';
 import { getStripePrices, getStripeProducts } from '@/lib/payments/stripe';
 import { SubmitButton } from './submit-button';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
 import { cookies, headers } from 'next/headers';
 import { normalizeLanguage, translate, type Language } from '@/lib/i18n';
 import { configuredPriceIdForPlan } from '@/lib/payments/plans';
@@ -130,15 +132,15 @@ function PricingCard({
     translate(language, key, values);
 
   return (
-    <section className="apple-card p-6">
+    <Card>
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold text-foreground">{name}</h2>
           <p className="mt-2 text-sm font-medium leading-5 text-muted-foreground">{t(copy.audienceKey as Parameters<typeof translate>[1])}</p>
         </div>
-        <p className="rounded-full bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground">
+        <Chip color="accent" variant="soft">
           {t(copy.creditsKey as Parameters<typeof translate>[1])}
-        </p>
+        </Chip>
       </div>
       <p className="mt-7 text-4xl font-semibold text-foreground">
         {configured ? `$${price! / 100}` : t('pricing.configuring')}
@@ -169,6 +171,6 @@ function PricingCard({
           {t('pricing.configureStripe')}
         </Button>
       )}
-    </section>
+    </Card>
   );
 }

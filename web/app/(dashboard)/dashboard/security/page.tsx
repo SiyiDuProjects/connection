@@ -106,7 +106,7 @@ export default function SecurityPage() {
                 <div className="flex justify-end">
                   <Button
                     type="submit"
-                    className="button-text bg-gray-950 text-white hover:bg-gray-800"
+
                     disabled={isPasswordPending}
                   >
                     {isPasswordPending ? (
@@ -138,7 +138,7 @@ export default function SecurityPage() {
                 type="button"
                 onClick={handleSignOut}
                 variant="outline"
-                className="button-text bg-white text-gray-950 hover:bg-gray-50"
+
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 {t('security.logOut')}
@@ -175,7 +175,7 @@ export default function SecurityPage() {
                   <Button
                   type="submit"
                   variant="destructive"
-                  className="button-text bg-red-600 hover:bg-red-700"
+
                     disabled={isDeletePending}
                   >
                     {isDeletePending ? (

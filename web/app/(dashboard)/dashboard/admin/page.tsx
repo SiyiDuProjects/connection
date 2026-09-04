@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Label, TextArea } from '@heroui/react';
 import { useI18n } from '@/components/language-provider';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -167,7 +167,7 @@ export default function AdminPage() {
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t('admin.searchEmail')}
               />
-              <Button type="submit" variant="outline" className="button-text">{t('admin.search')}</Button>
+              <Button type="submit" variant="outline" >{t('admin.search')}</Button>
             </form>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -224,14 +224,14 @@ export default function AdminPage() {
               </div>
               <div>
                 <Label htmlFor="note">{t('admin.note')}</Label>
-                <textarea
+                <TextArea
                   id="note"
                   name="note"
-                  className="value min-h-24 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 py-3 outline-none focus-visible:ring-ring/35 focus-visible:ring-[3px]"
+                  className="min-h-24 w-full"
                   placeholder={t('admin.notePlaceholder')}
                 />
               </div>
-              <Button type="submit" className="button-text">{t('admin.grantCredits')}</Button>
+              <Button type="submit" >{t('admin.grantCredits')}</Button>
               <p className="secondary">{status}</p>
             </form>
           </CardContent>

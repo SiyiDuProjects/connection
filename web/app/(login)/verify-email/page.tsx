@@ -1,3 +1,4 @@
+import { Card } from '@/components/ui/card';
 import Link from 'next/link';
 import { MailCheck } from 'lucide-react';
 import { ResendVerificationForm } from './resend-verification-form';
@@ -36,9 +37,9 @@ export default async function VerifyEmailPage({
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="apple-card p-6">
+        <Card>
           <ResendVerificationForm email={email} />
-        </div>
+        </Card>
         <div className="mt-6 text-center text-sm">
           <Link
             href="/sign-in"

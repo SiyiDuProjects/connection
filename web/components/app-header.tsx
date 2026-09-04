@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { Bolt, ChevronDown, Chrome } from 'lucide-react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Bolt, Chrome } from 'lucide-react';
+import { buttonVariants } from '@heroui/react';
+import { AccountDropdown } from '@/components/ui/account-menu';
 import { signOut } from '@/app/(login)/actions';
 import {
   ExtensionSessionBridge,
@@ -62,7 +63,7 @@ export function AppHeader({
   if (hideOnDashboard && pathname.startsWith('/dashboard')) return null;
 
   return (
-    <header className={cn('h-16 bg-white', variant === 'hero' && 'bg-transparent text-white', className)}>
+    <header className={cn('h-16 bg-surface', variant === 'hero' && 'bg-transparent text-white', className)}>
       <div
         className={cn(
           'mx-auto flex h-full max-w-[948px] items-center justify-between gap-5 px-6',
@@ -84,7 +85,7 @@ export function AppHeader({
               fontSize: 24,
               letterSpacing: '-0.045em',
               lineHeight: 1,
-              color: '#171717'
+              color: 'var(--foreground)'
             }}
           >
             Reachard
@@ -128,12 +129,7 @@ function HeaderActions({
           href={chromeCta.href}
           target={chromeCta.external ? '_blank' : undefined}
           rel={chromeCta.external ? 'noreferrer' : undefined}
-          className={cn(
-            'chrome-cta-button rounded-[10px] transition-[background,color,transform] duration-200 ease-out active:scale-[0.98]',
-            variant === 'hero'
-              ? 'bg-white text-[#1d1d1f] shadow-[0_14px_30px_rgba(23,129,78,0.14)] hover:bg-white/90 hover:text-[#1d1d1f]'
-              : 'bg-[#3a3a3c] text-white hover:bg-[#2c2c2e] hover:text-white'
-          )}
+          className={buttonVariants({ variant: 'primary' })}
         >
           <Chrome />
           <span>{chromeCta.label}</span>
@@ -174,49 +170,7 @@ function AccountMenu({ user, variant }: { user: HeaderUser; variant: HeaderVaria
     router.push('/');
   }
 
-  return (
-    <div className="group relative">
-      <button
-        type="button"
-        className={cn(
-          'inline-flex h-11 cursor-pointer items-center gap-3 rounded-full px-2 outline-none transition-opacity duration-150 ease-out',
-          variant === 'hero' ? 'text-white/85 hover:text-white' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
-        )}
-        aria-haspopup="menu"
-        aria-label={t('header.accountMenu')}
-      >
-        <ChevronDown className="h-5 w-5 stroke-[2.4]" aria-hidden="true" />
-        <Avatar className="size-10 rounded-full">
-          <AvatarFallback className="rounded-full bg-[#5ed8bf] text-[17px] font-semibold text-white">
-            {initials(user)}
-          </AvatarFallback>
-        </Avatar>
-      </button>
-      <div className="absolute right-0 top-full z-50 hidden min-w-[236px] pt-3 group-focus-within:block group-hover:block">
-        <div className="overflow-hidden rounded-[12px] border border-[#d2d2d7] bg-white text-left shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
-          <Link
-            href="/dashboard"
-            className="block border-b border-[#e5e5ea] px-7 py-4 text-[17px] font-semibold text-[#6e6e73] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
-          >
-            {t('header.viewAccount')}
-          </Link>
-          <Link
-            href="/dashboard/security"
-            className="block border-b border-[#e5e5ea] px-7 py-4 text-[17px] font-semibold text-[#6e6e73] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
-          >
-            {t('header.settings')}
-          </Link>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="block w-full px-7 py-4 text-left text-[17px] font-semibold text-[#d70015] transition-colors hover:bg-[#fff2f2]"
-          >
-            {t('header.logOut')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  return <AccountDropdown initials={initials(user)} labels={{ menu: t('header.accountMenu'), account: t('header.viewAccount'), settings: t('header.settings'), signOut: t('header.logOut') }} onAccount={() => router.push('/dashboard')} onSettings={() => router.push('/dashboard/security')} onSignOut={() => void handleSignOut()} />;
 }
 
 function displayName(user?: HeaderUser) {

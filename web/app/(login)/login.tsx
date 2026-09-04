@@ -1,332 +1,76 @@
 'use client';
-
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useActionState } from 'react';
+import { Button, Card, Input, InputGroup, Label, TextField, buttonVariants } from '@heroui/react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, Eye, EyeOff, Loader2, Mail, UserRound, X } from 'lucide-react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowRightCircle, Loader2, Play } from 'lucide-react';
-import { AppHeader } from '@/components/app-header';
+import { useActionState, useState, type FormEvent } from 'react';
 import { checkAccountStatus, signIn, signUp } from './actions';
 import { ActionState } from '@/lib/auth/middleware';
-
-const fieldClass =
-  'h-14 w-full rounded-[12px] border border-transparent bg-transparent px-4 text-[17px] font-normal leading-none text-[#1d1d1f] shadow-[inset_0_0_0_1px_#86868b] placeholder:text-[#6e6e73] transition-shadow duration-150 ease-out focus:outline-none focus:ring-0 focus:shadow-[inset_0_0_0_2px_#0071e3]';
-
-type AuthStep = 'email' | 'signin' | 'verify' | 'signup';
+import { Brand, ThemeSwitch } from '@/components/reachard/design';
 
 export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect');
-  const priceId = searchParams.get('priceId');
-  const inviteId = searchParams.get('inviteId');
-  const ref = searchParams.get('ref');
+  const [signup, setSignup] = useState(mode === 'signup');
+  const [emailStep, setEmailStep] = useState(mode === 'signin');
   const [email, setEmail] = useState('');
-  const [step, setStep] = useState<AuthStep>('email');
-  const [code, setCode] = useState('');
-  const [resendSeconds, setResendSeconds] = useState(60);
-  const [statusError, setStatusError] = useState('');
-  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
-  const [codeTransition, setCodeTransition] = useState<'idle' | 'fade' | 'shrink' | 'password'>('idle');
-  const codeInputRefs = useRef<Array<HTMLInputElement | null>>([]);
-  const lastValidatedCodeRef = useRef('');
-  const [signInState, signInAction, isSigningIn] = useActionState<ActionState, FormData>(signIn, { error: '' });
-  const [signUpState, signUpAction, isSigningUp] = useActionState<ActionState, FormData>(signUp, { error: '' });
-
-  useEffect(() => {
-    if (mode === 'signup') {
-      setStep('signup');
+  const [checking, setChecking] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [started, setStarted] = useState(!signup);
+  const [showPassword, setShowPassword] = useState(false);
+  const [state, action, pending] = useActionState<ActionState, FormData>(async (previous, data) => {
+    try { return await (signup ? signUp : signIn)(previous, data); }
+    catch (error) {
+      if (error && typeof error === 'object' && 'digest' in error && String(error.digest).startsWith('NEXT_REDIRECT')) throw error;
+      return { error: 'We could not connect to your account. Please try again when the account service is available.' };
     }
-  }, [mode]);
-
-  const action = step === 'signup' ? signUpAction : signInAction;
-  const pending = isCheckingEmail || isSigningIn || isSigningUp;
-  const activeState = step === 'signup' ? signUpState : signInState;
-  const title = useMemo(() => {
-    if (step === 'signin') return 'Welcome back';
-    if (step === 'verify') return 'Verify your email';
-    if (step === 'signup') return 'Set your password';
-    return 'Continue to Reachard';
-  }, [step]);
-
-  useEffect(() => {
-    if (step === 'verify') {
-      setResendSeconds(60);
-      window.setTimeout(() => codeInputRefs.current[0]?.focus(), 180);
-    }
-  }, [step]);
-
-  useEffect(() => {
-    if (step !== 'verify' || resendSeconds <= 0) return;
-
-    const timer = window.setTimeout(() => {
-      setResendSeconds((seconds) => Math.max(0, seconds - 1));
-    }, 1000);
-
-    return () => window.clearTimeout(timer);
-  }, [resendSeconds, step]);
-
-  useEffect(() => {
-    if (step !== 'verify' || code.length !== 6 || code === lastValidatedCodeRef.current) return;
-    lastValidatedCodeRef.current = code;
-    validateCode();
-  }, [code, step]);
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    if (step === 'verify') {
-      event.preventDefault();
-      validateCode();
-      return;
-    }
-
-    if (step !== 'email') return;
+  }, { error: '' });
+  async function checkEmail(event: FormEvent<HTMLFormElement>) {
+    if (!emailStep) return;
     event.preventDefault();
-    setStatusError('');
-
-    const formData = new FormData(event.currentTarget);
-    const nextEmail = String(formData.get('email') || '').trim();
-
-    setIsCheckingEmail(true);
-    void (async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 520));
-      const result = await checkAccountStatus(nextEmail);
-      setIsCheckingEmail(false);
-
-      if ('error' in result && result.error) {
-        setStatusError(result.error);
-        return;
-      }
-
-      setEmail(result.email || nextEmail);
-      setCode('');
-      lastValidatedCodeRef.current = '';
-      setCodeTransition('idle');
-      setStep(result.exists ? 'signin' : 'verify');
-    })();
+    setChecking(true);
+    setEmailError('');
+    try {
+      const result = await checkAccountStatus(email);
+      if ('error' in result && result.error) { setEmailError(result.error); return; }
+      setEmail(result.email || email);
+      setSignup(!result.exists);
+      setEmailStep(false);
+    } catch {
+      setEmailError('We could not check your account. Please try again.');
+    } finally { setChecking(false); }
   }
+  const busy = pending || checking;
+  const preserved = new URLSearchParams();
+  for (const key of ['redirect', 'priceId', 'inviteId', 'ref']) { const value = searchParams.get(key); if (value) preserved.set(key, value); }
+  const switchUrl = `${signup ? '/sign-in' : '/sign-up'}${preserved.size ? `?${preserved}` : ''}`;
 
-  function validateCode() {
-    if (code === '123456') {
-      setStatusError('');
-      setCodeTransition('fade');
-      window.setTimeout(() => {
-        setCodeTransition('shrink');
-      }, 120);
-      window.setTimeout(() => {
-        setStep('signup');
-        setCodeTransition('password');
-      }, 240);
-      window.setTimeout(() => {
-        setCodeTransition('idle');
-      }, 300);
-      return;
-    }
-
-    const message = 'Invalid code. Use 123456 for now.';
-    setStatusError(message);
-    window.alert(message);
-  }
-
-  function updateCode(value: string, index: number) {
-    const digits = value.replace(/\D/g, '').slice(0, 6);
-    if (!digits) {
-      setCode((current) => current.slice(0, index) + current.slice(index + 1));
-      return;
-    }
-
-    setCode((current) => {
-      const next = current.padEnd(6, ' ').split('');
-      for (let offset = 0; offset < digits.length && index + offset < 6; offset += 1) {
-        next[index + offset] = digits[offset];
-      }
-      return next.join('').replace(/\s/g, '').slice(0, 6);
-    });
-
-    const nextIndex = Math.min(index + digits.length, 5);
-    window.setTimeout(() => codeInputRefs.current[nextIndex]?.focus(), 0);
-  }
-
-  function focusNextCodeInput() {
-    const nextIndex = Math.min(code.length, 5);
-    codeInputRefs.current[nextIndex]?.focus();
-  }
-
-  return (
-    <main className="flex min-h-[100dvh] flex-col bg-[#f5f5f7] text-[#1d1d1f]">
-      <AppHeader className="shrink-0 bg-[#f5f5f7]" />
-      <section className="mx-auto flex w-full max-w-[480px] flex-1 flex-col items-center px-6 pt-4 sm:pt-12">
-        <h1 className="text-center text-[28px] font-semibold leading-tight tracking-normal text-[#424245]">
-          {title}
-        </h1>
-
-        <form className="mt-10 w-full" action={action} onSubmit={handleSubmit}>
-          <input type="hidden" name="redirect" value={redirect || ''} />
-          <input type="hidden" name="priceId" value={priceId || ''} />
-          <input type="hidden" name="inviteId" value={inviteId || ''} />
-          <input type="hidden" name="ref" value={ref || ''} />
-
-          <div className="relative">
-            <label htmlFor="email" className="sr-only">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-                if (step !== 'email') {
-                  setStep('email');
-                  setCode('');
-                  lastValidatedCodeRef.current = '';
-                  setCodeTransition('idle');
-                }
-              }}
-              required
-              maxLength={255}
-              className={`${fieldClass} pr-16`}
-              placeholder="Email"
-            />
-            {step === 'email' ? <SubmitArrowButton pending={pending} label="Continue" /> : null}
-          </div>
-
-          <div className={`auth-expand ${step !== 'email' ? 'auth-expand--open' : ''}`}>
-            {step !== 'email' ? (
-              <div
-                className={`auth-step-panel ${
-                  step === 'verify' && codeTransition !== 'shrink'
-                    ? 'auth-step-panel--verify'
-                    : step === 'verify'
-                      ? 'auth-step-panel--morph'
-                      : 'auth-step-panel--password'
-                } pt-4`}
-              >
-                {step === 'verify' ? (
-                <div className="auth-unified-bubble auth-unified-bubble--verify px-5 py-5 text-center">
-                  <div
-                    className={`transition-[opacity,transform] duration-180 ease-out ${
-                      codeTransition === 'idle' ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'
-                    }`}
-                  >
-                    <p className="text-[15px] font-normal leading-6 text-[#6e6e73]">
-                      Enter the verification code sent to your email
-                    </p>
-                    <p className="mt-1 break-all text-[15px] font-normal leading-6 text-[#6e6e73]">
-                      {email}
-                    </p>
-
-                    <div className="mx-auto mt-6 grid w-fit grid-cols-6 gap-2">
-                      {Array.from({ length: 6 }).map((_, index) => (
-                        <input
-                          key={index}
-                          ref={(input) => {
-                            codeInputRefs.current[index] = input;
-                          }}
-                          type="text"
-                          inputMode="numeric"
-                          autoComplete={index === 0 ? 'one-time-code' : 'off'}
-                          value={code[index] || ''}
-                          onPointerDown={(event) => {
-                            if (index !== Math.min(code.length, 5)) {
-                              event.preventDefault();
-                              focusNextCodeInput();
-                            }
-                          }}
-                          onFocus={() => {
-                            if (index !== Math.min(code.length, 5)) {
-                              window.setTimeout(focusNextCodeInput, 0);
-                            }
-                          }}
-                          onChange={(event) => updateCode(event.target.value, index)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Backspace' && !code[index] && index > 0) {
-                              codeInputRefs.current[index - 1]?.focus();
-                            }
-                          }}
-                          aria-label={`Verification code digit ${index + 1}`}
-                          className="h-[45px] w-[50px] min-w-0 rounded-[9px] border border-transparent bg-transparent text-center text-[18px] font-medium leading-none text-[#1d1d1f] shadow-[inset_0_0_0_1px_#d2d2d7] transition-shadow duration-150 ease-out focus:outline-none focus:ring-0 focus:shadow-[inset_0_0_0_2px_#0071e3]"
-                        />
-                      ))}
-                    </div>
-
-                    <button
-                      type="button"
-                      disabled={resendSeconds > 0}
-                      className="mt-3 cursor-pointer text-[14px] font-normal leading-5 text-[#0071e3] transition-colors hover:text-[#005bb5] hover:underline disabled:cursor-default disabled:text-[#0071e3]/55 disabled:hover:no-underline"
-                      onClick={() => {
-                        setCode('');
-                        lastValidatedCodeRef.current = '';
-                        setCodeTransition('idle');
-                        setStatusError('');
-                        setResendSeconds(60);
-                        window.setTimeout(() => codeInputRefs.current[0]?.focus(), 0);
-                      }}
-                    >
-                      Didn&apos;t receive a code? Resend{resendSeconds > 0 ? ` (${resendSeconds})` : ''}
-                    </button>
-
-                    <button
-                      type="submit"
-                      className="button-text mx-auto mt-7 inline-flex h-10 w-[340px] cursor-pointer items-center justify-center gap-2 rounded-[9px] bg-[#008ecf] px-4 text-white shadow-[0_7px_14px_rgba(0,113,227,0.14)] transition-[background,transform] duration-200 ease-out hover:bg-[#007fc0] active:scale-[0.99]"
-                    >
-                      Continue
-                      <Play className="h-3 w-3 fill-white/45 stroke-0" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-                ) : step === 'signin' || step === 'signup' ? (
-                <div
-                  className={`auth-unified-bubble auth-unified-bubble--password relative transition-[opacity,transform] duration-220 ease-out ${
-                    codeTransition === 'password' ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100'
-                  }`}
-                >
-                  <label htmlFor="password" className="sr-only">
-                    {step === 'signup' ? 'Set password' : 'Password'}
-                  </label>
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete={step === 'signin' ? 'current-password' : 'new-password'}
-                    required
-                    minLength={8}
-                    maxLength={100}
-                    className="h-14 w-full bg-transparent px-4 pr-16 text-[17px] font-normal leading-none text-[#1d1d1f] placeholder:text-[#6e6e73] outline-none"
-                    placeholder={step === 'signup' ? 'Set password' : 'Password'}
-                    autoFocus
-                  />
-                  <SubmitArrowButton pending={pending} label="Continue" />
-                </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-
-          {(statusError || activeState?.error) && (
-            <p className="mt-5 text-center text-sm font-medium text-destructive">
-              {statusError || activeState.error}
-            </p>
-          )}
-        </form>
-      </section>
-    </main>
-  );
-}
-
-function SubmitArrowButton({ pending, label }: { pending: boolean; label: string }) {
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      aria-label={label}
-      title={label}
-      className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-[#86868b] transition-[color,transform,opacity] duration-200 ease-out hover:text-[#1d1d1f] active:scale-95 disabled:cursor-default disabled:opacity-60"
-    >
-      {pending ? (
-        <Loader2 className="h-5 w-5 animate-spin text-[#86868b]" aria-hidden="true" />
-      ) : (
-        <ArrowRightCircle className="h-7 w-7 stroke-[1.75]" aria-hidden="true" />
-      )}
-    </button>
-  );
+  return <main className="hu-auth">
+    <header className="hu-auth-header"><Brand /><ThemeSwitch /></header>
+    <div className="hu-auth-center">
+      <Card className="hu-auth-card">
+        <Link href="/" className={buttonVariants({ variant: 'tertiary', isIconOnly: true, size: 'sm', className: 'absolute right-5 top-5' })} aria-label="Close and return home"><X size={20}/></Link>
+        <Card.Header className="hu-auth-card-header">
+          <div className="hu-auth-icon">{started ? <Mail size={25} strokeWidth={1.7}/> : <UserRound size={27} strokeWidth={1.7}/>}</div>
+          <Card.Title>{signup ? started ? 'Create your account' : 'Create an account' : emailStep ? 'Continue to Reachard' : 'Welcome back'}</Card.Title>
+          <Card.Description>{started ? signup ? 'Your next conversation starts here.' : 'Log in to your Reachard workspace.' : <>Find the people behind<br/>your next opportunity.</>}</Card.Description>
+        </Card.Header>
+        <Card.Content>
+          {started ? <form action={action} onSubmit={checkEmail} className="hu-auth-fields">
+            {['redirect', 'priceId', 'inviteId', 'ref'].map(key => <input key={key} type="hidden" name={key} value={searchParams.get(key) || ''}/>)}
+            <TextField isRequired fullWidth><Label>Email address</Label><Input name="email" type="email" value={email} onChange={event => { setEmail(event.target.value); if (mode === 'signin') setEmailStep(true); }} placeholder="you@example.com" autoComplete="email" autoFocus required maxLength={255}/></TextField>
+            {!emailStep && <TextField isRequired fullWidth><Label>{signup ? 'Create a password' : 'Password'}</Label><InputGroup fullWidth><InputGroup.Input name="password" type={showPassword ? 'text' : 'password'} placeholder={signup ? 'At least 8 characters' : 'Your password'} autoComplete={signup ? 'new-password' : 'current-password'} minLength={8} maxLength={100} required/><InputGroup.Suffix><Button isIconOnly size="sm" type="button" variant="ghost" aria-label={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword(value => !value)}>{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</Button></InputGroup.Suffix></InputGroup></TextField>}
+            {(emailError || state?.error) && <p role="alert" className="rd-form-error">{emailError || state.error}</p>}
+            <Button type="submit" size="lg" fullWidth variant="primary" isDisabled={busy}>{busy ? <Loader2 className="animate-spin" size={18}/> : null}{busy ? 'One moment…' : emailStep ? 'Continue' : signup ? 'Create account' : 'Log in'}{!busy && <ArrowRight size={18}/>}</Button>
+          </form> : <Button fullWidth size="lg" variant="primary" onPress={() => setStarted(true)}>Get started<ArrowRight size={18}/></Button>}
+          {!started && <p className="hu-auth-email-note">Continue with your email address</p>}
+        </Card.Content>
+        <Card.Footer className="hu-auth-card-footer">
+          <p>{signup ? 'Already have an account?' : 'New to Reachard?'} <Link href={switchUrl}>{signup ? 'Log in' : 'Create an account'}</Link></p>
+          <Link href="/workspace-preview" className={buttonVariants({ variant: 'tertiary', fullWidth: true, size: 'lg' })}>Explore the workspace first <ArrowUpRight size={15}/></Link>
+        </Card.Footer>
+      </Card>
+      <p className="hu-auth-legal">{signup ? 'By creating an account, you agree to our' : 'Your account. Your connections.'}<br/><Link href="/terms">Terms of Service</Link> and <Link href="/privacy">Privacy Policy</Link>.</p>
+    </div>
+    <footer className="hu-auth-bottom"><span>© 2026 Reachard</span><Link href="/"><ArrowLeft size={14}/>Back home</Link></footer>
+  </main>;
 }

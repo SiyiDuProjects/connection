@@ -11,7 +11,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <section className="flex flex-col min-h-screen">
-      {isWorkspacePreview ? null : (
+      {isWorkspacePreview || isHome ? null : (
         <AppHeader
           hideOnDashboard
           variant={isHome ? 'hero' : 'default'}

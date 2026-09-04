@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function ConnectExtensionPage({
   searchParams
 }: {
-  searchParams: Promise<{ extensionId?: string; return?: string }> | { extensionId?: string; return?: string };
+  searchParams: Promise<{ extensionId?: string; return?: string }>;
 }) {
   const params = await searchParams;
   const extensionId = clean(params.extensionId) || getAllowedExtensionIds()[0] || '';

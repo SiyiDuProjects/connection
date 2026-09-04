@@ -1,0 +1,33 @@
+/* HeroUI composition based on the user's account-card reference. */
+.hu-auth {
+  --accent: #007aff; --accent-foreground: #fff; --muted: #77777d;
+  --field-background: #fff; --field-foreground: #252528; --field-placeholder: #898990;
+  --default: #ededee; --default-foreground: #252528; --focus: #007aff;
+  --radius: .75rem;
+  min-height: 100dvh; display: flex; flex-direction: column;
+  background: #f5f5f6; color: #252528;
+  font: 15px/1.5 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: -.015em;
+}
+.dark .hu-auth { --accent: #87b9ff; --accent-foreground: #111827; --muted: #a1a1aa; --field-background: #303034; --field-foreground: #f3f3f4; --field-placeholder: #a1a1aa; --default: #303034; --default-foreground: #f3f3f4; background: #18181a; color: #f3f3f4; }
+.hu-auth-header { display: flex; align-items: center; justify-content: space-between; padding: 28px 42px; }
+.hu-auth-center { display: flex; flex: 1; flex-direction: column; justify-content: center; align-items: center; padding: 35px 24px 65px; }
+.hu-auth-card { position: relative; width: 100%; max-width: 470px; padding: 30px; }
+.hu-auth-card-header { align-items: center; text-align: center; gap: 0; padding-bottom: 28px; }
+.hu-auth-icon { display: flex; align-items: center; justify-content: center; width: 70px; height: 70px; border-radius: 50%; background: var(--default); margin: 7px 0 24px; }
+.hu-auth-card .card__title { font-size: 25px; font-weight: 550; letter-spacing: -.035em; }
+.hu-auth-card .card__description { font-size: 18px; line-height: 1.5; margin-top: 20px; color: var(--muted); }
+.hu-auth-fields { display: grid; gap: 21px; }
+.hu-auth-fields .label { font-size: 14px; }
+.hu-auth-fields .input,.hu-auth-fields .input-group { min-height: 48px; }
+.hu-auth-fields .button[type=submit] { margin-top: 5px; }
+.hu-auth-card .button--lg { min-height: 50px; font-size: 16px; }
+.hu-auth-email-note { color: var(--muted); text-align: center; font-size: 12px; margin-top: 14px; }
+.hu-auth-card-footer { display: flex; flex-direction: column; gap: 22px; align-items: center; padding-top: 28px; }
+.hu-auth-card-footer > p { font-size: 14px; color: var(--muted); }
+.hu-auth-card-footer p a { color: var(--foreground); font-weight: 500; margin-left: 3px; }
+.hu-auth-legal { text-align: center; color: var(--muted); font-size: 11px; line-height: 1.85; margin-top: 23px; }
+.hu-auth-legal a { text-decoration: underline; text-underline-offset: 3px; }
+.hu-auth-bottom { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 22px 42px; color: var(--muted); font-size: 12px; }
+.hu-auth-bottom a { display: flex; align-items: center; gap: 8px; }
+@media(max-width:640px) { .hu-auth-header { padding: 22px 24px; }.hu-auth-center { padding: 26px 18px 35px; }.hu-auth-card { padding: 25px 22px; }.hu-auth-icon { width: 65px; height: 65px; }.hu-auth-card .card__description { font-size: 17px; }.hu-auth-bottom { padding: 20px 24px; font-size: 11px; }.hu-auth-card-footer > p { font-size: 13px; } }

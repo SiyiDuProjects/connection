@@ -1,5 +1,7 @@
 'use client';
 
+import { Chip } from '@heroui/react';
+
 import { useI18n } from '@/components/language-provider';
 import { translate, type Language } from '@/lib/i18n';
 
@@ -57,9 +59,9 @@ export function RecentOutreachList({
               <p className="value">{item.title}</p>
               <p className="secondary mt-1">{item.detail}</p>
             </div>
-            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+            <Chip size="sm" className="shrink-0">
               {item.time}
-            </span>
+            </Chip>
           </div>
         </article>
       ))}

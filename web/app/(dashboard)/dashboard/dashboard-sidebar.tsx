@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type React from 'react';
 import { Copy, Sparkles } from 'lucide-react';
+import { Avatar, Button, Card, buttonVariants } from '@heroui/react';
 import { useI18n } from '@/components/language-provider';
 
 type SidebarAccount = {
@@ -42,9 +43,7 @@ export function DashboardSidebar({
     <aside className="flex min-h-0 flex-col gap-3">
       <section className="bg-transparent px-2 pb-5 pt-3">
         <div>
-          <span className="flex h-24 w-24 items-center justify-center rounded-full bg-[#d8dcdf] text-3xl font-semibold text-[#4b5558]">
-            {initialsFromName(name)}
-          </span>
+          <Avatar size="lg"><Avatar.Fallback>{initialsFromName(name)}</Avatar.Fallback></Avatar>
           <h2 className="mt-5 truncate text-[25px] font-semibold leading-tight text-[#1d1d1f]">{name}</h2>
           {email ? (
             <p className="mt-1 truncate text-[17px] font-medium leading-snug text-[#6e6e73]">{email}</p>
@@ -67,7 +66,7 @@ export function DashboardSidebar({
         </nav>
       </section>
 
-      <section className="rounded-[18px] bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.035),0_4px_10px_rgba(0,0,0,0.045)] ring-1 ring-black/[0.025]">
+      <Card>
         <div className="min-w-0">
           <p className="section-title">{t('dashboard.credits')}</p>
           <p className="page-title mt-1">
@@ -79,13 +78,13 @@ export function DashboardSidebar({
         </div>
         <Link
           href="/pricing"
-          className="button-text mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[8px] bg-white px-3 text-slate-950 transition-colors hover:bg-[#f9f9f9]"
+          className={buttonVariants({ variant: 'tertiary', fullWidth: true, className: 'mt-3' })}
         >
           {t('sidebar.managePlan')}
         </Link>
-      </section>
+      </Card>
 
-      <section className="rounded-[18px] bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.035),0_4px_10px_rgba(0,0,0,0.045)] ring-1 ring-black/[0.025]">
+      <Card>
         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
           {t('sidebar.inviteFriends')}
@@ -93,19 +92,19 @@ export function DashboardSidebar({
         <h2 className="section-title mt-3">
           {t('sidebar.inviteReward')}
         </h2>
-        <button
+        <Button
           type="button"
           onClick={onCopyInviteLink}
-          disabled={inviteCopying}
-          className="button-text mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#f3f3f3] px-3 text-slate-950 transition-colors hover:bg-[#f9f9f9] disabled:opacity-60"
+          isDisabled={inviteCopying}
+          fullWidth variant="secondary" className="mt-4"
         >
           <Copy className="h-4 w-4" aria-hidden="true" />
           {inviteCopying ? t('common.copying') : t('dashboard.copyInviteLink')}
-        </button>
+        </Button>
         {inviteStatus ? (
           <p className="secondary mt-2">{inviteStatus}</p>
         ) : null}
-      </section>
+      </Card>
 
     </aside>
   );
