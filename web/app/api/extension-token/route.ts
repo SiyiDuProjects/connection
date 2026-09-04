@@ -4,6 +4,12 @@ import {
   revokeExtensionToken,
   revokeExtensionTokens
 } from '@/lib/extension-tokens';
+import {
+  getAllowedExtensionIds,
+  getDefaultExtensionId,
+  isOpenExtensionIdBeta,
+  isValidExtensionId
+} from '@/lib/extension-id-policy';
 
 export async function GET() {
   const user = await getUser();
@@ -28,13 +34,13 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => ({}));
   const extensionId = clean(payload.extensionId) || getDefaultExtensionId();
   const allowedIds = getAllowedExtensionIds();
-  if (!extensionId) {
-    return Response.json({ error: 'Chrome extension id is required.' }, { status: 400 });
+  if (!isValidExtensionId(extensionId)) {
+    return Response.json({ error: 'A valid Chrome extension id is required.' }, { status: 400 });
   }
-  if (allowedIds.length > 0 && !allowedIds.includes(extensionId)) {
+  if (!isOpenExtensionIdBeta() && allowedIds.length > 0 && !allowedIds.includes(extensionId)) {
     return Response.json({ error: 'This Chrome extension is not allowed.' }, { status: 403 });
   }
-  if (process.env.NODE_ENV === 'production' && allowedIds.length === 0) {
+  if (!isOpenExtensionIdBeta() && process.env.NODE_ENV === 'production' && allowedIds.length === 0) {
     return Response.json({ error: 'Production Chrome extension allowlist is not configured.' }, { status: 503 });
   }
 
@@ -67,22 +73,6 @@ export async function PATCH(request: Request) {
 
   await revokeExtensionToken(user.id, tokenId);
   return Response.json({ ok: true });
-}
-
-function getDefaultExtensionId() {
-  return getAllowedExtensionIds()[0] || '';
-}
-
-function getAllowedExtensionIds() {
-  return [
-    process.env.ALLOWED_EXTENSION_IDS,
-    process.env.CHROME_EXTENSION_ID,
-    process.env.NEXT_PUBLIC_CHROME_EXTENSION_ID
-  ]
-    .filter(Boolean)
-    .flatMap((value) => String(value).split(','))
-    .map((value) => value.trim())
-    .filter(Boolean);
 }
 
 function clean(value: unknown) {

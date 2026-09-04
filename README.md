@@ -127,9 +127,10 @@ TREG_EMAIL_ENDPOINT=apollo.people.enrich
 CONTACT_SEARCH_CREDITS=0
 CONTACT_REVEAL_CREDITS=1
 EMAIL_DRAFT_CREDITS=0
+BETA_UNLIMITED_USAGE=true
 ```
 
-Search preview and the included outreach draft do not consume Contact Kits. Revealing an email consumes one Contact Kit only when Apollo returns a verified work email. The reveal uses the candidate's LinkedIn URL first and falls back to name plus company domain when needed.
+During private beta, `BETA_UNLIMITED_USAGE` defaults to enabled, so all authenticated users can search, reveal verified emails, and generate drafts without reducing their Contact Kit balance. API usage and provider cost telemetry are still recorded. Set `BETA_UNLIMITED_USAGE=false` to restore the configured per-action costs. The reveal uses the candidate's LinkedIn URL first and falls back to name plus company domain when needed.
 
 ## Production Access
 
@@ -147,4 +148,4 @@ Production VPS access uses the shared local SSH handle documented in `/Users/byt
 
 The extension defaults to `https://contacts.reachard.co`. Change the API base URL in the extension options page if you need to use a local or staging server.
 
-Set `ALLOWED_EXTENSION_IDS` to the actual ID shown by the installed development build. A Chrome Web Store build receives its own store ID, which must be added before account connection will work. Keep `NEXT_PUBLIC_CHROME_STORE_URL` empty during private beta; the website then shows `Join private beta` instead of pretending the extension is already installable. After publication, set it to the verified Chrome Web Store listing URL.
+During private beta, `ALLOW_ANY_EXTENSION_ID` defaults to enabled so unpacked builds with different valid Chrome extension IDs can connect after the user signs in. Before public launch, set `ALLOW_ANY_EXTENSION_ID=false` and set `ALLOWED_EXTENSION_IDS` to the final Chrome Web Store ID. Keep `NEXT_PUBLIC_CHROME_STORE_URL` empty during private beta; the website then shows `Join private beta` instead of pretending the extension is already installable. After publication, set it to the verified Chrome Web Store listing URL.

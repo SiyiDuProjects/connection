@@ -36,7 +36,8 @@ export async function GET() {
     credits: {
       balance,
       remaining: balance,
-      status: balance > 0 ? 'available' : 'empty',
+      status: isBetaUnlimitedUsage() ? 'unlimited' : balance > 0 ? 'available' : 'empty',
+      unlimited: isBetaUnlimitedUsage(),
       costs: {
         search: creditCost('CONTACT_SEARCH_CREDITS', 0),
         reveal: creditCost('CONTACT_REVEAL_CREDITS', 1),
@@ -80,9 +81,18 @@ export async function GET() {
 }
 
 function creditCost(name: string, fallback: number) {
+  if (isBetaUnlimitedUsage()) return 0;
   const value = Number(process.env[name] ?? fallback);
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be a non-negative number.`);
   }
   return value;
+}
+
+function isBetaUnlimitedUsage() {
+  const configured = String(process.env.BETA_UNLIMITED_USAGE || '').trim().toLowerCase();
+  if (['0', 'false', 'no', 'off'].includes(configured)) return false;
+  if (['1', 'true', 'yes', 'on'].includes(configured)) return true;
+
+  return true;
 }

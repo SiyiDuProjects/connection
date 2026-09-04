@@ -7,7 +7,7 @@ Reachard is still a private-beta extension. Do not switch the website CTA to `Ad
 - Replace the temporary extension/store logo and verify 16, 48, and 128 pixel assets.
 - Increment `manifest.json` version for the submitted build.
 - Upload a ZIP containing only the extension runtime files.
-- Record the Chrome Web Store extension ID and add it to `ALLOWED_EXTENSION_IDS`.
+- Record the Chrome Web Store extension ID, add it to `ALLOWED_EXTENSION_IDS`, and set `ALLOW_ANY_EXTENSION_ID=false` before public launch.
 - Set `NEXT_PUBLIC_CHROME_STORE_URL` only after the listing is live.
 
 ## Store listing

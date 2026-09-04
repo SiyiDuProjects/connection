@@ -99,9 +99,12 @@ RATE_LIMIT_MAX=60
 CONTACT_SEARCH_CREDITS=0
 CONTACT_REVEAL_CREDITS=1
 EMAIL_DRAFT_CREDITS=0
+BETA_UNLIMITED_USAGE=true
 ```
 
 `POSTGRES_URL` must point to the same Neon database used by the `web/` app. Extension API tokens, Contact Kit ledger entries, settings, and usage logs live in that database.
+
+`BETA_UNLIMITED_USAGE=true` makes every authenticated user's search, reveal, and draft cost zero Contact Kits while preserving request and internal provider-cost logging. Set it to `false` to restore the configured credit prices.
 
 `WEB_BASE_URL` must point to the deployed Next.js web app, not the contacts API service. Production should be `https://reachard.co`; do not set this to Stripe or any other billing/provider domain. The API service redirects `/connect-extension` and `/pricing` there so older or default extension links do not show `Cannot GET`.
 
@@ -129,6 +132,7 @@ NEXT_PUBLIC_WEB_BASE_URL=https://reachard.co
 NEXT_PUBLIC_API_BASE_URL=https://contacts.reachard.co
 NEXT_PUBLIC_CHROME_STORE_URL=
 ALLOWED_EXTENSION_IDS=ojajfgpfdkmaiccoeffhbdbccefpbala
+ALLOW_ANY_EXTENSION_ID=true
 AUTH_SECRET=long-random-secret
 BASE_MONTHLY_CREDITS=20
 PLUS_MONTHLY_CREDITS=60
@@ -138,7 +142,7 @@ RAPIDAPI_KEY=your_rapidapi_key
 RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
 ```
 
-`ALLOWED_EXTENSION_IDS` is comma-separated. Use the actual ID shown by each installed development build and add the final Chrome Web Store ID before publishing. Keep `NEXT_PUBLIC_CHROME_STORE_URL` empty during private beta; set it only after the listing URL is live and verified.
+Private beta accepts any syntactically valid Chrome extension ID while `ALLOW_ANY_EXTENSION_ID=true` (and this is the current default when unset). Login and account-scoped extension tokens are still required. Before publishing, set `ALLOW_ANY_EXTENSION_ID=false`; `ALLOWED_EXTENSION_IDS` is comma-separated and must include the final Chrome Web Store ID. Keep `NEXT_PUBLIC_CHROME_STORE_URL` empty during private beta; set it only after the listing URL is live and verified.
 
 The Neon schema has already been created once with `corepack pnpm db:migrate`. For future schema changes, run migrations before or during deployment:
 

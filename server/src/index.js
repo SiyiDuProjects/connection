@@ -103,6 +103,9 @@ app.get("/health", async (_req, res) => {
     ready: issues.length === 0,
     issues,
     provider: providerStatus(),
+    usagePolicy: {
+      betaUnlimited: isBetaUnlimitedUsage()
+    },
     auth: {
       accountDbConfigured: isAccountDbConfigured()
     }
@@ -431,11 +434,21 @@ function summarizeRequest(req) {
 }
 
 function creditCost(name, fallback) {
+  if (isBetaUnlimitedUsage()) return 0;
   const parsed = Number(process.env[name] ?? fallback);
   if (!Number.isFinite(parsed) || parsed < 0) {
     throw new Error(`${name} must be a non-negative number.`);
   }
   return parsed;
+}
+
+function isBetaUnlimitedUsage() {
+  const configured = String(process.env.BETA_UNLIMITED_USAGE || "").trim().toLowerCase();
+  if (["0", "false", "no", "off"].includes(configured)) return false;
+  if (["1", "true", "yes", "on"].includes(configured)) return true;
+
+  // Private-beta default. Set BETA_UNLIMITED_USAGE=false to restore configured costs.
+  return true;
 }
 
 function positiveIntegerEnv(name, fallback) {

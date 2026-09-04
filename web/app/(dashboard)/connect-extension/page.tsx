@@ -2,6 +2,11 @@ import { redirect } from 'next/navigation';
 import { getSettings, getUser } from '@/lib/db/queries';
 import { ConnectExtensionClient } from './connect-extension-client';
 import { getOnboardingStatus } from '@/lib/onboarding';
+import {
+  getAllowedExtensionIds,
+  isOpenExtensionIdBeta,
+  isValidExtensionId
+} from '@/lib/extension-id-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +60,8 @@ function clean(value: unknown) {
 
 function getBlockedReason(extensionId: string) {
   if (!extensionId) return '';
+  if (!isValidExtensionId(extensionId)) return 'This is not a valid Chrome extension id.';
+  if (isOpenExtensionIdBeta()) return '';
 
   const allowed = getAllowedExtensionIds();
   if (allowed.length === 0) {
@@ -66,16 +73,4 @@ function getBlockedReason(extensionId: string) {
   return allowed.includes(extensionId)
     ? ''
     : 'This Chrome extension id is not allowed to receive account tokens.';
-}
-
-function getAllowedExtensionIds() {
-  return [
-    process.env.ALLOWED_EXTENSION_IDS,
-    process.env.CHROME_EXTENSION_ID,
-    process.env.NEXT_PUBLIC_CHROME_EXTENSION_ID
-  ]
-    .filter(Boolean)
-    .flatMap((value) => String(value).split(','))
-    .map((value) => value.trim())
-    .filter(Boolean);
 }
