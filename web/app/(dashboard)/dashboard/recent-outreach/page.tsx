@@ -4,6 +4,7 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import { DashboardSidebar } from '../dashboard-sidebar';
 import { RecentOutreachList, recentOutreach, type RecentUsageRow } from '../recent-outreach-list';
+import { useI18n } from '@/components/language-provider';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -19,7 +20,6 @@ type AccountData = {
     senderName?: string | null;
     school?: string | null;
     region?: string | null;
-    targetRole?: string | null;
   } | null;
   usage?: RecentUsageRow[];
 };
@@ -30,11 +30,12 @@ type InviteData = {
 };
 
 export default function RecentOutreachPage() {
+  const { language, t } = useI18n();
   const { data } = useSWR<AccountData>('/api/account', fetcher);
   const { data: inviteData, mutate: mutateInvite } = useSWR<InviteData>('/api/invite-friend', fetcher);
   const [inviteStatus, setInviteStatus] = useState('');
   const [inviteCopying, setInviteCopying] = useState(false);
-  const outreach = recentOutreach(data?.usage);
+  const outreach = recentOutreach(data?.usage, language);
 
   async function copyInviteLink() {
     setInviteCopying(true);
@@ -45,19 +46,19 @@ export default function RecentOutreachPage() {
         const response = await fetch('/api/invite-friend', { method: 'GET' });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload.ok || !payload.link) {
-          throw new Error(payload.error || 'Could not load invite link.');
+          throw new Error(payload.error || t('dashboard.inviteLoadError'));
         }
         link = payload.link;
         mutateInvite(payload, false);
       }
       try {
         await navigator.clipboard.writeText(link);
-        setInviteStatus('Invite link copied.');
+        setInviteStatus(t('dashboard.inviteCopied'));
       } catch {
-        setInviteStatus('Copy blocked. Try again from a secure browser window.');
+        setInviteStatus(t('dashboard.inviteCopyBlocked'));
       }
     } catch (error) {
-      setInviteStatus(error instanceof Error ? error.message : 'Could not copy invite link.');
+      setInviteStatus(error instanceof Error ? error.message : t('dashboard.inviteCopyError'));
     } finally {
       setInviteCopying(false);
     }
@@ -75,7 +76,7 @@ export default function RecentOutreachPage() {
 
         <section className="flex min-h-0 flex-col overflow-visible">
           <section className="rounded-[18px] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.035),0_4px_10px_rgba(0,0,0,0.045)] ring-1 ring-black/[0.025]">
-            <h2 className="section-title">Recent outreach</h2>
+            <h2 className="section-title">{t('dashboard.recentOutreach')}</h2>
             <RecentOutreachList outreach={outreach} />
           </section>
         </section>

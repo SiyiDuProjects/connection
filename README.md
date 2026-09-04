@@ -115,20 +115,21 @@ npm install
 npm run dev
 ```
 
-Set `POSTGRES_URL` to the same database used by `web/`, then set the provider API keys in `server/.env`. The production contact pipeline uses RapidAPI for search and Apollo for on-demand email reveal:
+Set `POSTGRES_URL` to the same database used by `web/`, then configure Treg in `server/.env`. The production contact pipeline uses Treg's Icypeas route for current-company people search and Treg's Apollo route for on-demand verified work-email reveal:
 
 ```env
 POSTGRES_URL=postgresql://...
-CONTACT_PROVIDER=rapidapi
-RAPIDAPI_KEY=your-rapidapi-key
-RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
-APOLLO_API_KEY=your-apollo-key
+CONTACT_PROVIDER=treg
+TREG_TOKEN=your-treg-token
+TREG_BASE_URL=https://treg.to
+TREG_SEARCH_ENDPOINT=icypeas.people.search
+TREG_EMAIL_ENDPOINT=apollo.people.enrich
 CONTACT_SEARCH_CREDITS=0
 CONTACT_REVEAL_CREDITS=1
 EMAIL_DRAFT_CREDITS=0
 ```
 
-Search preview and the included outreach draft do not consume Contact Kits. Revealing an email consumes one Contact Kit through Apollo `people/match`.
+Search preview and the included outreach draft do not consume Contact Kits. Revealing an email consumes one Contact Kit only when Apollo returns a verified work email. The reveal uses the candidate's LinkedIn URL first and falls back to name plus company domain when needed.
 
 ## Production Access
 

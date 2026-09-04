@@ -1,3 +1,8 @@
+'use client';
+
+import { useI18n } from '@/components/language-provider';
+import { translate, type Language } from '@/lib/i18n';
+
 export type RecentUsageRow = {
   id: number;
   action: string;
@@ -5,21 +10,20 @@ export type RecentUsageRow = {
   request?: {
     companyName?: string;
     jobTitle?: string;
-    targetRole?: string;
   };
 };
 
-export function recentOutreach(usage: RecentUsageRow[] | undefined) {
+export function recentOutreach(usage: RecentUsageRow[] | undefined, language: Language = 'en') {
   return (usage || [])
     .filter((item) => item.action === 'email.draft' || item.action === 'contacts.reveal')
     .slice(0, 4)
     .map((item) => ({
       id: item.id,
-      title: formatActionName(item.action),
-      detail: [item.request?.jobTitle || item.request?.targetRole, item.request?.companyName]
+      title: formatActionName(item.action, language),
+      detail: [item.request?.jobTitle, item.request?.companyName]
         .filter(Boolean)
-        .join(' @ ') || 'Outreach activity',
-      time: formatRelative(item.createdAt)
+        .join(' @ ') || translate(language, 'activity.detailFallback'),
+      time: formatRelative(item.createdAt, language)
     }));
 }
 
@@ -32,12 +36,13 @@ export function RecentOutreachList({
   compact?: boolean;
   plain?: boolean;
 }) {
+  const { t } = useI18n();
   if (!outreach.length) {
     return (
       <div className={plain ? 'p-0' : 'mt-3 rounded-[8px] bg-white p-4'}>
-        <p className="value">No outreach yet.</p>
+        <p className="value">{t('activity.none')}</p>
         <p className="secondary mt-1">
-          Drafted or unlocked emails will appear here.
+          {t('activity.noneHelp')}
         </p>
       </div>
     );
@@ -62,16 +67,16 @@ export function RecentOutreachList({
   );
 }
 
-function formatActionName(action: string) {
-  if (action === 'email.draft') return 'Draft created';
-  if (action === 'contacts.reveal') return 'Email unlocked';
-  return 'Outreach';
+function formatActionName(action: string, language: Language) {
+  if (action === 'email.draft') return translate(language, 'activity.draftCreated');
+  if (action === 'contacts.reveal') return translate(language, 'activity.emailUnlocked');
+  return translate(language, 'activity.outreach');
 }
 
-function formatRelative(value?: string) {
-  if (!value) return 'recently';
+function formatRelative(value: string | undefined, language: Language) {
+  if (!value) return translate(language, 'activity.recently');
   const days = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 86_400_000));
-  if (days === 0) return 'today';
-  if (days === 1) return '1d ago';
-  return `${days}d ago`;
+  if (days === 0) return translate(language, 'activity.today');
+  if (days === 1) return translate(language, 'activity.oneDayAgo');
+  return translate(language, 'activity.daysAgo', { count: days });
 }

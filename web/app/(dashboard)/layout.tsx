@@ -7,20 +7,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isHome = pathname === '/';
   const isOnboarding = pathname.startsWith('/onboarding');
+  const isWorkspacePreview = pathname === '/workspace-preview';
 
   return (
     <section className="flex flex-col min-h-screen">
-      <AppHeader
-        hideOnDashboard
-        variant={isHome ? 'hero' : 'default'}
-        className={
-          isHome
-            ? 'absolute inset-x-0 top-0 z-40 bg-transparent'
-            : isOnboarding
-              ? 'absolute inset-x-0 top-0 z-40 bg-white'
-              : 'absolute inset-x-0 top-0 z-40'
-        }
-      />
+      {isWorkspacePreview ? null : (
+        <AppHeader
+          hideOnDashboard
+          variant={isHome ? 'hero' : 'default'}
+          className={
+            isHome
+              ? 'absolute inset-x-0 top-0 z-40 bg-transparent'
+              : isOnboarding
+                ? 'absolute inset-x-0 top-0 z-40 bg-white'
+                : 'absolute inset-x-0 top-0 z-40'
+          }
+        />
+      )}
       {children}
     </section>
   );

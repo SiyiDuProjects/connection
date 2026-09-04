@@ -11,6 +11,7 @@ import {
   clearExtensionSessionBeforeSignOut
 } from '@/components/extension-session-bridge';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/components/language-provider';
 
 type HeaderUser = {
   id?: number;
@@ -105,6 +106,7 @@ function HeaderActions({
   showCredits: boolean;
   variant: HeaderVariant;
 }) {
+  const { t } = useI18n();
   const { data: userData } = useSWR<HeaderUser | null>(
     account?.user ? null : '/api/user',
     fetcher
@@ -113,14 +115,14 @@ function HeaderActions({
   const actionClass = getActionClass(variant);
   const chromeStoreUrl = String(process.env.NEXT_PUBLIC_CHROME_STORE_URL || '').trim();
   const chromeCta = chromeStoreUrl
-    ? { href: chromeStoreUrl, label: 'Add to Chrome', external: true }
-    : { href: '/sign-up', label: 'Join private beta', external: false };
+    ? { href: chromeStoreUrl, label: t('header.addToChrome'), external: true }
+    : { href: '/sign-up', label: t('header.joinPrivateBeta'), external: false };
 
   if (!user) {
     return (
       <div className="flex items-center gap-2">
         <Link href="/sign-in" className={actionClass}>
-          Log in
+          {t('header.logIn')}
         </Link>
         <Link
           href={chromeCta.href}
@@ -152,16 +154,18 @@ function HeaderActions({
 }
 
 function CreditsLink({ value, variant }: { value?: number; variant: HeaderVariant }) {
+  const { language, t } = useI18n();
   return (
     <Link href="/pricing" className={cn(getActionClass(variant), variant === 'default' && 'text-foreground')}>
       <Bolt className={cn('h-4 w-4', variant === 'hero' ? 'text-white' : 'text-primary')} />
-      {formatNumber(value)} credits
+      {t('header.credits', { count: formatNumber(value, language) })}
     </Link>
   );
 }
 
 function AccountMenu({ user, variant }: { user: HeaderUser; variant: HeaderVariant }) {
   const router = useRouter();
+  const { t } = useI18n();
 
   async function handleSignOut() {
     await clearExtensionSessionBeforeSignOut();
@@ -179,7 +183,7 @@ function AccountMenu({ user, variant }: { user: HeaderUser; variant: HeaderVaria
           variant === 'hero' ? 'text-white/85 hover:text-white' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
         )}
         aria-haspopup="menu"
-        aria-label="Account menu"
+        aria-label={t('header.accountMenu')}
       >
         <ChevronDown className="h-5 w-5 stroke-[2.4]" aria-hidden="true" />
         <Avatar className="size-10 rounded-full">
@@ -194,20 +198,20 @@ function AccountMenu({ user, variant }: { user: HeaderUser; variant: HeaderVaria
             href="/dashboard"
             className="block border-b border-[#e5e5ea] px-7 py-4 text-[17px] font-semibold text-[#6e6e73] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
           >
-            View Account
+            {t('header.viewAccount')}
           </Link>
           <Link
             href="/dashboard/security"
             className="block border-b border-[#e5e5ea] px-7 py-4 text-[17px] font-semibold text-[#6e6e73] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
           >
-            Settings
+            {t('header.settings')}
           </Link>
           <button
             type="button"
             onClick={handleSignOut}
             className="block w-full px-7 py-4 text-left text-[17px] font-semibold text-[#d70015] transition-colors hover:bg-[#fff2f2]"
           >
-            Log out
+            {t('header.logOut')}
           </button>
         </div>
       </div>
@@ -231,6 +235,6 @@ function initials(user?: HeaderUser) {
     .join('');
 }
 
-function formatNumber(value?: number) {
-  return Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US') : '...';
+function formatNumber(value: number | undefined, language: 'en' | 'zh') {
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US') : '...';
 }

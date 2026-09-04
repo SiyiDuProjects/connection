@@ -1,9 +1,10 @@
 const DEFAULT_API_BASE_URL = "https://contacts.reachard.co";
 const DEFAULT_WEB_BASE_URL = "https://reachard.co";
-const DEFAULT_LANGUAGE = browserLanguage();
+const DEFAULT_LANGUAGE = "en";
 const SUPPORTED_URLS = ["https://*/*", "http://*/*"];
 const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connection settings.";
 const SESSION_EXPIRED_ERROR = "Session expired. Sign in again.";
+const pendingIdempotencyKeys = new Map();
 
 chrome.runtime.onInstalled.addListener((details) => {
   migrateSensitiveStorage().catch(() => {});
@@ -61,11 +62,9 @@ async function handleMessage(message, sender) {
 
 async function openInstallConnectPage() {
   try {
-    const url = new URL(`${await getWebBaseUrl()}/connect-extension`);
-    url.searchParams.set("extensionId", chrome.runtime.id);
-    await chrome.tabs.create({ url: url.toString() });
+    await chrome.tabs.create({ url: `${await getWebBaseUrl()}/dashboard` });
   } catch (error) {
-    console.warn("Could not open Reachard setup after install", error);
+    console.warn("Could not open Reachard after install", error);
   }
 }
 
@@ -121,7 +120,19 @@ async function getLocalSessionStatus(sender) {
   }
 
   const token = await getExtensionApiToken();
-  return { ok: true, hasToken: Boolean(token) };
+  if (!token) {
+    return { ok: true, hasToken: false, extensionId: chrome.runtime.id };
+  }
+
+  const response = await safeFetch(`${await getApiBaseUrl()}/api/account`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (response.status === 401) {
+    await removeSensitiveSession();
+    return { ok: true, hasToken: false, extensionId: chrome.runtime.id };
+  }
+
+  return { ok: true, hasToken: true, extensionId: chrome.runtime.id };
 }
 
 async function clearExtensionSession(sender, options = {}) {
@@ -274,11 +285,15 @@ async function postJson(path, body, sender) {
   }
 
   const url = `${baseUrl}${path}`;
+  const requestFingerprint = `${path}:${JSON.stringify(body || {})}`;
+  const idempotencyKey = pendingIdempotencyKeys.get(requestFingerprint) || crypto.randomUUID();
+  pendingIdempotencyKeys.set(requestFingerprint, idempotencyKey);
   const response = await safeFetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
+      Authorization: `Bearer ${token}`,
+      "Idempotency-Key": idempotencyKey
     },
     body: JSON.stringify(body || {})
   });
@@ -301,6 +316,9 @@ async function postJson(path, body, sender) {
       : response.status === 402
         ? "No Contact Kits left. Upgrade or wait for your next monthly grant."
         : "Try again shortly.";
+    if (response.status < 500 && response.status !== 409) {
+      pendingIdempotencyKeys.delete(requestFingerprint);
+    }
     return {
       ok: false,
       status: response.status,
@@ -311,6 +329,7 @@ async function postJson(path, body, sender) {
       action
     };
   }
+  pendingIdempotencyKeys.delete(requestFingerprint);
   return payload;
 }
 
@@ -411,6 +430,8 @@ async function loginAction(sender) {
   const language = (await getExtensionLanguage()).language;
   const url = new URL(`${await getWebBaseUrl()}/connect-extension`);
   url.searchParams.set("extensionId", chrome.runtime.id);
+  const returnTo = safeReturnUrl(sender);
+  if (returnTo) url.searchParams.set("return", returnTo);
   return {
     label: t(language, "signIn"),
     url: url.toString()
@@ -466,12 +487,12 @@ function cleanUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
 }
 
-function normalizeLanguage(value) {
-  return String(value || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+function normalizeLanguage(_value) {
+  return "en";
 }
 
 function browserLanguage() {
-  return normalizeLanguage(chrome.i18n?.getUILanguage?.() || "en");
+  return "en";
 }
 
 function normalizeCustomize(value) {

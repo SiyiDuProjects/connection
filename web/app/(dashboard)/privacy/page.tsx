@@ -17,7 +17,7 @@ export default function PrivacyPage() {
         <h2>Information we process</h2>
         <ul>
           <li>Account information such as name, email address, authentication data, subscription status, and Contact Kit balance.</li>
-          <li>Profile information you choose to save, including school, region, target role, resume context, and outreach preferences.</li>
+          <li>Profile information you choose to save, including school, region, resume context, and outreach preferences.</li>
           <li>Job, company, and public professional-profile context from the page where you invoke Reachard, including the page URL, job description, company, title, and selected contact.</li>
           <li>Product usage and reliability data, such as searches, reveals, drafts, request status, and timestamps.</li>
         </ul>

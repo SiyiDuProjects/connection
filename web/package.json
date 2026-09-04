@@ -4,6 +4,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
+    "test:resume": "node --experimental-strip-types --test scripts/resume-text.test.mjs",
     "db:setup": "npx tsx lib/db/setup.ts",
     "db:seed": "npx tsx lib/db/seed.ts",
     "db:generate": "drizzle-kit generate",
@@ -24,8 +25,10 @@
     "drizzle-orm": "^0.43.1",
     "jose": "^6.0.11",
     "lucide-react": "^0.511.0",
+    "mammoth": "^1.12.2",
     "motion": "^12.38.0",
     "next": "15.6.0-canary.59",
+    "pdfjs-dist": "^6.3.289",
     "postcss": "^8.5.3",
     "postgres": "^3.4.5",
     "radix-ui": "^1.4.2",
@@ -39,5 +42,8 @@
     "tw-animate-css": "^1.3.0",
     "typescript": "^5.8.3",
     "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "jszip": "^3.10.1"
   }
 }

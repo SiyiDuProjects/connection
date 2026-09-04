@@ -20,7 +20,7 @@ export function LanguageSwitcher() {
       variant="ghost"
       className="px-4"
       onClick={toggleLanguage}
-      aria-label="Switch language"
+      aria-label={t('language.switchTo')}
     >
       <Languages className="h-4 w-4" />
       <span className="ml-2 text-sm">{t('language.switchTo')}</span>

@@ -26,13 +26,24 @@ export async function GET(request: NextRequest) {
   const search = clean(request.nextUrl.searchParams.get('search'));
   const userFilter = search ? ilike(users.email, `%${search}%`) : undefined;
 
-  const [summaryRows, recentUsage, userRows, funnelRows] = await Promise.all([
+  const internalSource = sql<string>`coalesce(${apiUsage.response}->'internalCost'->>'source', '')`;
+  const internalProvider = sql<string>`coalesce(${apiUsage.response}->'internalCost'->>'provider', '')`;
+  const internalModel = sql<string>`coalesce(${apiUsage.response}->'internalCost'->>'model', '')`;
+  const internalBilling = sql<string>`coalesce(${apiUsage.response}->'internalCost'->>'billing', '')`;
+
+  const [summaryRows, recentUsage, userRows, funnelRows, internalCosts] = await Promise.all([
     db
       .select({
         totalUsers: sql<number>`count(distinct ${users.id})::int`,
         totalApiCalls: sql<number>`(select count(*)::int from ${apiUsage})`,
         totalCreditsGranted: sql<number>`coalesce((select sum(${creditLedger.amount}) from ${creditLedger} where ${creditLedger.amount} > 0), 0)::int`,
-        totalCreditsSpent: sql<number>`abs(coalesce((select sum(${creditLedger.amount}) from ${creditLedger} where ${creditLedger.amount} < 0), 0))::int`
+        totalCreditsSpent: sql<number>`abs(coalesce((select sum(${creditLedger.amount}) from ${creditLedger} where ${creditLedger.amount} < 0), 0))::int`,
+        totalInternalCostUsd: sql<number>`(
+          coalesce((select sum((${apiUsage.response}->'internalCost'->>'costMicroUsd')::numeric) from ${apiUsage} where ${apiUsage.response} ? 'internalCost'), 0) / 1000000.0
+        )::double precision`,
+        internalCost30dUsd: sql<number>`(
+          coalesce((select sum((${apiUsage.response}->'internalCost'->>'costMicroUsd')::numeric) from ${apiUsage} where ${apiUsage.response} ? 'internalCost' and ${apiUsage.createdAt} >= now() - interval '30 days'), 0) / 1000000.0
+        )::double precision`
       })
       .from(users)
       .where(isNull(users.deletedAt)),
@@ -84,7 +95,22 @@ export async function GET(request: NextRequest) {
       })
       .from(productEvents)
       .groupBy(productEvents.event)
-      .orderBy(productEvents.event)
+      .orderBy(productEvents.event),
+    db
+      .select({
+        source: internalSource,
+        provider: internalProvider,
+        model: internalModel,
+        billing: internalBilling,
+        calls: sql<number>`count(*)::int`,
+        costUsd: sql<number>`(sum((${apiUsage.response}->'internalCost'->>'costMicroUsd')::numeric) / 1000000.0)::double precision`,
+        inputTokens: sql<number>`coalesce(sum((${apiUsage.response}->'internalCost'->>'inputTokens')::numeric), 0)::double precision`,
+        outputTokens: sql<number>`coalesce(sum((${apiUsage.response}->'internalCost'->>'outputTokens')::numeric), 0)::double precision`
+      })
+      .from(apiUsage)
+      .where(sql`${apiUsage.response} ? 'internalCost' and ${apiUsage.createdAt} >= now() - interval '30 days'`)
+      .groupBy(internalSource, internalProvider, internalModel, internalBilling)
+      .orderBy(desc(sql`sum((${apiUsage.response}->'internalCost'->>'costMicroUsd')::numeric)`))
   ]);
 
   return Response.json({
@@ -92,8 +118,11 @@ export async function GET(request: NextRequest) {
       totalUsers: 0,
       totalApiCalls: 0,
       totalCreditsGranted: 0,
-      totalCreditsSpent: 0
+      totalCreditsSpent: 0,
+      totalInternalCostUsd: 0,
+      internalCost30dUsd: 0
     },
+    internalCosts,
     funnel: funnelRows,
     users: userRows,
     recentUsage

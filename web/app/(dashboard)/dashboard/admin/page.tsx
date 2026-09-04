@@ -17,7 +17,19 @@ type AdminOverview = {
     totalApiCalls: number;
     totalCreditsGranted: number;
     totalCreditsSpent: number;
+    totalInternalCostUsd: number;
+    internalCost30dUsd: number;
   };
+  internalCosts: {
+    source: string;
+    provider: string;
+    model: string;
+    billing: string;
+    calls: number;
+    costUsd: number;
+    inputTokens: number;
+    outputTokens: number;
+  }[];
   users: {
     id: number;
     email: string;
@@ -97,12 +109,51 @@ export default function AdminPage() {
     <section className="flex-1 p-4 lg:p-8">
       <h1 className="page-title mb-6">{t('nav.admin')}</h1>
 
-      <div className="grid gap-4 md:grid-cols-4 mb-8">
+      <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6 mb-8">
         <MetricCard label={t('admin.users')} value={data?.summary.totalUsers} />
         <MetricCard label={t('admin.apiCalls')} value={data?.summary.totalApiCalls} />
         <MetricCard label={t('admin.creditsGranted')} value={data?.summary.totalCreditsGranted} />
         <MetricCard label={t('admin.creditsSpent')} value={data?.summary.totalCreditsSpent} />
+        <MetricCard label="Provider cost · 30d" value={formatUsd(data?.summary.internalCost30dUsd)} />
+        <MetricCard label="Provider cost · all time" value={formatUsd(data?.summary.totalInternalCostUsd)} />
       </div>
+
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Internal provider cost · last 30 days</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-2">Source</th>
+                  <th className="py-2">Provider / model</th>
+                  <th className="py-2">Billing</th>
+                  <th className="py-2">Calls</th>
+                  <th className="py-2">Tokens in / out</th>
+                  <th className="py-2">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data?.internalCosts || []).map((row) => (
+                  <tr key={`${row.source}-${row.provider}-${row.model}-${row.billing}`} className="border-b">
+                    <td className="py-2 pr-4">{row.source || '—'}</td>
+                    <td className="py-2 pr-4">{row.provider || row.model || '—'}</td>
+                    <td className="py-2 pr-4">{row.billing || '—'}</td>
+                    <td className="py-2 pr-4">{row.calls}</td>
+                    <td className="py-2 pr-4">{row.inputTokens} / {row.outputTokens}</td>
+                    <td className="py-2">{formatUsd(row.costUsd)}</td>
+                  </tr>
+                ))}
+                {data && !data.internalCosts.length ? (
+                  <tr><td className="py-6 text-muted-foreground" colSpan={6}>No internal cost records yet.</td></tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px] mb-8">
         <Card>
@@ -222,7 +273,7 @@ export default function AdminPage() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value?: number }) {
+function MetricCard({ label, value }: { label: string; value?: number | string }) {
   return (
     <Card>
       <CardHeader>
@@ -233,6 +284,10 @@ function MetricCard({ label, value }: { label: string; value?: number }) {
       </CardContent>
     </Card>
   );
+}
+
+function formatUsd(value: number | undefined) {
+  return Number.isFinite(Number(value)) ? `$${Number(value).toFixed(4)}` : '...';
 }
 
 function formatDate(value: string | null, language = 'en') {

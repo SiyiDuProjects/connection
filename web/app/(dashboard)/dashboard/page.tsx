@@ -4,6 +4,12 @@ import { CreditCard, FileText, History, Info, ShieldCheck, UserRound } from 'luc
 import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { RecentOutreachList, recentOutreach } from './recent-outreach-list';
+import { useI18n } from '@/components/language-provider';
+import {
+  extractResumeText,
+  getResumeTextErrorKey,
+  RESUME_FILE_ACCEPT
+} from '@/lib/resume-text';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -16,7 +22,6 @@ type UsageRow = {
   request?: {
     companyName?: string;
     jobTitle?: string;
-    targetRole?: string;
   };
 };
 
@@ -28,7 +33,6 @@ type Settings = {
   emailSignature?: string | null;
   introStyle?: 'student' | 'career-switcher' | 'experienced' | 'founder' | null;
   emailTone?: 'warm' | 'concise' | 'confident' | 'formal' | null;
-  targetRole?: string | null;
   outreachLength?: 'short' | 'concise' | 'detailed' | null;
   outreachGoal?: 'advice' | 'referral' | 'intro' | null;
   outreachStyleNotes?: string | null;
@@ -75,7 +79,7 @@ type InviteData = {
   link?: string;
 };
 
-type PreferenceKey = 'targetRole' | 'outreachGoal' | 'outreachLength' | 'outreachStyleNotes';
+type PreferenceKey = 'outreachGoal' | 'outreachLength' | 'outreachStyleNotes';
 type PersonalDraft = {
   name: string;
   school: string;
@@ -83,7 +87,9 @@ type PersonalDraft = {
   senderProfile: string;
 };
 type OutreachDraft = {
-  targetRole: string;
+  emailTone: NonNullable<Settings['emailTone']>;
+  outreachLength: NonNullable<Settings['outreachLength']>;
+  outreachGoal: NonNullable<Settings['outreachGoal']>;
   outreachStyleNotes: string;
 };
 type EditPanel = '' | 'personal' | 'resume' | 'outreach';
@@ -95,6 +101,7 @@ type ResolvedItem = {
 };
 
 export default function DashboardPage() {
+  const { language, t } = useI18n();
   const { data, mutate } = useSWR<AccountData>('/api/account', fetcher);
   const { data: inviteData, mutate: mutateInvite } = useSWR<InviteData>('/api/invite-friend', fetcher);
   const [resumeStatus, setResumeStatus] = useState('');
@@ -117,9 +124,9 @@ export default function DashboardPage() {
   const [inviteCopying, setInviteCopying] = useState(false);
   const accountSettings = data?.settings;
   const settings = { ...(accountSettings || {}), ...preferenceOverrides } as Settings;
-  const name = settings?.senderName || data?.user?.name || displayName(data?.user);
+  const name = settings?.senderName || data?.user?.name || displayName(data?.user, t('sidebar.reachardUser'));
   const firstName = name.split(/\s+/).filter(Boolean)[0] || name;
-  const outreach = recentOutreach(data?.usage);
+  const outreach = recentOutreach(data?.usage, language);
   const inviteLink = inviteData?.link || '';
   const personal = personalDraft || {
     name: data?.user?.name || '',
@@ -145,7 +152,7 @@ export default function DashboardPage() {
     setResumeStatus('');
     setResumeSaving(true);
     try {
-      const text = await extractReadableText(file);
+      const text = await extractResumeText(file);
       const uploadedAt = new Date().toISOString();
       const response = await fetch('/api/settings', {
         method: 'POST',
@@ -160,13 +167,13 @@ export default function DashboardPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
-        throw new Error(payload.error || 'Could not save this file.');
+        throw new Error(payload.error || t('dashboard.fileSaveError'));
       }
       await mutate();
-      setResumeStatus('Saved.');
+      setResumeStatus(t('dashboard.saved'));
       setEditPanel('');
     } catch (error) {
-      setResumeStatus(error instanceof Error ? error.message : 'Could not read this file.');
+      setResumeStatus(t(getResumeTextErrorKey(error)));
     } finally {
       setResumeSaving(false);
       event.target.value = '';
@@ -182,19 +189,19 @@ export default function DashboardPage() {
         const response = await fetch('/api/invite-friend', { method: 'GET' });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload.ok || !payload.link) {
-          throw new Error(payload.error || 'Could not load invite link.');
+          throw new Error(payload.error || t('dashboard.inviteLoadError'));
         }
         link = payload.link;
         mutateInvite(payload, false);
       }
       try {
         await navigator.clipboard.writeText(link);
-        setInviteStatus('Invite link copied.');
+        setInviteStatus(t('dashboard.inviteCopied'));
       } catch {
-        setInviteStatus('Copy blocked. Try again from a secure browser window.');
+        setInviteStatus(t('dashboard.inviteCopyBlocked'));
       }
     } catch (error) {
-      setInviteStatus(error instanceof Error ? error.message : 'Could not copy invite link.');
+      setInviteStatus(error instanceof Error ? error.message : t('dashboard.inviteCopyError'));
     } finally {
       setInviteCopying(false);
     }
@@ -237,7 +244,7 @@ export default function DashboardPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
-        throw new Error(payload.error || 'Could not save this preference.');
+        throw new Error(payload.error || t('dashboard.preferenceSaveError'));
       }
       if (preferenceSaveAbortRef.current !== controller) return;
       if (!keepEditing) {
@@ -247,7 +254,7 @@ export default function DashboardPage() {
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       if (preferenceSaveAbortRef.current !== controller) return;
-      setPreferenceStatus(error instanceof Error ? error.message : 'Could not save this preference.');
+      setPreferenceStatus(error instanceof Error ? error.message : t('dashboard.preferenceSaveError'));
     } finally {
       if (preferenceSaveAbortRef.current === controller) {
         preferenceSaveAbortRef.current = null;
@@ -340,17 +347,21 @@ export default function DashboardPage() {
   function openOutreachEditor() {
     setPreferenceStatus('');
     setOutreachDraft({
-      targetRole: settings.targetRole || '',
+      emailTone: settings.emailTone || 'warm',
+      outreachLength: settings.outreachLength || 'concise',
+      outreachGoal: settings.outreachGoal || 'advice',
       outreachStyleNotes: settings.outreachStyleNotes || ''
     });
     setEditPanel('outreach');
   }
 
-  function updateOutreachDraft(key: keyof OutreachDraft, value: string) {
+  function updateOutreachDraft<Key extends keyof OutreachDraft>(key: Key, value: OutreachDraft[Key]) {
     setPreferenceStatus('');
     setOutreachDraft((current) => ({
       ...(current || {
-        targetRole: settings.targetRole || '',
+        emailTone: settings.emailTone || 'warm',
+        outreachLength: settings.outreachLength || 'concise',
+        outreachGoal: settings.outreachGoal || 'advice',
         outreachStyleNotes: settings.outreachStyleNotes || ''
       }),
       [key]: value
@@ -370,13 +381,13 @@ export default function DashboardPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
-        throw new Error(payload.error || 'Could not save outreach settings.');
+        throw new Error(payload.error || t('dashboard.outreachSaveError'));
       }
       setPreferenceOverrides((current) => ({ ...current, ...outreachDraft }));
       await mutate();
       setEditPanel('');
     } catch (error) {
-      setPreferenceStatus(error instanceof Error ? error.message : 'Could not save outreach settings.');
+      setPreferenceStatus(error instanceof Error ? error.message : t('dashboard.outreachSaveError'));
     } finally {
       setPreferenceSaving(false);
     }
@@ -414,7 +425,7 @@ export default function DashboardPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
-        throw new Error(payload.error || 'Could not save personal info.');
+        throw new Error(payload.error || t('dashboard.personalSaveError'));
       }
       setPreferenceOverrides((current) => ({
         ...current,
@@ -428,7 +439,7 @@ export default function DashboardPage() {
       await mutate();
       setEditPanel('');
     } catch (error) {
-      setPersonalStatus(error instanceof Error ? error.message : 'Could not save personal info.');
+      setPersonalStatus(error instanceof Error ? error.message : t('dashboard.personalSaveError'));
     } finally {
       setPersonalSaving(false);
     }
@@ -489,7 +500,7 @@ export default function DashboardPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) {
-        throw new Error(payload.error || 'Could not save personal info.');
+        throw new Error(payload.error || t('dashboard.personalSaveError'));
       }
       setPreferenceOverrides((current) => ({
         ...current,
@@ -504,7 +515,7 @@ export default function DashboardPage() {
       await mutate();
       setPersonalStatus('');
     } catch (error) {
-      setPersonalStatus(error instanceof Error ? error.message : 'Could not save personal info.');
+      setPersonalStatus(error instanceof Error ? error.message : t('dashboard.personalSaveError'));
     } finally {
       setPersonalSaving(false);
     }
@@ -515,7 +526,7 @@ export default function DashboardPage() {
       <section className="mx-auto max-w-[760px]">
         <div>
           <h1 className="page-title mb-5">
-            Hi, {firstName}
+            {t('dashboard.greeting', { name: firstName })}
           </h1>
         </div>
       </section>
@@ -531,93 +542,95 @@ export default function DashboardPage() {
       <section id="recent-outreach" className="mx-auto mt-4 max-w-[760px] rounded-[16px] border border-border bg-card px-6 py-6 shadow-apple-card">
         <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
           <h2 className="section-title">
-            Recent Outreach
+            {t('dashboard.recentOutreach')}
           </h2>
           <RecentOutreachList outreach={outreach} plain />
         </div>
       </section>
 
-      <DashboardCard id="plan" title="Plan">
-        <SettingsItem title="Credits">
-          <p>{formatNumber(data?.credits?.remaining)} remaining</p>
-          <p>Use credits to reveal emails and unlock contact details.</p>
+      <DashboardCard id="plan" title={t('dashboard.plan')}>
+        <SettingsItem title={t('dashboard.credits')}>
+          <p>{t('dashboard.creditsRemaining', { count: formatNumber(data?.credits?.remaining, language) })}</p>
+          <p>{t('dashboard.creditsHelp')}</p>
         </SettingsItem>
       </DashboardCard>
 
-      <DashboardCard id="profile" title="Profile">
+      <DashboardCard id="profile" title={t('dashboard.profile')}>
         <div className="space-y-9">
-          <SettingsSection title="Personal">
+          <SettingsSection title={t('dashboard.personal')}>
             <SettingsItem
-              title="Personal information"
+              title={t('dashboard.personalInformation')}
               action={<EditButton onClick={openPersonalEditor} />}
             >
               <p>{name}</p>
-              <p>{data?.user?.email || 'No email available'}</p>
-              <p>{settings.school || 'No school added'}</p>
-              <p>{settings.region || 'No region added'}</p>
+              <p>{data?.user?.email || t('dashboard.noEmail')}</p>
+              <p>{settings.school || t('dashboard.noSchool')}</p>
+              <p>{settings.region || t('dashboard.noRegion')}</p>
             </SettingsItem>
-            <SettingsItem title="Personal context">
+            <SettingsItem title={t('dashboard.personalContext')}>
               <p className="max-w-[560px]">
-                {settings.senderProfile || 'Add the background Reachard should use when drafting outreach.'}
+                {settings.senderProfile || t('dashboard.personalContextEmpty')}
               </p>
             </SettingsItem>
           </SettingsSection>
 
-          <SettingsSection title="Outreach">
+          <SettingsSection title={t('dashboard.outreach')}>
             <SettingsItem
-              title="Outreach defaults"
+              title={t('dashboard.outreachDefaults')}
               action={<EditButton onClick={openOutreachEditor} />}
             >
-              <p>Target roles: {settings.targetRole || 'Not set'}</p>
+              <p>{t('dashboard.emailToneValue', { value: toneLabel(settings.emailTone) })}</p>
+              <p>{t('dashboard.outreachLengthValue', { value: lengthLabel(settings.outreachLength) })}</p>
+              <p>{t('dashboard.outreachGoalValue', { value: goalLabel(settings.outreachGoal) })}</p>
               <p className="max-w-[560px]">
-                Style notes: {settings.outreachStyleNotes || 'No extra style notes'}
+                {t('dashboard.styleNotes', { value: settings.outreachStyleNotes || t('dashboard.noStyleNotes') })}
               </p>
             </SettingsItem>
           </SettingsSection>
         </div>
       </DashboardCard>
 
-      <DashboardCard id="resume" title="Resume">
+      <DashboardCard id="resume" title={t('dashboard.resume')}>
         <SettingsItem
-          title={settings.resumeFileName || (settings.resumeContext ? 'Saved resume' : 'No resume added')}
-          action={<EditButton label={settings.resumeFileName || settings.resumeContext ? 'Replace' : 'Edit'} onClick={() => setEditPanel('resume')} />}
+          title={settings.resumeFileName || (settings.resumeContext ? t('dashboard.savedResume') : t('dashboard.noResume'))}
+          action={<EditButton label={settings.resumeFileName || settings.resumeContext ? t('common.replace') : t('common.edit')} onClick={() => setEditPanel('resume')} />}
         >
           <p>
-            Last uploaded: {settings.resumeUploadedAt ? formatDateTime(settings.resumeUploadedAt) : 'Not available'}
+            {t('dashboard.lastUploaded', { value: settings.resumeUploadedAt ? formatDateTime(settings.resumeUploadedAt, language) : t('dashboard.notAvailable') })}
           </p>
-          <p>{resumeStatus || 'A readable resume improves generated outreach drafts.'}</p>
+          <p>{resumeStatus || t('dashboard.resumeHelp')}</p>
         </SettingsItem>
       </DashboardCard>
 
-      <DashboardCard id="account" title="Account">
-        <SettingsItem title={data?.user?.email || 'Reachard account'}>
+      <DashboardCard id="account" title={t('dashboard.account')}>
+        <SettingsItem title={data?.user?.email || t('dashboard.reachardAccount')}>
           <div className="flex flex-wrap items-center gap-2">
-            <span>Extension</span>
+            <span>{t('dashboard.extension')}</span>
             <ExtensionStatus connected={Boolean(data?.extension?.connected)} />
           </div>
         </SettingsItem>
       </DashboardCard>
 
       {editPanel === 'personal' ? (
-        <EditPanelModal title="Edit your profile." onClose={() => setEditPanel('')}>
+        <EditPanelModal title={t('dashboard.editProfileTitle')} onClose={() => setEditPanel('')}>
           <div className="space-y-4">
             <AppleTextField
-              label="Name"
+              label={t('dashboard.name')}
               value={personal.name}
               onChange={(value) => updatePersonalDraft('name', value)}
             />
             <AppleTextField
-              label="School or affiliation"
+              label={t('dashboard.schoolAffiliation')}
               value={personal.school}
               onChange={(value) => updatePersonalDraft('school', value)}
             />
             <AppleTextField
-              label="Region"
+              label={t('dashboard.region')}
               value={personal.region}
               onChange={(value) => updatePersonalDraft('region', value)}
             />
             <AppleTextArea
-              label="Extra personal info"
+              label={t('dashboard.extraPersonalInfo')}
               value={personal.senderProfile}
               onChange={(value) => updatePersonalDraft('senderProfile', value)}
             />
@@ -625,7 +638,7 @@ export default function DashboardPage() {
           {personalStatus ? <p className="mt-4 text-sm font-medium text-[#d70015]">{personalStatus}</p> : null}
           <ModalActions
             saving={personalSaving}
-            primaryLabel="Save"
+            primaryLabel={t('common.save')}
             onPrimary={() => void savePersonalFromModal()}
             onCancel={() => setEditPanel('')}
           />
@@ -633,15 +646,41 @@ export default function DashboardPage() {
       ) : null}
 
       {editPanel === 'outreach' ? (
-        <EditPanelModal title="Edit outreach defaults." onClose={() => setEditPanel('')}>
+        <EditPanelModal title={t('dashboard.editOutreachTitle')} onClose={() => setEditPanel('')}>
           <div className="space-y-4">
-            <AppleTextField
-              label="Target roles"
-              value={outreachDraft?.targetRole || ''}
-              onChange={(value) => updateOutreachDraft('targetRole', value)}
+            <AppleSelectField
+              label={t('dashboard.emailTone')}
+              value={outreachDraft?.emailTone || 'warm'}
+              options={[
+                ['warm', t('dashboard.toneWarm')],
+                ['concise', t('dashboard.toneDirect')],
+                ['confident', t('dashboard.toneConfident')],
+                ['formal', t('dashboard.toneFormal')]
+              ]}
+              onChange={(value) => updateOutreachDraft('emailTone', value as OutreachDraft['emailTone'])}
+            />
+            <AppleSelectField
+              label={t('dashboard.outreachLength')}
+              value={outreachDraft?.outreachLength || 'concise'}
+              options={[
+                ['short', t('dashboard.lengthShort')],
+                ['concise', t('dashboard.lengthConcise')],
+                ['detailed', t('dashboard.lengthDetailed')]
+              ]}
+              onChange={(value) => updateOutreachDraft('outreachLength', value as OutreachDraft['outreachLength'])}
+            />
+            <AppleSelectField
+              label={t('dashboard.outreachGoal')}
+              value={outreachDraft?.outreachGoal || 'advice'}
+              options={[
+                ['advice', t('dashboard.goalAdvice')],
+                ['referral', t('dashboard.goalReferral')],
+                ['intro', t('dashboard.goalIntro')]
+              ]}
+              onChange={(value) => updateOutreachDraft('outreachGoal', value as OutreachDraft['outreachGoal'])}
             />
             <AppleTextArea
-              label="Extra style notes"
+              label={t('dashboard.extraStyleNotes')}
               value={outreachDraft?.outreachStyleNotes || ''}
               onChange={(value) => updateOutreachDraft('outreachStyleNotes', value)}
             />
@@ -649,7 +688,7 @@ export default function DashboardPage() {
           {preferenceStatus ? <p className="mt-4 text-sm font-medium text-[#d70015]">{preferenceStatus}</p> : null}
           <ModalActions
             saving={preferenceSaving}
-            primaryLabel="Save"
+            primaryLabel={t('common.save')}
             onPrimary={() => void saveOutreachFromModal()}
             onCancel={() => setEditPanel('')}
           />
@@ -657,19 +696,19 @@ export default function DashboardPage() {
       ) : null}
 
       {editPanel === 'resume' ? (
-        <EditPanelModal title="Update your resume." onClose={() => setEditPanel('')}>
+        <EditPanelModal title={t('dashboard.updateResumeTitle')} onClose={() => setEditPanel('')}>
           <div className="rounded-[12px] border border-[#86868b] px-5 py-5">
             <p className="text-[17px] font-semibold text-[#1d1d1f]">
-              {settings.resumeFileName || (settings.resumeContext ? 'Saved resume' : 'No resume added')}
+              {settings.resumeFileName || (settings.resumeContext ? t('dashboard.savedResume') : t('dashboard.noResume'))}
             </p>
             <p className="mt-1 text-[15px] font-normal leading-5 text-[#6e6e73]">
-              Upload a readable resume file so Reachard can draft with accurate context.
+              {t('dashboard.uploadResumeHelp')}
             </p>
             <label className="mt-5 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[980px] bg-[#0071e3] px-6 text-[17px] font-normal text-white hover:bg-[#0077ed]">
-              {resumeSaving ? 'Uploading' : 'Choose file'}
+              {resumeSaving ? t('dashboard.uploading') : t('dashboard.chooseFile')}
               <input
                 type="file"
-                accept=".txt,.md,.rtf,.pdf,.doc,.docx"
+                accept={RESUME_FILE_ACCEPT}
                 className="sr-only"
                 disabled={resumeSaving || !accountSettings}
                 onChange={importResumeFile}
@@ -679,7 +718,7 @@ export default function DashboardPage() {
           {resumeStatus ? <p className="mt-4 text-sm font-medium text-[#6e6e73]">{resumeStatus}</p> : null}
           <ModalActions
             saving={resumeSaving}
-            primaryLabel="Done"
+            primaryLabel={t('common.done')}
             onPrimary={() => setEditPanel('')}
             onCancel={() => setEditPanel('')}
           />
@@ -698,14 +737,15 @@ function InviteFriendBanner({
   inviteStatus: string;
   onCopyInviteLink: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <section className="mx-auto mt-4 max-w-[760px] rounded-[16px] border border-border bg-card px-6 py-6 shadow-apple-card">
       <p className="section-title flex items-center gap-3">
         <Info className="h-6 w-6 shrink-0 stroke-[2.1]" aria-hidden="true" />
-        Invite a friend
+        {t('dashboard.inviteFriend')}
       </p>
       <p className="secondary mt-3 max-w-[620px]">
-        Invite a friend to purchase Reachard and get one month free.
+        {t('dashboard.inviteBody')}
       </p>
       <button
         type="button"
@@ -713,7 +753,7 @@ function InviteFriendBanner({
         disabled={inviteCopying}
         className="mt-8 inline-flex min-h-12 cursor-pointer items-center justify-center rounded-full bg-[#0071e3] px-7 text-[19px] font-normal text-white transition-colors hover:bg-[#0077ed] disabled:cursor-default disabled:opacity-60"
       >
-        {inviteCopying ? 'Copying' : 'Copy invite link'}
+        {inviteCopying ? t('common.copying') : t('dashboard.copyInviteLink')}
       </button>
       {inviteStatus ? (
         <p className="mt-4 text-[15px] font-normal leading-5 text-[#6e6e73]">{inviteStatus}</p>
@@ -723,16 +763,17 @@ function InviteFriendBanner({
 }
 
 function SectionIndex() {
+  const { t } = useI18n();
   const items = [
-    { label: 'Recent', href: '#recent-outreach', icon: History },
-    { label: 'Plan', href: '#plan', icon: CreditCard },
-    { label: 'Profile', href: '#profile', icon: UserRound },
-    { label: 'Resume', href: '#resume', icon: FileText },
-    { label: 'Account', href: '#account', icon: ShieldCheck }
+    { label: t('dashboard.recent'), href: '#recent-outreach', icon: History },
+    { label: t('dashboard.plan'), href: '#plan', icon: CreditCard },
+    { label: t('dashboard.profile'), href: '#profile', icon: UserRound },
+    { label: t('dashboard.resume'), href: '#resume', icon: FileText },
+    { label: t('dashboard.account'), href: '#account', icon: ShieldCheck }
   ];
 
   return (
-    <nav className="mx-auto mt-4 flex max-w-[760px] flex-wrap items-start justify-center gap-x-7 gap-y-4" aria-label="Dashboard sections">
+    <nav className="mx-auto mt-4 flex max-w-[760px] flex-wrap items-start justify-center gap-x-7 gap-y-4" aria-label={t('dashboard.sections')}>
       {items.map((item) => {
         const Icon = item.icon;
         return (
@@ -770,6 +811,7 @@ function DashboardCard({
 }
 
 function ExtensionStatus({ connected }: { connected: boolean }) {
+  const { t } = useI18n();
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold leading-none ${
@@ -784,7 +826,7 @@ function ExtensionStatus({ connected }: { connected: boolean }) {
         }`}
         aria-hidden="true"
       />
-      {connected ? 'Connected' : 'Not connected'}
+      {connected ? t('dashboard.connected') : t('dashboard.notConnected')}
     </span>
   );
 }
@@ -831,19 +873,20 @@ function SettingsItem({
 }
 
 function EditButton({
-  label = 'Edit',
+  label,
   onClick
 }: {
   label?: string;
   onClick: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <button
       type="button"
       onClick={onClick}
       className="text-[17px] font-normal leading-6 text-[#0066cc] underline underline-offset-2 hover:text-[#004999]"
     >
-      {label}
+      {label || t('common.edit')}
     </button>
   );
 }
@@ -857,18 +900,28 @@ function EditPanelModal({
   children: React.ReactNode;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-10">
-      <section className="relative w-full max-w-[680px] rounded-[18px] bg-white px-6 py-12 shadow-[0_18px_60px_rgba(0,0,0,0.18)] sm:px-16">
+      <section role="dialog" aria-modal="true" aria-labelledby="edit-panel-title" className="relative w-full max-w-[680px] rounded-[18px] bg-white px-6 py-12 shadow-[0_18px_60px_rgba(0,0,0,0.18)] sm:px-16">
         <button
           type="button"
-          aria-label="Close"
+          aria-label={t('common.close')}
           onClick={onClose}
           className="absolute right-6 top-6 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#e8e8ed] text-[26px] font-semibold leading-none text-[#6e6e73] hover:bg-[#dedee3]"
         >
           ×
         </button>
-        <h2 className="mb-8 text-center text-[36px] font-semibold leading-tight tracking-[-0.022em] text-[#1d1d1f]">
+        <h2 id="edit-panel-title" className="mb-8 text-center text-[36px] font-semibold leading-tight tracking-[-0.022em] text-[#1d1d1f]">
           {title}
         </h2>
         {children}
@@ -886,6 +939,7 @@ function AppleTextField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <label className="block rounded-[12px] border border-[#86868b] px-4 pb-2 pt-3 focus-within:border-[#0071e3] focus-within:shadow-[inset_0_0_0_1px_#0071e3]">
       <span className="block text-[13px] font-normal leading-4 text-[#6e6e73]">{label}</span>
@@ -920,6 +974,41 @@ function AppleTextArea({
   );
 }
 
+function AppleSelectField({
+  label,
+  value,
+  options,
+  onChange
+}: {
+  label: string;
+  value: string;
+  options: [string, string][];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <fieldset className="rounded-[12px] border border-[#86868b] px-4 pb-4 pt-3">
+      <legend className="px-1 text-[13px] font-normal leading-4 text-[#6e6e73]">{label}</legend>
+      <div className="mt-1 flex flex-wrap gap-2">
+        {options.map(([optionValue, optionLabel]) => (
+          <button
+            key={optionValue}
+            type="button"
+            aria-pressed={value === optionValue}
+            onClick={() => onChange(optionValue)}
+            className={`min-h-10 rounded-full px-4 text-[15px] transition-colors ${
+              value === optionValue
+                ? 'bg-[#0071e3] text-white'
+                : 'bg-[#f5f5f7] text-[#1d1d1f] hover:bg-[#e8e8ed]'
+            }`}
+          >
+            {optionLabel}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 function ModalActions({
   saving,
   primaryLabel,
@@ -931,6 +1020,7 @@ function ModalActions({
   onPrimary: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="mt-10">
       <button
@@ -939,14 +1029,14 @@ function ModalActions({
         onClick={onPrimary}
         className="min-h-14 w-full cursor-pointer rounded-[12px] bg-[#0071e3] px-6 text-[17px] font-normal text-white hover:bg-[#0077ed] disabled:cursor-default disabled:opacity-60"
       >
-        {saving ? 'Saving' : primaryLabel}
+        {saving ? t('common.saving') : primaryLabel}
       </button>
       <button
         type="button"
         onClick={onCancel}
         className="mx-auto mt-5 block text-[17px] font-normal text-[#0066cc] hover:text-[#004999]"
       >
-        Cancel
+        {t('common.cancel')}
       </button>
     </div>
   );
@@ -1155,7 +1245,7 @@ function InlinePreferenceEditor({
           if (event.key === 'Escape') onCancel();
         }}
         className="value h-5 w-full min-w-0 bg-transparent p-0 outline-none ring-0 focus:outline-none focus:ring-0"
-        placeholder={field === 'outreachStyleNotes' ? 'Extra style notes' : 'Target roles'}
+        placeholder="Extra style notes"
       />
     </div>
   );
@@ -1226,6 +1316,13 @@ function lengthLabel(value?: Settings['outreachLength']) {
   return 'Concise';
 }
 
+function toneLabel(value?: Settings['emailTone']) {
+  if (value === 'concise') return 'Direct';
+  if (value === 'confident') return 'Confident';
+  if (value === 'formal') return 'Formal';
+  return 'Warm';
+}
+
 function goalLabel(value?: Settings['outreachGoal']) {
   if (value === 'referral') return 'Explore referral';
   if (value === 'intro') return 'Request intro';
@@ -1256,30 +1353,9 @@ function preferenceValue(settings: Settings, key: PreferenceKey) {
   return String(settings[key] || '');
 }
 
-async function extractReadableText(file: File) {
-  const extension = file.name.split('.').pop()?.toLowerCase();
-  const text = await file.text();
-  const cleaned = text
-    .replace(/\u0000/g, ' ')
-    .replace(/[^\S\n]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-  const printableRatio = cleaned.length / Math.max(text.length, 1);
-
-  if (!cleaned || cleaned.length < 80 || printableRatio < 0.45) {
-    throw new Error(
-      extension && ['pdf', 'doc', 'docx'].includes(extension)
-        ? 'This file text could not be read. Export it as TXT or paste text in a readable file.'
-        : 'This file does not contain enough readable text.'
-    );
-  }
-
-  return cleaned;
-}
-
-function formatDateTime(value?: string | null) {
+function formatDateTime(value: string | null | undefined, language: 'en' | 'zh') {
   if (!value) return '';
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
     month: 'numeric',
     day: 'numeric',
     year: 'numeric',
@@ -1290,12 +1366,11 @@ function formatDateTime(value?: string | null) {
   }).format(new Date(value));
 }
 
-function formatNumber(value?: number) {
-  return Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US') : '...';
+function formatNumber(value: number | undefined, language: 'en' | 'zh') {
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US') : '...';
 }
 
-function displayName(user?: AccountData['user']) {
-  if (!user) return 'Reachard user';
+function displayName(user: AccountData['user'] | undefined, fallback: string) {
+  if (!user) return fallback;
   return user.name || user.email.split('@')[0];
 }
-

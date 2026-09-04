@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
 type UserState = {
   id?: number;
@@ -10,6 +11,7 @@ type UserState = {
 type ExtensionMessageResponse = {
   ok?: boolean;
   hasToken?: boolean;
+  extensionId?: string;
   language?: string;
   error?: string;
 };
@@ -21,9 +23,10 @@ type ExtensionBridgeOptions = {
 
 export function ExtensionSessionBridge({ user }: { user: UserState | null | undefined }) {
   const syncedUserId = useRef<number | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (!user?.id || syncedUserId.current === user.id) return;
+    if (pathname.startsWith('/connect-extension') || !user?.id || syncedUserId.current === user.id) return;
     const userId: number = user.id;
 
     let cancelled = false;
@@ -33,7 +36,56 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
         type: 'GET_EXTENSION_SESSION_STATUS'
       });
       if (cancelled) return;
-      if (existing?.ok && existing.hasToken) syncedUserId.current = userId;
+      if (!existing?.ok) return;
+      if (existing.hasToken) {
+        syncedUserId.current = userId;
+        return;
+      }
+
+      const extensionId = String(existing.extensionId || '').trim();
+      if (!extensionId) return;
+
+      let tokenId: number | null = null;
+      try {
+        const tokenResponse = await fetch('/api/extension-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ extensionId })
+        });
+        const tokenPayload = await tokenResponse.json().catch(() => ({}));
+        tokenId = Number(tokenPayload.tokenId) || null;
+        if (!tokenResponse.ok || !tokenPayload.token) {
+          await revokeExtensionToken(tokenId);
+          return;
+        }
+        if (cancelled) {
+          await revokeExtensionToken(tokenId);
+          return;
+        }
+
+        const webBaseUrl = window.location.origin;
+        const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_BASE_URL || '').trim()
+          || (isLocal ? 'http://localhost:8787' : 'https://contacts.reachard.co');
+        const language = document.documentElement.lang || window.navigator.language || 'en';
+        const connected = await sendExtensionBridgeMessage({
+          type: 'CONNECT_EXTENSION_TOKEN',
+          payload: {
+            token: tokenPayload.token,
+            webBaseUrl,
+            apiBaseUrl,
+            language
+          }
+        }, { extensionId });
+        if (cancelled || !connected?.ok) {
+          await revokeExtensionToken(tokenId);
+          return;
+        }
+
+        syncedUserId.current = userId;
+      } catch (_error) {
+        await revokeExtensionToken(tokenId);
+      }
     }
 
     syncExtensionSession().catch(() => {});
@@ -41,9 +93,18 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [pathname, user?.id]);
 
   return null;
+}
+
+function revokeExtensionToken(tokenId: number | null) {
+  if (!tokenId) return Promise.resolve();
+  return fetch('/api/extension-token', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tokenId })
+  }).then(() => undefined).catch(() => undefined);
 }
 
 export async function clearExtensionSessionBeforeSignOut() {

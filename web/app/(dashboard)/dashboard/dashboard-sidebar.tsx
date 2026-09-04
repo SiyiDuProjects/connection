@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type React from 'react';
 import { Copy, Sparkles } from 'lucide-react';
+import { useI18n } from '@/components/language-provider';
 
 type SidebarAccount = {
   user?: {
@@ -14,7 +15,6 @@ type SidebarAccount = {
     senderName?: string | null;
     school?: string | null;
     region?: string | null;
-    targetRole?: string | null;
   } | null;
   credits?: {
     remaining: number;
@@ -33,8 +33,9 @@ export function DashboardSidebar({
   onCopyInviteLink: () => void;
 }) {
   const pathname = usePathname();
+  const { language, t } = useI18n();
   const settings = account?.settings;
-  const name = settings?.senderName || account?.user?.name || displayName(account?.user);
+  const name = settings?.senderName || account?.user?.name || displayName(account?.user, t('sidebar.reachardUser'));
   const email = account?.user?.email || '';
 
   return (
@@ -52,45 +53,45 @@ export function DashboardSidebar({
 
         <nav className="mt-11 flex flex-col gap-5">
           <SidebarNavLink href="/dashboard" active={pathname === '/dashboard'}>
-            Profile
+            {t('dashboard.profile')}
           </SidebarNavLink>
           <SidebarNavLink href="/dashboard" active={pathname === '/dashboard'}>
-            Personal Information
+            {t('sidebar.personalInformation')}
           </SidebarNavLink>
           <SidebarNavLink href="/dashboard/recent-outreach" active={pathname === '/dashboard/recent-outreach'}>
-            Recent Outreach
+            {t('sidebar.recentOutreach')}
           </SidebarNavLink>
           <SidebarNavLink href="/dashboard/security" active={pathname === '/dashboard/security'}>
-            Settings
+            {t('sidebar.settings')}
           </SidebarNavLink>
         </nav>
       </section>
 
       <section className="rounded-[18px] bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.035),0_4px_10px_rgba(0,0,0,0.045)] ring-1 ring-black/[0.025]">
         <div className="min-w-0">
-          <p className="section-title">Credits</p>
+          <p className="section-title">{t('dashboard.credits')}</p>
           <p className="page-title mt-1">
-            {formatNumber(account?.credits?.remaining)}
+            {formatNumber(account?.credits?.remaining, language)}
           </p>
           <p className="secondary mt-1">
-            Use credits to find contacts and reveal emails.
+            {t('sidebar.creditsHelp')}
           </p>
         </div>
         <Link
           href="/pricing"
           className="button-text mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[8px] bg-white px-3 text-slate-950 transition-colors hover:bg-[#f9f9f9]"
         >
-          Manage plan
+          {t('sidebar.managePlan')}
         </Link>
       </section>
 
       <section className="rounded-[18px] bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.035),0_4px_10px_rgba(0,0,0,0.045)] ring-1 ring-black/[0.025]">
         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-          Invite friends
+          {t('sidebar.inviteFriends')}
         </div>
         <h2 className="section-title mt-3">
-          Invite a friend to purchase and get one month free.
+          {t('sidebar.inviteReward')}
         </h2>
         <button
           type="button"
@@ -99,7 +100,7 @@ export function DashboardSidebar({
           className="button-text mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#f3f3f3] px-3 text-slate-950 transition-colors hover:bg-[#f9f9f9] disabled:opacity-60"
         >
           <Copy className="h-4 w-4" aria-hidden="true" />
-          {inviteCopying ? 'Copying' : 'Copy invite link'}
+          {inviteCopying ? t('common.copying') : t('dashboard.copyInviteLink')}
         </button>
         {inviteStatus ? (
           <p className="secondary mt-2">{inviteStatus}</p>
@@ -133,8 +134,8 @@ function SidebarNavLink({
   );
 }
 
-function displayName(user?: SidebarAccount['user']) {
-  if (!user) return 'Reachard user';
+function displayName(user: SidebarAccount['user'] | undefined, fallback: string) {
+  if (!user) return fallback;
   return user.name || user.email.split('@')[0];
 }
 
@@ -147,6 +148,6 @@ function initialsFromName(value: string) {
     .join('');
 }
 
-function formatNumber(value?: number) {
-  return Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US') : '...';
+function formatNumber(value: number | undefined, language: 'en' | 'zh') {
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US') : '...';
 }

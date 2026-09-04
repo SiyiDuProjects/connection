@@ -1,4 +1,9 @@
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com";
+const draftInternalCosts = new WeakMap();
+
+export function getDraftInternalCost(draft) {
+  return draft && typeof draft === "object" ? draftInternalCosts.get(draft) || null : null;
+}
 
 export async function createDraft(contact, job, settings = {}) {
   const fallback = createTemplateDraft(contact, job, settings);
@@ -14,15 +19,17 @@ export async function createDraft(contact, job, settings = {}) {
   }
 
   try {
-    const draft = await createAiDraft(contact, job, settings);
-    return {
-      ...draft,
+    const result = await createAiDraft(contact, job, settings);
+    const draft = {
+      ...result.draft,
       ai: {
         used: true,
         provider: "openai",
         model: openAiModel()
       }
     };
+    draftInternalCosts.set(draft, openAiInternalCost(result.response));
+    return draft;
   } catch (error) {
     console.error("AI draft generation failed:", error.message || error);
     return {
@@ -144,7 +151,10 @@ async function createAiDraft(contact, job, settings) {
 
     const outputText = extractOutputText(data);
     const parsed = JSON.parse(outputText);
-    return normalizeAiDraft(parsed, job, settings);
+    return {
+      draft: normalizeAiDraft(parsed, job, settings),
+      response: data
+    };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -159,11 +169,13 @@ function aiInstructions() {
     "Treat saved sender profile data as stable personal context. Treat company, role intent, job description, selected profile, and contact data as page-specific context.",
     "For linkedin_job or external_job context, refer to the specific posted role when present.",
     "For linkedin_company or company_site context, describe the sender as exploring opportunities in the saved target area; never imply that a specific opening exists.",
-    "Respect sender.outreachLength, sender.outreachGoal, and sender.outreachStyleNotes as style controls only; do not quote style notes verbatim.",
+    "Respect sender.emailTone, sender.outreachLength, sender.outreachGoal, and sender.outreachStyleNotes as style controls only; do not quote style notes verbatim.",
+    "For sender.outreachLength, target 70-100 words for short, 100-140 words for concise, and 140-180 words for detailed.",
+    "Use sender.emailSignature exactly as the closing signature when it is provided.",
     "If the context is a LinkedIn people profile, write to that one person and do not imply a job posting exists unless one was provided.",
     "If job title or job description is missing, still write a usable email and list the missing fields in missingContext.",
     "Add warnings for weak personalization, missing role context, or anything the sender should verify before sending.",
-    "Keep the email between 120 and 180 words. Use a natural human tone, not a sales pitch.",
+    "Use a natural human tone, not a sales pitch.",
     "Return only valid JSON matching the schema."
   ].join("\n");
 }
@@ -323,6 +335,61 @@ function truncate(value, maxLength) {
 
 function openAiModel() {
   return process.env.OPENAI_MODEL || "gpt-5.6-luna";
+}
+
+function openAiInternalCost(response = {}) {
+  const usage = response.usage || {};
+  const inputTokens = nonNegativeInteger(usage.input_tokens);
+  const cachedInputTokens = Math.min(
+    inputTokens,
+    nonNegativeInteger(usage.input_tokens_details?.cached_tokens)
+  );
+  const outputTokens = nonNegativeInteger(usage.output_tokens);
+  const totalTokens = nonNegativeInteger(usage.total_tokens) || inputTokens + outputTokens;
+  const rates = openAiPricing(openAiModel(), inputTokens);
+  const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
+  const costUsd = (
+    uncachedInputTokens * rates.input
+    + cachedInputTokens * rates.cachedInput
+    + outputTokens * rates.output
+  ) / 1_000_000;
+
+  return {
+    source: "openai",
+    provider: "openai",
+    model: openAiModel(),
+    billing: "estimated",
+    costMicroUsd: Math.round(costUsd * 1_000_000),
+    inputTokens,
+    cachedInputTokens,
+    outputTokens,
+    totalTokens,
+    responseId: cleanLine(response.id).slice(0, 128) || undefined
+  };
+}
+
+function openAiPricing(model, inputTokens) {
+  const isLuna = model === "gpt-5.6-luna";
+  const longContext = inputTokens > 272_000;
+  const input = nonNegativeNumber(process.env.OPENAI_INPUT_USD_PER_MILLION, isLuna ? 0.20 : 0);
+  const cachedInput = nonNegativeNumber(process.env.OPENAI_CACHED_INPUT_USD_PER_MILLION, isLuna ? 0.02 : 0);
+  const output = nonNegativeNumber(process.env.OPENAI_OUTPUT_USD_PER_MILLION, isLuna ? 1.20 : 0);
+  return {
+    input: input * (longContext ? 2 : 1),
+    cachedInput: cachedInput * (longContext ? 2 : 1),
+    output: output * (longContext ? 1.5 : 1)
+  };
+}
+
+function nonNegativeInteger(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+}
+
+function nonNegativeNumber(value, fallback) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
 }
 
 function goalSentence(value) {

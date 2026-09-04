@@ -4,7 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { searchContacts, revealEmail } from "./lib/contacts-provider.js";
 import { rankContacts } from "./lib/ranking.js";
-import { createDraft, createMailtoUrl } from "./lib/email.js";
+import { createDraft, createMailtoUrl, getDraftInternalCost } from "./lib/email.js";
 import { errorHandler, fail, logRequest, ok, publicError, requestContext, writeLog } from "./lib/http.js";
 import {
   getBearerToken,
@@ -159,7 +159,11 @@ app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), re
       });
     }
 
-    const contacts = await searchContacts(context).catch(async (error) => {
+    const providerRequest = {
+      customerId: req.user.id,
+      idempotencyKey: req.idempotencyKey
+    };
+    const contacts = await searchContacts(context, providerRequest).catch(async (error) => {
       writeLog("warn", "contacts.provider_failed", {
         requestId: req.requestId,
         provider: providerStatus().contactProvider,
@@ -174,7 +178,7 @@ app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), re
       throw publicError("Contact search is temporarily unavailable. Try again shortly.", 503);
     });
     const ranked = rankContacts(contacts, context).slice(0, 10);
-    const completed = await chargeAndRecord(req, "contacts.search", { contacts: ranked });
+    const completed = await chargeAndRecord(req, "contacts.search", { contacts: ranked }, providerRequest.internalCost);
     ok(res, completed.response);
   } catch (error) {
     await recordFailure(req, "contacts.search", error).catch(() => {});
@@ -189,7 +193,11 @@ app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), re
     const contact = normalizeRevealContact(req.body?.contact);
     if (!contact) return fail(res, 400, "Choose a valid contact before revealing an email.");
 
-    const email = await revealEmail(contact).catch((error) => {
+    const providerRequest = {
+      customerId: req.user.id,
+      idempotencyKey: req.idempotencyKey
+    };
+    const email = await revealEmail(contact, providerRequest).catch((error) => {
       writeLog("warn", "contacts.reveal_provider_failed", {
         requestId: req.requestId,
         provider: revealProviderName(),
@@ -198,6 +206,18 @@ app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), re
       throw publicError("Email reveal is temporarily unavailable. Try again shortly.", 503);
     });
     if (!email) {
+      await Promise.all([
+        failApiRequest({
+          userId: req.user.id,
+          action: "contacts.reveal",
+          idempotencyKey: req.idempotencyKey,
+          error: "email_not_found"
+        }),
+        recordUsage(req, "contacts.reveal", 0, "not_found", {
+          emailFound: false,
+          ...(providerRequest.internalCost ? { internalCost: providerRequest.internalCost } : {})
+        })
+      ]);
       return fail(res, 404, "No work email was found. No Contact Kit was used.", {
         credits: { remaining: await getCreditBalance(req.user.id) }
       });
@@ -206,7 +226,7 @@ app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), re
     const completed = await chargeAndRecord(req, "contacts.reveal", {
       email,
       provider: revealProviderName()
-    });
+    }, providerRequest.internalCost);
     ok(res, completed.response);
   } catch (error) {
     await recordFailure(req, "contacts.reveal", error).catch(() => {});
@@ -232,7 +252,7 @@ app.post("/api/email/draft", prepareIdempotentRequest("email.draft"), requireCre
     const completed = await chargeAndRecord(req, "email.draft", {
       ...draft,
       mailtoUrl: createMailtoUrl(contact.email, draft)
-    });
+    }, getDraftInternalCost(draft));
     ok(res, completed.response);
   } catch (error) {
     await recordFailure(req, "email.draft", error).catch(() => {});
@@ -349,7 +369,7 @@ function prepareIdempotentRequest(action) {
   };
 }
 
-async function chargeAndRecord(req, action, response) {
+async function chargeAndRecord(req, action, response, internalCost) {
   const charge = req.creditCharge || { action, amount: 0 };
   const result = await chargeAndLogApiUsage({
     userId: req.user.id,
@@ -357,7 +377,8 @@ async function chargeAndRecord(req, action, response) {
     action,
     idempotencyKey: req.idempotencyKey,
     request: summarizeRequest(req),
-    response
+    response,
+    internalCost
   });
 
   if (!result?.ok) {
@@ -485,7 +506,7 @@ function normalizeLinkedinProfileUrl(value) {
 
 function revealProviderName() {
   if (String(process.env.APOLLO_MOCK || "").toLowerCase() === "true") return "mock";
-  const provider = String(process.env.CONTACT_PROVIDER || "apollo").toLowerCase();
+  const provider = String(process.env.CONTACT_PROVIDER || "treg").toLowerCase();
   return provider === "rapidapi" ? "hunter" : provider;
 }
 
@@ -559,14 +580,15 @@ function getWebRedirectBaseUrl() {
 }
 
 function providerStatus() {
-  const contactProvider = String(process.env.CONTACT_PROVIDER || "apollo").toLowerCase();
+  const contactProvider = String(process.env.CONTACT_PROVIDER || "treg").toLowerCase();
   return {
     contactProvider,
     apolloMock: String(process.env.APOLLO_MOCK || "").toLowerCase() === "true",
     hasApolloKey: Boolean(process.env.APOLLO_API_KEY),
     hasHunterKey: Boolean(process.env.HUNTER_API_KEY),
     hasExploriumKey: Boolean(process.env.EXPLORIUM_API_KEY),
-    hasRapidApiKey: Boolean(process.env.RAPIDAPI_KEY)
+    hasRapidApiKey: Boolean(process.env.RAPIDAPI_KEY),
+    hasTregToken: Boolean(process.env.TREG_TOKEN)
   };
 }
 
@@ -585,6 +607,9 @@ function requiredConfigurationIssues() {
   }
   if (status.contactProvider === "explorium" && !status.hasExploriumKey) {
     issues.push("explorium_key_missing");
+  }
+  if (status.contactProvider === "treg" && !status.hasTregToken) {
+    issues.push("treg_token_missing");
   }
   return issues;
 }

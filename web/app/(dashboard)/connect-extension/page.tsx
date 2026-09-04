@@ -44,6 +44,7 @@ export default async function ConnectExtensionPage({
       webBaseUrl={webBaseUrl.replace(/\/+$/, '')}
       apiBaseUrl={apiBaseUrl.replace(/\/+$/, '')}
       blockedReason={blockedReason}
+      returnTo={returnTo}
     />
   );
 }

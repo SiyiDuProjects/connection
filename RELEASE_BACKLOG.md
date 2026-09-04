@@ -17,7 +17,7 @@ This file records product decisions that are intentionally deferred or require t
 3. A free first Contact Kit is not being added now.
 4. Top-three result diversity is not being added now. Ranking correctness and false-match prevention come first.
 5. Web and extension visual redesign, including the logo, remain owner-led.
-6. Provider selection remains Fresh LinkedIn Scraper for people search and Apollo for on-demand work-email reveal until the planned provider benchmark is run.
+6. Production provider selection is now Treg Icypeas for current-company people search and Treg Apollo for on-demand verified work-email reveal. The broader provider benchmark remains deferred.
 
 ## Before public Chrome Web Store release
 

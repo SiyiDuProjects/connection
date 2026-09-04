@@ -13,12 +13,14 @@ export function ConnectExtensionClient({
   extensionId,
   webBaseUrl,
   apiBaseUrl,
-  blockedReason
+  blockedReason,
+  returnTo
 }: {
   extensionId: string;
   webBaseUrl: string;
   apiBaseUrl: string;
   blockedReason?: string;
+  returnTo?: string;
 }) {
   const [state, setState] = useState<ConnectState>('sending');
   const { language, t } = useI18n();
@@ -61,7 +63,8 @@ export function ConnectExtensionClient({
           token: tokenPayload.token,
           webBaseUrl,
           apiBaseUrl,
-          language
+          language,
+          returnTo
         }
       }, { extensionId });
 
@@ -79,7 +82,7 @@ export function ConnectExtensionClient({
       setMessage(error instanceof Error ? error.message : t('connect.notAccepted'));
       revokePendingToken(tokenId);
     });
-  }, [apiBaseUrl, blockedReason, extensionId, language, t, webBaseUrl]);
+  }, [apiBaseUrl, blockedReason, extensionId, language, returnTo, t, webBaseUrl]);
 
   const Icon = state === 'connected' ? CheckCircle2 : state === 'failed' ? XCircle : Loader2;
 

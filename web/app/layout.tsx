@@ -9,9 +9,7 @@ export const metadata: Metadata = {
   description: 'Open a job post, identify the people worth contacting, and draft thoughtful outreach.'
 };
 
-export const viewport: Viewport = {
-  maximumScale: 1
-};
+export const viewport: Viewport = {};
 
 export default async function RootLayout({
   children

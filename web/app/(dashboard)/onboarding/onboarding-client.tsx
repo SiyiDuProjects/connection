@@ -7,6 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/components/language-provider';
+import {
+  extractResumeText,
+  getResumeTextErrorKey,
+  RESUME_FILE_ACCEPT
+} from '@/lib/resume-text';
 
 type OnboardingValues = {
   name: string;
@@ -54,6 +60,7 @@ export function OnboardingClient({
   redirectTo: string;
 }) {
   const router = useRouter();
+  const { language, t } = useI18n();
   const [values, setValues] = useState<OnboardingValues>(initial);
   const [status, setStatus] = useState('');
   const [resolving, setResolving] = useState<'school' | 'region' | ''>('');
@@ -98,14 +105,14 @@ export function OnboardingClient({
     const payload = await response.json().catch(() => ({}));
     setResolving('');
     if (!response.ok || !payload.ok) {
-      setStatus(payload.error || `Could not confirm ${type}.`);
+      setStatus(payload.error || t(type === 'school' ? 'onboarding.schoolConfirmError' : 'onboarding.regionConfirmError'));
       return;
     }
 
     const items = Array.isArray(payload.items) ? payload.items : [];
     if (type === 'school') setSchoolOptions(items);
     else setRegionOptions(items);
-    if (!items.length) setStatus(`No ${type} matches found.`);
+    if (!items.length) setStatus(t(type === 'school' ? 'onboarding.noSchoolMatches' : 'onboarding.noRegionMatches'));
   }
 
   function selectResolved(type: 'school' | 'region', item: ResolvedItem) {
@@ -136,16 +143,16 @@ export function OnboardingClient({
     if (!file) return;
 
     try {
-      const text = await extractReadableText(file);
+      const text = await extractResumeText(file);
       setValues((current) => ({
         ...current,
         resumeContext: text.slice(0, 40000),
         resumeFileName: file.name,
         resumeUploadedAt: new Date().toISOString()
       }));
-      setStatus('Resume file imported.');
+      setStatus(t('onboarding.resumeImported'));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Could not read this file.');
+      setStatus(t(getResumeTextErrorKey(error)));
       event.target.value = '';
     }
   }
@@ -162,7 +169,7 @@ export function OnboardingClient({
   async function submit() {
     const nextMissing = validate(values);
     if (nextMissing.length) {
-      setStatus('Complete the highlighted fields before continuing.');
+      setStatus(t('onboarding.completeFields'));
       return;
     }
 
@@ -180,7 +187,7 @@ export function OnboardingClient({
     const payload = await response.json().catch(() => ({}));
     setSaving(false);
     if (!response.ok || !payload.ok) {
-      setStatus(payload.error || 'Could not save your profile.');
+      setStatus(payload.error || t('onboarding.saveError'));
       return;
     }
     router.replace(redirectTo);
@@ -192,10 +199,10 @@ export function OnboardingClient({
       <section className="mx-auto max-w-[680px]">
         <div className="mx-auto mt-11 max-w-[560px] text-center">
           <h1 className="text-[40px] font-semibold leading-[1.1] tracking-normal text-[#1d1d1f] sm:text-[44px]">
-            Build your outreach profile
+            {t('onboarding.title')}
           </h1>
           <p className="mt-4 text-[19px] leading-7 text-[#1d1d1f]">
-            Add the details Reachard uses to draft more personal outreach.
+            {t('onboarding.description')}
           </p>
         </div>
 
@@ -203,44 +210,44 @@ export function OnboardingClient({
           <div className="space-y-8">
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="First name" required>
-                  <Input value={nameParts.first} onChange={(event) => updateNamePart('first', event.target.value)} placeholder="First name" className={controlClass} />
+                <Field label={t('onboarding.firstName')} required>
+                  <Input value={nameParts.first} onChange={(event) => updateNamePart('first', event.target.value)} placeholder={t('onboarding.firstName')} className={controlClass} />
                 </Field>
-                <Field label="Last name" required>
-                  <Input value={nameParts.last} onChange={(event) => updateNamePart('last', event.target.value)} placeholder="Last name" className={controlClass} />
+                <Field label={t('onboarding.lastName')} required>
+                  <Input value={nameParts.last} onChange={(event) => updateNamePart('last', event.target.value)} placeholder={t('onboarding.lastName')} className={controlClass} />
                 </Field>
               </div>
-              <Field label="School or affiliation" required>
+              <Field label={t('onboarding.schoolAffiliation')} required>
                 <ResolveInput
                   value={values.school}
                   onChange={(value) => update('school', value)}
                   onResolve={() => resolveField('school')}
                   resolving={resolving === 'school'}
                   verified={values.defaultSearchPreferences.school?.label === values.school}
-                  placeholder="School or affiliation"
+                  placeholder={t('onboarding.schoolAffiliation')}
                 />
                 <ResolveOptions items={schoolOptions} onSelect={(item) => selectResolved('school', item)} />
               </Field>
-              <Field label="Region">
+              <Field label={t('onboarding.region')}>
                 <ResolveInput
                   value={values.region}
                   onChange={(value) => update('region', value)}
                   onResolve={() => resolveField('region')}
                   resolving={resolving === 'region'}
                   verified={Boolean(values.region) && values.defaultSearchPreferences.region?.label === values.region}
-                  placeholder="Region"
+                  placeholder={t('onboarding.region')}
                 />
                 <ResolveOptions items={regionOptions} onSelect={(item) => selectResolved('region', item)} />
               </Field>
-              <Field label="Extra personal info">
+              <Field label={t('onboarding.extraPersonalInfo')}>
                 <textarea
                   value={values.senderProfile}
                   onChange={(event) => update('senderProfile', event.target.value)}
                   className={cn(textareaClass, 'min-h-28')}
-                  placeholder="Extra personal info"
+                  placeholder={t('onboarding.extraPersonalInfo')}
                 />
               </Field>
-              <Field label="Resume">
+              <Field label={t('onboarding.resume')}>
                 <div className="flex min-h-14 min-w-0 items-center justify-between gap-4 rounded-[12px] border border-transparent bg-transparent px-4 py-3 shadow-[inset_0_0_0_1px_#86868b]">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center text-[#6e6e73]">
@@ -249,31 +256,33 @@ export function OnboardingClient({
                     <div className="min-w-0">
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <p className="truncate text-[15px] font-semibold text-[#1d1d1f]">
-                          {values.resumeFileName || 'No resume added'}
+                          {values.resumeFileName || t('onboarding.noResume')}
                         </p>
                         {values.resumeFileName ? (
                           <span className="rounded-full bg-[#f5f5f7] px-2.5 py-1 text-xs font-semibold text-[#3a3a3c]">
-                            Default
+                            {t('onboarding.default')}
                           </span>
                         ) : null}
                       </div>
                       <p className="mt-1 text-[13px] font-normal text-[#6e6e73]">
-                        {values.resumeUploadedAt ? `Stored ${formatDateTime(values.resumeUploadedAt)}` : 'Add a resume file to improve outreach drafts'}
+                        {values.resumeUploadedAt
+                          ? t('onboarding.stored', { date: formatDateTime(values.resumeUploadedAt, language) })
+                          : t('onboarding.resumeHelp')}
                       </p>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     {values.resumeFileName ? (
                       <button type="button" onClick={clearResume} className="text-sm font-medium text-[#6e6e73] transition-colors hover:text-[#1d1d1f]">
-                        Clear
+                        {t('onboarding.clear')}
                       </button>
                     ) : null}
-                    <label className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#86868b] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]" title={values.resumeFileName ? 'Replace resume' : 'Upload resume'}>
+                    <label className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#86868b] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]" title={values.resumeFileName ? t('onboarding.replaceResume') : t('onboarding.uploadResume')}>
                       <Pencil className="h-4 w-4" aria-hidden="true" />
-                      <span className="sr-only">{values.resumeFileName ? 'Replace resume' : 'Upload resume'}</span>
+                      <span className="sr-only">{values.resumeFileName ? t('onboarding.replaceResume') : t('onboarding.uploadResume')}</span>
                       <input
                         type="file"
-                        accept=".txt,.md,.rtf,.pdf,.doc,.docx"
+                        accept={RESUME_FILE_ACCEPT}
                         onChange={importResumeFile}
                         className="sr-only"
                       />
@@ -284,20 +293,24 @@ export function OnboardingClient({
             </div>
 
             <div className={cn(sectionDivider, 'space-y-3')}>
-              <h2 className="text-[21px] font-semibold leading-6 text-[#1d1d1f]">Outreach</h2>
-              <Field label="Extra style notes">
+              <h2 className="text-[21px] font-semibold leading-6 text-[#1d1d1f]">{t('onboarding.outreach')}</h2>
+              <Field label={t('onboarding.extraStyleNotes')}>
                 <textarea
                   value={values.outreachStyleNotes}
                   onChange={(event) => update('outreachStyleNotes', event.target.value.slice(0, 500))}
                   className={cn(textareaClass, 'min-h-24')}
-                  placeholder="Extra style notes"
+                  placeholder={t('onboarding.extraStyleNotes')}
                 />
               </Field>
             </div>
           </div>
 
           <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[#d2d2d7] pt-6">
-            <p className="text-sm text-[#6e6e73]">{status || (missing.length ? `${missing.length} required item${missing.length === 1 ? '' : 's'} remaining.` : 'Ready to save.')}</p>
+            <p className="text-sm text-[#6e6e73]">
+              {status || (missing.length
+                ? t('onboarding.requiredRemaining', { count: missing.length })
+                : t('onboarding.ready'))}
+            </p>
             <div className="flex gap-3">
               <Button
                 type="button"
@@ -305,7 +318,7 @@ export function OnboardingClient({
                 onClick={submit}
                 className="min-h-10 rounded-full bg-[#0071e3] px-5 text-white hover:bg-[#0077ed]"
               >
-                {saving ? 'Saving...' : 'Finish setup'}
+                {saving ? t('onboarding.saving') : t('onboarding.finish')}
               </Button>
             </div>
           </div>
@@ -316,9 +329,10 @@ export function OnboardingClient({
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  const { t } = useI18n();
   return (
     <div>
-      <Label className="sr-only">{label}{required ? ' required' : ''}</Label>
+      <Label className="sr-only">{label}{required ? ` ${t('onboarding.required')}` : ''}</Label>
       {children}
     </div>
   );
@@ -339,6 +353,7 @@ function ResolveInput({
   verified: boolean;
   placeholder: string;
 }) {
+  const { t } = useI18n();
   return (
     <div className="relative">
       <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={cn(controlClass, 'pr-12')} />
@@ -347,7 +362,7 @@ function ResolveInput({
         className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-[#86868b] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f] disabled:opacity-60"
         onClick={onResolve}
         disabled={resolving}
-        title={verified ? 'Verified' : 'Search'}
+        title={verified ? t('onboarding.verified') : t('onboarding.search')}
       >
         {resolving ? (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -356,7 +371,7 @@ function ResolveInput({
         ) : (
           <Search className="h-4 w-4" aria-hidden="true" />
         )}
-        <span className="sr-only">{verified ? 'Verified' : 'Search'}</span>
+        <span className="sr-only">{verified ? t('onboarding.verified') : t('onboarding.search')}</span>
       </button>
     </div>
   );
@@ -404,30 +419,9 @@ function validate(values: OnboardingValues) {
   return missing;
 }
 
-async function extractReadableText(file: File) {
-  const extension = file.name.split('.').pop()?.toLowerCase();
-  const text = await file.text();
-  const cleaned = text
-    .replace(/\u0000/g, ' ')
-    .replace(/[^\S\n]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-  const printableRatio = cleaned.length / Math.max(text.length, 1);
-
-  if (!cleaned || cleaned.length < 80 || printableRatio < 0.45) {
-    throw new Error(
-      extension && ['pdf', 'doc', 'docx'].includes(extension)
-        ? 'This file text could not be read. Export it as TXT or paste text in a readable file.'
-        : 'This file does not contain enough readable text.'
-    );
-  }
-
-  return cleaned;
-}
-
-function formatDateTime(value?: string | null) {
+function formatDateTime(value: string | null | undefined, language: 'en' | 'zh') {
   if (!value) return '';
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',

@@ -27,6 +27,8 @@ jobs:
           find src -name '*.js' -print0 | xargs -0 -n1 node --check
           npm run test:hunter
           npm run test:rapidapi
+          npm run test:treg
+          npm run test:email
           npm run test:intelligence
           npm run test:intelligence:large
 
@@ -41,7 +43,7 @@ jobs:
         run: |
           node --check extension/content.js
           node --check extension/service_worker.js
-          node --check extension/options.js
+          node --check extension/web_bridge.js
           node scripts/check-extension.mjs
 
   web:

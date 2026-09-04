@@ -23,7 +23,7 @@ type DeleteState = {
 };
 
 export default function SecurityPage() {
-  const { t, language, languageMode, setLanguage, useBrowserLanguage } = useI18n();
+  const { t } = useI18n();
   const router = useRouter();
   const [passwordState, passwordAction, isPasswordPending] = useActionState<
     PasswordState,
@@ -50,46 +50,6 @@ export default function SecurityPage() {
         </h1>
 
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('general.language')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="secondary mb-3">
-                {t('general.languageDescription')}
-              </p>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={useBrowserLanguage}
-                  className={`button-text h-9 rounded-[8px] px-3 transition-colors hover:bg-[#f9f9f9] ${
-                    languageMode === 'browser' ? 'bg-[#f3f3f3] text-gray-950' : 'text-gray-500'
-                  }`}
-                >
-                  {t('general.languageBrowser')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLanguage('en')}
-                  className={`button-text h-9 rounded-[8px] px-3 transition-colors hover:bg-[#f9f9f9] ${
-                    languageMode === 'manual' && language === 'en' ? 'bg-[#f3f3f3] text-gray-950' : 'text-gray-500'
-                  }`}
-                >
-                  {t('general.languageEnglish')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLanguage('zh')}
-                  className={`button-text h-9 rounded-[8px] px-3 transition-colors hover:bg-[#f9f9f9] ${
-                    languageMode === 'manual' && language === 'zh' ? 'bg-[#f3f3f3] text-gray-950' : 'text-gray-500'
-                  }`}
-                >
-                  {t('general.languageChinese')}
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>{t('security.password')}</CardTitle>
@@ -168,11 +128,11 @@ export default function SecurityPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Log out</CardTitle>
+              <CardTitle>{t('security.logOut')}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="secondary mb-4">
-                End this session and return to the homepage.
+                {t('security.logOutBody')}
               </p>
               <Button
                 type="button"
@@ -181,7 +141,7 @@ export default function SecurityPage() {
                 className="button-text bg-white text-gray-950 hover:bg-gray-50"
               >
                 <LogOut className="mr-2 h-4 w-4" />
-                Log out
+                {t('security.logOut')}
               </Button>
             </CardContent>
           </Card>

@@ -86,11 +86,12 @@ Your production `.env` should contain:
 PORT=8787
 WEB_BASE_URL=https://reachard.co
 POSTGRES_URL=postgresql://...
-CONTACT_PROVIDER=rapidapi
+CONTACT_PROVIDER=treg
 APOLLO_MOCK=false
-RAPIDAPI_KEY=your_rapidapi_key
-RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
-APOLLO_API_KEY=your_apollo_api_key
+TREG_TOKEN=your_treg_token
+TREG_BASE_URL=https://treg.to
+TREG_SEARCH_ENDPOINT=icypeas.people.search
+TREG_EMAIL_ENDPOINT=apollo.people.enrich
 EXTENSION_ORIGIN=
 GMAIL_SUBJECT_PREFIX=Quick question from a Berkeley student
 RATE_LIMIT_WINDOW_MS=60000

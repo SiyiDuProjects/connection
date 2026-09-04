@@ -3,7 +3,8 @@ node_modules/
 .DS_Store
 dist/
 coverage/
-output/playwright/
+output/
 .playwright-cli/
 .pnpm-store/
+node_modules.*/
 *.log

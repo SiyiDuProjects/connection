@@ -43,6 +43,8 @@ jobs:
         run: |
           npm run test:hunter
           npm run test:rapidapi
+          npm run test:treg
+          npm run test:email
           npm run test:intelligence
           npm run test:intelligence:large
 

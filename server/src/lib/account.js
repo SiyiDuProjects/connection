@@ -246,7 +246,8 @@ export async function chargeAndLogApiUsage({
   action,
   idempotencyKey,
   request,
-  response
+  response,
+  internalCost
 }) {
   ensureConfigured();
 
@@ -326,7 +327,7 @@ export async function chargeAndLogApiUsage({
         ${amount},
         'success',
         ${sql.json(request || {})},
-        ${sql.json(summarizeUsageResponse(action, completedResponse))}
+        ${sql.json(summarizeUsageResponse(action, completedResponse, internalCost))}
       )
       on conflict do nothing
     `;
@@ -369,17 +370,36 @@ function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function summarizeUsageResponse(action, response) {
+function summarizeUsageResponse(action, response, internalCost) {
+  const internal = sanitizeInternalCost(internalCost);
   if (action === "contacts.search") {
-    return { resultCount: Array.isArray(response?.contacts) ? response.contacts.length : 0 };
+    return { resultCount: Array.isArray(response?.contacts) ? response.contacts.length : 0, ...(internal ? { internalCost: internal } : {}) };
   }
   if (action === "contacts.reveal") {
-    return { provider: response?.provider || "", emailFound: Boolean(response?.email) };
+    return { provider: response?.provider || "", emailFound: Boolean(response?.email), ...(internal ? { internalCost: internal } : {}) };
   }
   if (action === "email.draft") {
-    return { ai: response?.ai || null };
+    return { ai: response?.ai || null, ...(internal ? { internalCost: internal } : {}) };
   }
-  return {};
+  return internal ? { internalCost: internal } : {};
+}
+
+function sanitizeInternalCost(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const strings = ["source", "provider", "endpoint", "model", "billing", "callId", "responseId"];
+  const numbers = ["costMicroUsd", "durationMs", "inputTokens", "cachedInputTokens", "outputTokens", "totalTokens"];
+  const result = {};
+  for (const key of strings) {
+    const item = String(value[key] || "").trim();
+    if (item) result[key] = item.slice(0, 160);
+  }
+  for (const key of numbers) {
+    const item = Number(value[key]);
+    if (Number.isFinite(item) && item >= 0) result[key] = Math.round(item);
+  }
+  if (typeof value.cached === "boolean") result.cached = value.cached;
+  if (typeof value.replayed === "boolean") result.replayed = value.replayed;
+  return Object.keys(result).length ? result : null;
 }
 
 function ensureConfigured() {

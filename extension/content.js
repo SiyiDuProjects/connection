@@ -4,10 +4,9 @@
   const BUTTON_ID = "fc-linkedin-button";
   const CLEANUP_KEY = "__fcLinkedInCleanup";
   const AUTH_LISTENER_KEY = "__fcLinkedInAuthListener";
-  const DEFAULT_LANGUAGE = browserLanguage();
+  const DEFAULT_LANGUAGE = "en";
   const BUTTON_REFRESH_DELAY_MS = 250;
   const SIDEBAR_POSITION_KEY = "fcSidebarCenterY";
-  const PREVIOUS_FINDS_KEY = "reachardPreviousFinds";
   const SIDEBAR_DRAG_MARGIN_PX = 18;
   const SIDEBAR_DRAG_THRESHOLD_PX = 5;
   const DEFAULT_EMAIL_CUSTOMIZE = {
@@ -26,13 +25,6 @@
       linkedInPeopleProfile: "LinkedIn people profile",
       companyContext: "Company context",
       noContacts: "No contacts found yet.",
-      contact: "Contact",
-      topMatches: "Top Matches",
-      preparingContact: "Preparing this contact...",
-      findingContacts: "Finding relevant company contacts...",
-      jobPageDetected: "Job page detected",
-      companyPageDetected: "Company page detected",
-      profileDetected: "LinkedIn profile detected",
       findJobContacts: "Find contacts for this role",
       findCompanyContacts: "Find company contacts",
       prepareContact: "Prepare this contact",
@@ -72,7 +64,40 @@
       unlockBeforeWriting: "Unlock this contact before writing outreach.",
       couldNotDraft: "Could not draft email.",
       signInWebsite: "Sign in on the website.",
-      extensionRefreshed: "Extension context was refreshed. Reload this tab and try again."
+      logInToReachard: "Log In to Reachard",
+      viewContacts: "View contacts",
+      closeSearch: "Close",
+      searchingContacts: "Finding contacts...",
+      searchingCompany: "Searching relevant people at {company}",
+      contactsAtCompany: "Contacts at {company}",
+      extensionRefreshed: "Extension context was refreshed. Reload this tab and try again.",
+      customize: "Email preferences",
+      finishSetup: "Finish setup",
+      openSupportedPage: "Open a job, company, or LinkedIn profile page to search.",
+      tone: "Tone",
+      warm: "Warm",
+      direct: "Direct",
+      formal: "Formal",
+      confident: "Confident",
+      length: "Length",
+      short: "Short",
+      concise: "Concise",
+      detailed: "Detailed",
+      goal: "Goal",
+      askAdvice: "Ask advice",
+      exploreReferral: "Explore referral",
+      requestIntro: "Request intro",
+      extraStyleNotes: "Extra style notes",
+      styleNotesPlaceholder: "Example: sound less formal, mention curiosity about product work.",
+      saveStyle: "Save style",
+      reset: "Reset",
+      draftIntro: "Draft intro",
+      couldNotLoadCustom: "Could not load custom settings.",
+      couldNotLoadAccount: "Could not load account.",
+      couldNotSaveCustom: "Could not save custom settings.",
+      customSaved: "Custom settings saved.",
+      couldNotResetCustom: "Could not reset custom settings.",
+      customReset: "Custom settings reset."
     },
     zh: {
       emailWithReachard: "用 Reachard 写邮件",
@@ -83,13 +108,6 @@
       linkedInPeopleProfile: "LinkedIn 个人资料",
       companyContext: "公司上下文",
       noContacts: "还没有找到联系人。",
-      contact: "联系人",
-      topMatches: "最佳匹配",
-      preparingContact: "正在准备这个联系人...",
-      findingContacts: "正在查找相关公司联系人...",
-      jobPageDetected: "已识别职位页面",
-      companyPageDetected: "已识别公司页面",
-      profileDetected: "已识别 LinkedIn 个人主页",
       findJobContacts: "查找该岗位的联系人",
       findCompanyContacts: "查找公司联系人",
       prepareContact: "准备这个联系人",
@@ -129,7 +147,40 @@
       unlockBeforeWriting: "请先解锁这个联系人，再撰写外联邮件。",
       couldNotDraft: "无法生成邮件草稿。",
       signInWebsite: "请先在网站上登录。",
-      extensionRefreshed: "扩展上下文已刷新。请重新加载此标签页后再试。"
+      logInToReachard: "登录 Reachard",
+      viewContacts: "查看联系人",
+      closeSearch: "关闭",
+      searchingContacts: "正在查找联系人...",
+      searchingCompany: "正在查找 {company} 的相关联系人",
+      contactsAtCompany: "{company} 的联系人",
+      extensionRefreshed: "扩展上下文已刷新。请重新加载此标签页后再试。",
+      customize: "邮件偏好",
+      finishSetup: "完成设置",
+      openSupportedPage: "请打开职位、公司或 LinkedIn 个人主页后再查找。",
+      tone: "语气",
+      warm: "友好",
+      direct: "直接",
+      formal: "正式",
+      confident: "自信",
+      length: "长度",
+      short: "简短",
+      concise: "精炼",
+      detailed: "详细",
+      goal: "目的",
+      askAdvice: "请教建议",
+      exploreReferral: "询问内推",
+      requestIntro: "请求介绍",
+      extraStyleNotes: "其他风格要求",
+      styleNotesPlaceholder: "例如：语气不要太正式，并提到我对产品工作的兴趣。",
+      saveStyle: "保存风格",
+      reset: "重置",
+      draftIntro: "生成邮件",
+      couldNotLoadCustom: "无法加载邮件偏好。",
+      couldNotLoadAccount: "无法加载账户。",
+      couldNotSaveCustom: "无法保存邮件偏好。",
+      customSaved: "邮件偏好已保存。",
+      couldNotResetCustom: "无法重置邮件偏好。",
+      customReset: "邮件偏好已重置。"
     }
   };
 
@@ -143,17 +194,18 @@
 
   let state = {
     loading: false,
-    activeTab: "home",
     error: "",
     prompt: null,
     action: null,
     creditsRemaining: null,
     account: null,
+    authenticated: null,
     accountLoading: false,
     accountError: "",
+    accountNotice: "",
     emailCustomize: { ...DEFAULT_EMAIL_CUSTOMIZE },
-    previousFinds: [],
     contacts: [],
+    searchSheetOpen: false,
     pageContext: null,
     manualJobTitle: "",
     revealed: new Map(),
@@ -309,6 +361,7 @@
       source: label || "",
       companyName: cleanText(context.companyName),
       companyDomain: cleanDomain(context.companyDomain),
+      companyLinkedInUrl: cleanText(context.companyLinkedInUrl),
       jobTitle: cleanText(context.jobTitle),
       jobLocation: cleanText(context.jobLocation),
       jobDescription: cleanMultiline(context.jobDescription),
@@ -365,6 +418,13 @@
       'a[href*="/company/"][href*="/life/"] p a',
       'a[href*="/company/"][href*="/life/"]'
     ]) || companyNameFromAriaLabel();
+    const companyLinkedInUrl = document.querySelector([
+      ".job-details-jobs-unified-top-card__company-name a",
+      ".jobs-unified-top-card__company-name a",
+      ".topcard__org-name-link",
+      '.top-card-layout__second-subline a[href*="/company/"]',
+      'a[href*="/company/"][href*="/life/"]'
+    ].join(", "))?.href || "";
 
     const locationText = textFrom([
       ".job-details-jobs-unified-top-card__primary-description-container",
@@ -376,6 +436,7 @@
     return {
       type: PAGE_TYPES.LINKEDIN_JOB,
       companyName,
+      companyLinkedInUrl,
       jobTitle: title,
       jobLocation: locationText,
       jobDescription: getJobDescription(),
@@ -399,6 +460,7 @@
       type: PAGE_TYPES.LINKEDIN_COMPANY,
       companyName,
       companyDomain: cleanDomain(href || website),
+      companyLinkedInUrl: location.href,
       pageTitle: companyName || "LinkedIn company"
     };
   }
@@ -562,23 +624,15 @@
 
   function renderPanel() {
     const panel = ensurePanel();
-    const context = state.pageContext || {};
-    const title = panelTitle(context);
-    const subtitle = panelSubtitle(context);
 
     panel.innerHTML = `
-      <div class="fc-topbar">
-        <div class="fc-brand">
-          <span class="fc-logo">G</span>
-          <span>Reachard</span>
-        </div>
-        <div class="fc-topbar-actions">
-          <button class="fc-icon-button" type="button" aria-label="Notifications">!</button>
-          <button class="fc-close" type="button" aria-label="${escapeAttr(t("close"))}">×</button>
-        </div>
+      <div class="fc-brand">
+        <span class="fc-logo">G</span>
+        <span>Reachard</span>
       </div>
-      ${renderTabs()}
-      <div class="fc-body">${renderBody()}</div>
+      <button class="fc-close" type="button" aria-label="${escapeAttr(t("close"))}"></button>
+      <div class="fc-body">${renderHome()}</div>
+      ${renderSearchSheet()}
     `;
 
     panel.querySelector(".fc-close").addEventListener("click", () => {
@@ -613,44 +667,30 @@
       });
     });
 
-    panel.querySelectorAll("[data-tab]").forEach((button) => {
-      button.addEventListener("click", () => {
-        state.activeTab = button.dataset.tab;
-        state.error = "";
-        state.prompt = null;
-        state.action = null;
-        renderPanel();
-        if (state.activeTab === "settings") loadAccountStatus();
-      });
-    });
-
     panel.querySelector("[data-start-search]")?.addEventListener("click", runSearch);
-    panel.querySelector("[data-view-more-finds]")?.addEventListener("click", () => {
-      state.activeTab = "home";
+    panel.querySelector("[data-view-contacts]")?.addEventListener("click", () => {
+      state.searchSheetOpen = true;
+      renderPanel();
+    });
+    panel.querySelector("[data-close-search-sheet]")?.addEventListener("click", () => {
+      state.searchSheetOpen = false;
       renderPanel();
     });
     panel.querySelector("[data-save-customize]")?.addEventListener("click", saveCustomizeFromPanel);
     panel.querySelector("[data-reset-customize]")?.addEventListener("click", resetCustomize);
-    panel.querySelector("[data-sign-out]")?.addEventListener("click", signOut);
-    panel.querySelector("[data-refresh-account]")?.addEventListener("click", loadAccountStatus);
-  }
-
-  function renderTabs() {
-    const tabs = [
-      ["home", "Home"],
-      ["customize", "Customize"],
-      ["settings", "Settings"]
-    ];
-    return `
-      <nav class="fc-tabs" aria-label="Reachard sections">
-        ${tabs.map(([id, label]) => `
-          <button class="fc-tab ${state.activeTab === id ? "fc-tab-active" : ""}" type="button" data-tab="${id}">
-            <span class="fc-tab-icon">${id === "home" ? "H" : id === "customize" ? "C" : "S"}</span>
-            <span>${label}</span>
-          </button>
-        `).join("")}
-      </nav>
-    `;
+    panel.querySelectorAll('input[type="radio"][data-customize-field]').forEach((input) => {
+      input.addEventListener("change", () => {
+        const key = input.dataset.customizeField;
+        state.emailCustomize = {
+          ...state.emailCustomize,
+          [key]: input.value
+        };
+        input.closest(".fc-segments")?.querySelectorAll(".fc-segment").forEach((option) => {
+          const optionInput = option.querySelector('input[type="radio"]');
+          option.classList.toggle("fc-segment-active", Boolean(optionInput?.checked));
+        });
+      });
+    });
   }
 
   function panelTitle(context) {
@@ -658,28 +698,8 @@
     return context.jobTitle || context.companyName || context.companyDomain || t("thisCompany");
   }
 
-  function panelSubtitle(context) {
-    if (context.type === PAGE_TYPES.LINKEDIN_PERSON) {
-      return [context.personTitle, context.companyName].filter(Boolean).join(" - ") || t("linkedInPeopleProfile");
-    }
-    if (isCompanyContext(context)) {
-      return [context.companyName || context.companyDomain, context.source].filter(Boolean).join(" - ")
-        || context.pageTitle
-        || t("companyContext");
-    }
-    return [context.jobTitle, context.companyName || context.companyDomain, context.jobLocation, context.source].filter(Boolean).join(" - ")
-      || context.pageTitle
-      || t("companyContext");
-  }
-
   function isCompanyContext(context) {
     return [PAGE_TYPES.LINKEDIN_COMPANY, PAGE_TYPES.COMPANY_SITE].includes(context?.type);
-  }
-
-  function contextDetectedLabel(context) {
-    if (context.type === PAGE_TYPES.LINKEDIN_PERSON) return t("profileDetected");
-    if (isCompanyContext(context)) return t("companyPageDetected");
-    return t("jobPageDetected");
   }
 
   function searchButtonLabel(context) {
@@ -699,54 +719,92 @@
     return `<button class="fc-link-button" type="button" data-action-url="${escapeAttr(url)}">${escapeHtml(label)}</button>`;
   }
 
-  function renderBody() {
-    if (state.activeTab === "customize") return renderCustomize();
-    if (state.activeTab === "settings") return renderSettings();
-    return renderHome();
-  }
-
   function renderHome() {
     const context = state.pageContext || {};
-    if (state.account?.onboarding?.profile && !state.account.onboarding.profile.complete) {
-      return `
-        <section class="fc-context-card">
-          <h2 class="fc-title">Complete your profile</h2>
-          <div class="fc-subtitle">Reachard needs your personal context before searching contacts or drafting outreach.</div>
-          <button class="fc-primary-wide" type="button" data-action-url="https://reachard.co/onboarding">Finish setup</button>
-        </section>
-      `;
-    }
-    const title = panelTitle(context);
-    const subtitle = panelSubtitle(context);
     const hasContext = Boolean(state.pageContext);
+    const needsLogin = state.authenticated === false;
+    const needsProfile = state.authenticated === true
+      && state.account?.onboarding?.profile
+      && !state.account.onboarding.profile.complete;
     const canSearch = hasContext && !state.loading;
 
     return `
-      <section class="fc-context-card">
-        <div class="fc-search-status">
-          <span class="fc-ready-dot"></span>
-          <span>${hasContext ? "Ready to search" : "Unsupported page"}</span>
+      ${hasContext ? renderContextCard(context) : `<div class="fc-empty-card">${escapeHtml(t("openSupportedPage"))}</div>`}
+      ${hasContext ? renderMissingJobTitleInput() : ""}
+      ${needsLogin
+        ? `<button class="fc-primary-wide fc-search-button" type="button" data-action-url="${escapeAttr(state.action?.url || "https://reachard.co/dashboard")}">${escapeHtml(t("logInToReachard"))}</button>`
+        : needsProfile
+          ? `<button class="fc-primary-wide fc-search-button" type="button" data-action-url="https://reachard.co/onboarding">${escapeHtml(t("finishSetup"))}</button>`
+          : state.loading
+            ? `<button class="fc-primary-wide fc-search-button" type="button" data-view-contacts>
+                <span class="fc-spinner fc-spinner-on-primary"></span>
+                <span>${escapeHtml(t("searchingContacts"))}</span>
+              </button>`
+            : state.contacts.length
+              ? `<button class="fc-primary-wide fc-search-button" type="button" data-view-contacts>${escapeHtml(t("viewContacts"))}</button>`
+              : `<button class="fc-primary-wide fc-search-button" type="button" data-start-search ${canSearch ? "" : "disabled"}>
+                  <span>${escapeHtml(searchButtonLabel(context))}</span>
+                </button>`}
+      ${renderCustomize()}
+    `;
+  }
+
+  function renderContextCard(context) {
+    const title = panelTitle(context);
+    const company = context.companyName || context.companyDomain || "";
+    const meta = context.type === PAGE_TYPES.LINKEDIN_PERSON
+      ? [context.personTitle, company].filter(Boolean).join(" · ")
+      : isCompanyContext(context)
+        ? [context.source, context.companyDomain].filter(Boolean).join(" · ")
+        : [company, context.jobLocation].filter(Boolean).join(" · ");
+    const initialSource = company || context.personName || title || "R";
+
+    return `
+      <section class="fc-job-card">
+        <div class="fc-job-card-main">
+          <span class="fc-company-mark" aria-hidden="true">${escapeHtml(initialSource.slice(0, 1).toUpperCase())}</span>
+          <div class="fc-job-copy">
+            <h2 class="fc-job-title">${escapeHtml(title)}</h2>
+            ${meta ? `<p class="fc-job-meta">${escapeHtml(meta)}</p>` : ""}
+          </div>
         </div>
-        <h2 class="fc-title">${escapeHtml(hasContext ? contextDetectedLabel(context) : t("unsupportedPage"))}</h2>
-        <div class="fc-subtitle">${escapeHtml(hasContext ? subtitle || title : "Open a job, company, or LinkedIn profile page to search.")}</div>
-        ${renderMissingJobTitleInput()}
-        <button class="fc-primary-wide" type="button" data-start-search ${canSearch ? "" : "disabled"}>
-          ${state.loading ? escapeHtml(loadingLabel()) : escapeHtml(searchButtonLabel(context))}
-        </button>
         ${renderSourceAction(context)}
       </section>
-      ${renderCreditsCard()}
-      ${renderSearchResults()}
-      ${renderPreviousFinds()}
+    `;
+  }
+
+  function renderSearchSheet() {
+    if (!state.searchSheetOpen) return "";
+
+    const context = state.pageContext || {};
+    const company = context.companyName || context.companyDomain || t("thisCompany");
+    const title = state.loading
+      ? t("searchingContacts")
+      : t("contactsAtCompany", { company });
+
+    return `
+      <div class="fc-search-sheet-backdrop" aria-hidden="true"></div>
+      <section class="fc-search-sheet" role="dialog" aria-modal="true" aria-label="${escapeAttr(title)}">
+        <div class="fc-search-sheet-header">
+          <div>
+            <h2>${escapeHtml(title)}</h2>
+            <p>${escapeHtml(state.loading ? t("searchingCompany", { company }) : panelTitle(context))}</p>
+          </div>
+          <button class="fc-search-sheet-close" type="button" data-close-search-sheet aria-label="${escapeAttr(t("closeSearch"))}">×</button>
+        </div>
+        <div class="fc-search-sheet-body">${renderSearchResults()}</div>
+      </section>
     `;
   }
 
   function renderSearchResults() {
     if (state.loading) {
       return `
-        <div class="fc-status fc-loading">
+        <div class="fc-search-progress">
           <span class="fc-spinner"></span>
-          <span>${escapeHtml(loadingLabel())}</span>
+          <span>${escapeHtml(t("searchingCompany", {
+            company: state.pageContext?.companyName || state.pageContext?.companyDomain || t("thisCompany")
+          }))}</span>
         </div>
       `;
     }
@@ -763,92 +821,43 @@
       `;
     }
     if (!state.contacts.length) {
-      return "";
+      return `<div class="fc-empty-card">${escapeHtml(t("noContacts"))}</div>`;
     }
 
-    const sectionTitle = state.pageContext?.type === PAGE_TYPES.LINKEDIN_PERSON ? t("contact") : t("topMatches");
-    return `
-      <div class="fc-section-title">${escapeHtml(sectionTitle)}</div>
-      ${state.contacts.map(renderContact).join("")}
-    `;
-  }
-
-  function renderCreditsCard() {
-    const plan = state.account?.subscription?.planName || "Plan";
-    const remaining = state.creditsRemaining ?? state.account?.credits?.balance ?? 0;
-    const capped = Math.max(0, Math.min(100, Number(remaining) * 10));
-    return `
-      <section class="fc-plan-card">
-        <div class="fc-plan-row">
-          <span class="fc-plan-label">Plan</span>
-          <span class="fc-plan-pill">${escapeHtml(plan)}</span>
-          <button class="fc-link-button fc-plan-manage" type="button" data-action-url="https://reachard.co/pricing">Manage</button>
-        </div>
-        <div class="fc-credit-count"><strong>${escapeHtml(String(remaining))}</strong> credits remaining</div>
-        <div class="fc-credit-bar"><span style="width: ${capped}%"></span></div>
-        <button class="fc-upgrade-link" type="button" data-action-url="https://reachard.co/pricing">Upgrade Plan</button>
-      </section>
-    `;
-  }
-
-  function renderPreviousFinds() {
-    const items = state.previousFinds.slice(0, 4);
-    return `
-      <section class="fc-previous">
-        <div class="fc-section-heading">
-          <span>Previous finds</span>
-          ${state.previousFinds.length > 4 ? `<button type="button" data-view-more-finds>View more</button>` : ""}
-        </div>
-        ${items.length ? items.map(renderPreviousFind).join("") : `<div class="fc-empty-card">No previous finds yet.</div>`}
-      </section>
-    `;
-  }
-
-  function renderPreviousFind(item) {
-    const title = item.jobTitle || item.companyName || item.personName || "Previous search";
-    const meta = [item.companyName, item.source].filter(Boolean).join(" at ") || item.sourceUrl || "";
-    return `
-      <article class="fc-previous-item">
-        <span class="fc-previous-logo">${escapeHtml((title || "R").slice(0, 1).toUpperCase())}</span>
-        <div>
-          <strong>${escapeHtml(title)}</strong>
-          <span>${escapeHtml(meta)}</span>
-        </div>
-        <time>${escapeHtml(relativeTime(item.createdAt))}</time>
-      </article>
-    `;
+    return `<div class="fc-contact-results">${state.contacts.map(renderContact).join("")}</div>`;
   }
 
   function renderCustomize() {
     const values = { ...DEFAULT_EMAIL_CUSTOMIZE, ...state.emailCustomize };
     return `
-      <section class="fc-customize">
-        <h2 class="fc-page-title">Customize</h2>
-        <p class="fc-page-copy">Set the email style Reachard uses when drafting outreach. Personal information stays fixed in your account profile.</p>
+      <section class="fc-customize fc-customize-inline">
+        <h2 class="fc-page-title">${escapeHtml(t("customize"))}</h2>
         ${state.accountError ? `<div class="fc-status fc-error">${escapeHtml(state.accountError)}</div>` : ""}
-        ${renderSegmentedField("Tone", "tone", values.tone, [
-          ["warm", "Warm"],
-          ["direct", "Direct"],
-          ["formal", "Formal"],
-          ["confident", "Confident"]
+        ${state.accountError ? renderActionButton(state.action) : ""}
+        ${state.accountNotice ? `<div class="fc-status fc-success">${escapeHtml(state.accountNotice)}</div>` : ""}
+        ${renderSegmentedField(t("tone"), "tone", values.tone, [
+          ["warm", t("warm")],
+          ["direct", t("direct")],
+          ["formal", t("formal")],
+          ["confident", t("confident")]
         ])}
-        ${renderSegmentedField("Length", "length", values.length, [
-          ["short", "Short"],
-          ["concise", "Concise"],
-          ["detailed", "Detailed"]
+        ${renderSegmentedField(t("length"), "length", values.length, [
+          ["short", t("short")],
+          ["concise", t("concise")],
+          ["detailed", t("detailed")]
         ])}
-        ${renderSegmentedField("Goal", "goal", values.goal, [
-          ["advice", "Ask advice"],
-          ["referral", "Explore referral"],
-          ["intro", "Request intro"]
+        ${renderSegmentedField(t("goal"), "goal", values.goal, [
+          ["advice", t("askAdvice")],
+          ["referral", t("exploreReferral")],
+          ["intro", t("requestIntro")]
         ])}
         <label class="fc-field">
-          Extra style notes
-          <textarea data-customize-field="notes" rows="4" placeholder="Example: sound less formal, mention curiosity about product work.">${escapeHtml(values.notes)}</textarea>
+          ${escapeHtml(t("extraStyleNotes"))}
+          <textarea data-customize-field="notes" rows="3" placeholder="${escapeAttr(t("styleNotesPlaceholder"))}">${escapeHtml(values.notes)}</textarea>
         </label>
         <div class="fc-form-actions">
-          <button class="fc-primary-action" type="button" data-save-customize>Save style</button>
-          <button class="fc-secondary" type="button" data-reset-customize>Reset</button>
+          <button class="fc-primary-action" type="button" data-save-customize>${escapeHtml(t("saveStyle"))}</button>
+          <button class="fc-secondary" type="button" data-reset-customize>${escapeHtml(t("reset"))}</button>
         </div>
       </section>
     `;
@@ -858,7 +867,7 @@
     return `
       <fieldset class="fc-field">
         <legend>${escapeHtml(label)}</legend>
-        <div class="fc-segments">
+        <div class="fc-segments fc-segments-${options.length}">
           ${options.map(([optionValue, optionLabel]) => `
             <label class="fc-segment ${value === optionValue ? "fc-segment-active" : ""}">
               <input type="radio" name="${escapeAttr(name)}" data-customize-field="${escapeAttr(name)}" value="${escapeAttr(optionValue)}" ${value === optionValue ? "checked" : ""}>
@@ -870,38 +879,6 @@
     `;
   }
 
-  function renderSettings() {
-    const account = state.account;
-    const email = account?.user?.email || "Not signed in";
-    const plan = account?.subscription?.planName || "Free";
-    const status = account?.subscription?.status || "inactive";
-    const credits = state.creditsRemaining ?? account?.credits?.balance ?? 0;
-    return `
-      <section class="fc-settings">
-        <h2 class="fc-page-title">Settings</h2>
-        ${state.accountLoading ? `<div class="fc-status"><span class="fc-spinner"></span><span>Loading account...</span></div>` : ""}
-        ${state.accountError ? `<div class="fc-status fc-error">${escapeHtml(state.accountError)}</div>` : ""}
-        <div class="fc-account-card">
-          <span class="fc-account-avatar">${escapeHtml(email.slice(0, 1).toUpperCase())}</span>
-          <div>
-            <strong>${escapeHtml(email)}</strong>
-            <span>${escapeHtml(plan)} · ${escapeHtml(status)} · ${escapeHtml(String(credits))} credits</span>
-          </div>
-        </div>
-        <div class="fc-settings-actions">
-          <button class="fc-secondary" type="button" data-refresh-account>Refresh account</button>
-          <button class="fc-secondary" type="button" data-action-url="https://reachard.co/dashboard">Account profile</button>
-          <button class="fc-danger" type="button" data-sign-out>Sign out</button>
-        </div>
-      </section>
-    `;
-  }
-
-  function loadingLabel() {
-    if (state.pageContext?.type === PAGE_TYPES.LINKEDIN_PERSON) return t("preparingContact");
-    return t("findingContacts");
-  }
-
   function renderMissingJobTitleInput() {
     if (state.pageContext?.jobTitle) return "";
     return `
@@ -909,26 +886,6 @@
         ${escapeHtml(t("optionalRole"))}
         <input data-manual-job-title type="text" value="${escapeAttr(state.manualJobTitle)}" placeholder="${escapeAttr(t("rolePlaceholder"))}" />
       </label>
-    `;
-  }
-
-  function renderCredits(placement = "header") {
-    if (state.creditsRemaining === null || state.creditsRemaining === undefined) return "";
-    const label = state.creditsRemaining === 1 ? t("contactKitLeft") : t("contactKitsLeft");
-    const text = state.language === "zh" ? `${state.creditsRemaining} ${label}` : `${state.creditsRemaining} ${label}`;
-    return `<div class="fc-credits fc-credits-${placement}">${escapeHtml(text)}</div>`;
-  }
-
-  function renderFooter() {
-    if (state.creditsRemaining === null || state.creditsRemaining === undefined) return "";
-    return `
-      <div class="fc-footer">
-        <div>
-          <span>Credits left</span>
-          <strong>${escapeHtml(String(state.creditsRemaining))}</strong>
-        </div>
-        <button class="fc-manage" type="button" data-action-url="https://reachard.co/pricing">Manage</button>
-      </div>
     `;
   }
 
@@ -973,7 +930,7 @@
         <div class="fc-actions">
           ${email && linkedInUrl ? `<button class="fc-secondary" type="button" data-action-url="${escapeAttr(linkedInUrl)}">LinkedIn</button>` : ""}
           ${email ? "" : `<button class="fc-primary-action" type="button" data-reveal="${escapeAttr(id)}" ${isRevealing ? "disabled" : ""}>${isRevealing ? t("checkingEmail") : t("revealEmail")}</button>`}
-          ${email ? `<button class="fc-primary-action" type="button" data-draft="${escapeAttr(id)}" ${isDrafting ? "disabled" : ""}>${isDrafting ? t("writing") : "Draft intro"}</button>` : ""}
+          ${email ? `<button class="fc-primary-action" type="button" data-draft="${escapeAttr(id)}" ${isDrafting ? "disabled" : ""}>${escapeHtml(isDrafting ? t("writing") : t("draftIntro"))}</button>` : ""}
         </div>
         ${draft ? renderDraftPreview(id, draft) : ""}
       </article>
@@ -1004,14 +961,20 @@
   }
 
   async function openPanel() {
-    state.pageContext = getPageContext();
+    const nextContext = getPageContext();
+    if (contextIdentity(nextContext) !== contextIdentity(state.pageContext)) {
+      state.contacts = [];
+      state.revealed.clear();
+      state.drafts.clear();
+    }
+    state.pageContext = nextContext;
     state.manualJobTitle = "";
     const panel = ensurePanel();
     panel.classList.add("fc-open");
     state.error = "";
     state.prompt = null;
     state.action = null;
-    state.activeTab = "home";
+    state.searchSheetOpen = false;
     await loadPanelData();
     renderPanel();
     loadAccountStatus();
@@ -1020,6 +983,7 @@
   async function runSearch() {
     state.pageContext = getPageContext();
     state.loading = true;
+    state.searchSheetOpen = true;
     state.error = "";
     state.prompt = null;
     state.action = null;
@@ -1034,7 +998,6 @@
 
       if (state.pageContext.type === PAGE_TYPES.LINKEDIN_PERSON) {
         state.contacts = [contactFromPersonContext(state.pageContext)];
-        await rememberFind(state.pageContext);
         return;
       }
 
@@ -1053,7 +1016,6 @@
       if (!response?.ok) throw apiError(response, t("couldNotFindContacts"));
       setCredits(response);
       state.contacts = response.contacts || [];
-      await rememberFind(state.pageContext);
     } catch (error) {
       applyError(error, t("couldNotFindContacts"));
     } finally {
@@ -1063,48 +1025,58 @@
   }
 
   async function loadPanelData() {
-    try {
-      const stored = await chrome.storage.local.get([PREVIOUS_FINDS_KEY]);
-      state.previousFinds = Array.isArray(stored[PREVIOUS_FINDS_KEY]) ? stored[PREVIOUS_FINDS_KEY] : [];
-    } catch (_error) {
-      state.previousFinds = [];
-    }
     await loadEmailCustomize();
   }
 
+  function contextIdentity(context) {
+    if (!context) return "";
+    return [
+      context.type,
+      context.sourceUrl || context.jobUrl || context.personLinkedInUrl,
+      context.companyName || context.companyDomain,
+      context.jobTitle || context.personName
+    ].filter(Boolean).join("|");
+  }
+
   async function loadEmailCustomize() {
+    state.accountNotice = "";
     try {
       const response = await sendRuntimeMessage({ type: "GET_EMAIL_CUSTOMIZE" });
       if (!response?.ok) {
         state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
+        state.authenticated = response?.status === 401 ? false : null;
         state.accountError = response?.error || t("signInWebsite");
         state.action = response?.action || null;
         return;
       }
       state.emailCustomize = normalizeCustomize(response.custom);
+      state.authenticated = true;
       state.accountError = "";
     } catch (error) {
       state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
-      state.accountError = error.message || "Could not load custom settings.";
+      state.accountError = error.message || t("couldNotLoadCustom");
     }
   }
 
   async function loadAccountStatus() {
     state.accountLoading = true;
     state.accountError = "";
+    state.accountNotice = "";
     renderPanel();
     try {
       const response = await sendRuntimeMessage({ type: "GET_ACCOUNT_STATUS" });
       if (!response?.ok) {
         state.account = null;
+        state.authenticated = response?.status === 401 ? false : state.authenticated;
         state.accountError = response?.error || t("signInWebsite");
         state.action = response?.action || null;
         return;
       }
       state.account = response.account;
+      state.authenticated = true;
       setCredits(response.account);
     } catch (error) {
-      state.accountError = error.message || "Could not load account.";
+      state.accountError = error.message || t("couldNotLoadAccount");
     } finally {
       state.accountLoading = false;
       renderPanel();
@@ -1209,6 +1181,7 @@
   function applyError(error, fallback) {
     setCredits(error);
     if (error.status === 401) {
+      state.authenticated = false;
       state.prompt = error.message || t("signInWebsite");
       state.error = "";
     } else {
@@ -1227,31 +1200,6 @@
     }
   }
 
-  async function rememberFind(context) {
-    const item = {
-      companyName: context.companyName || "",
-      jobTitle: context.jobTitle || "",
-      personName: context.personName || "",
-      source: context.source || "",
-      sourceUrl: context.sourceUrl || "",
-      createdAt: new Date().toISOString()
-    };
-    const key = item.sourceUrl || `${item.companyName}|${item.jobTitle}|${item.personName}`;
-    const next = [
-      item,
-      ...state.previousFinds.filter((find) => {
-        const findKey = find.sourceUrl || `${find.companyName}|${find.jobTitle}|${find.personName}`;
-        return findKey !== key;
-      })
-    ].slice(0, 10);
-    state.previousFinds = next;
-    try {
-      await chrome.storage.local.set({ [PREVIOUS_FINDS_KEY]: next });
-    } catch (_error) {
-      // Previous finds are a convenience only.
-    }
-  }
-
   async function saveCustomizeFromPanel() {
     const panel = ensurePanel();
     const next = { ...DEFAULT_EMAIL_CUSTOMIZE };
@@ -1261,42 +1209,33 @@
       next[key] = field.value.trim();
     });
     state.emailCustomize = normalizeCustomize(next);
+    state.accountError = "";
+    state.accountNotice = "";
     const response = await sendRuntimeMessage({ type: "SET_EMAIL_CUSTOMIZE", payload: state.emailCustomize });
     if (!response?.ok) {
-      state.accountError = response?.error || "Could not save custom settings.";
+      state.accountError = response?.error || t("couldNotSaveCustom");
       state.action = response?.action || null;
       renderPanel();
       return;
     }
     state.emailCustomize = normalizeCustomize(response.custom);
-    state.accountError = "Custom settings saved.";
+    state.accountNotice = t("customSaved");
     renderPanel();
   }
 
   async function resetCustomize() {
     state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
+    state.accountError = "";
+    state.accountNotice = "";
     const response = await sendRuntimeMessage({ type: "SET_EMAIL_CUSTOMIZE", payload: state.emailCustomize });
     if (!response?.ok) {
-      state.accountError = response?.error || "Could not reset custom settings.";
+      state.accountError = response?.error || t("couldNotResetCustom");
       state.action = response?.action || null;
       renderPanel();
       return;
     }
     state.emailCustomize = normalizeCustomize(response.custom);
-    state.accountError = "Custom settings reset.";
-    renderPanel();
-  }
-
-  async function signOut() {
-    const response = await sendRuntimeMessage({ type: "CLEAR_EXTENSION_SESSION", payload: { fromContentScript: true } });
-    if (!response?.ok) {
-      state.accountError = response?.error || "Could not sign out.";
-      renderPanel();
-      return;
-    }
-    state.account = null;
-    state.creditsRemaining = null;
-    state.accountError = "Signed out.";
+    state.accountNotice = t("customReset");
     renderPanel();
   }
 
@@ -1313,17 +1252,6 @@
       goal: allowed.goal.has(input.goal) ? input.goal : DEFAULT_EMAIL_CUSTOMIZE.goal,
       notes: String(input.notes || "").slice(0, 500)
     };
-  }
-
-  function relativeTime(value) {
-    const time = new Date(value).getTime();
-    if (!Number.isFinite(time)) return "";
-    const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
-    if (minutes < 1) return "just now";
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
   }
 
   function findContact(contactId) {
@@ -1585,16 +1513,20 @@
     return context.type === PAGE_TYPES.LINKEDIN_PERSON ? t("emailWithReachard") : t("findWithReachard");
   }
 
-  function normalizeLanguage(value) {
-    return String(value || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+  function normalizeLanguage(_value) {
+    return "en";
   }
 
   function browserLanguage() {
-    return normalizeLanguage(chrome.i18n?.getUILanguage?.() || window.navigator.language || "en");
+    return "en";
   }
 
-  function t(key) {
-    return I18N[normalizeLanguage(state.language)]?.[key] || I18N.en[key] || key;
+  function t(key, values = {}) {
+    const template = I18N[normalizeLanguage(state.language)]?.[key] || I18N.en[key] || key;
+    return Object.entries(values).reduce(
+      (result, [name, value]) => result.replaceAll(`{${name}}`, String(value)),
+      template
+    );
   }
 
   async function loadExtensionLanguage() {

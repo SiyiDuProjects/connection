@@ -71,27 +71,29 @@ When showing env verification, follow global secret-masking rules.
 
 The intended production contact pipeline is:
 
-- RapidAPI Fresh LinkedIn Scraper for candidate search and LinkedIn company/school/location ID lookup.
-- Apollo only for on-demand email reveal.
+- Treg `icypeas.people.search` for current-company candidate search.
+- Treg `apollo.people.enrich` for on-demand verified work-email reveal.
+- Job title, school, and location are ranking signals after search, not hard provider filters.
 - Search costs zero app credits.
-- Reveal costs one app credit.
+- Reveal costs one app credit only when a verified work email is returned.
 - Draft email costs zero app credits.
 
 Required server env:
 
 ```env
-CONTACT_PROVIDER=rapidapi
-RAPIDAPI_KEY=...
-RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
-APOLLO_API_KEY=...
+CONTACT_PROVIDER=treg
+TREG_TOKEN=...
+TREG_BASE_URL=https://treg.to
+TREG_SEARCH_ENDPOINT=icypeas.people.search
+TREG_EMAIL_ENDPOINT=apollo.people.enrich
 CONTACT_SEARCH_CREDITS=0
 CONTACT_REVEAL_CREDITS=1
 EMAIL_DRAFT_CREDITS=0
 ```
 
-`APOLLO_API_KEY` must remain set because `Reveal email` calls Apollo `people/match`.
+Do not send paid live Treg requests during verification without explicit approval. Use fixture tests for routine release validation.
 
-## RapidAPI Hosts
+## Legacy RapidAPI Hosts
 
 - People search host: `fresh-linkedin-scraper-api.p.rapidapi.com`
 - People search endpoint: `/api/v1/search/people`
@@ -99,7 +101,7 @@ EMAIL_DRAFT_CREDITS=0
 - School lookup endpoint: `/api/v1/search/schools?keyword=...`
 - Location lookup endpoint: `/api/v1/search/location?keyword=...`
 
-RapidAPI marketplace page URLs are not the runtime host. Use the `*.p.rapidapi.com` host in env and requests.
+These hosts are retained only for the legacy `rapidapi` provider path. RapidAPI marketplace page URLs are not the runtime host; use the `*.p.rapidapi.com` host in env and requests.
 
 ## Lessons From 2026-05-08
 
