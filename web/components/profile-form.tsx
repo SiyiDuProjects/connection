@@ -108,9 +108,9 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
               {(['school', 'region'] as const).map(kind => <div className="min-w-0" key={kind}>
                 <TextField fullWidth isRequired={kind === 'school'} name={kind} maxLength={160} value={values[kind]} onChange={value => update(kind, value)}>
                   <Label>{kind === 'school' ? 'School or affiliation' : 'Region'}</Label>
-                  <InputGroup fullWidth>
-                    <InputGroup.Input placeholder={kind === 'school' ? 'School or organization' : 'City or region'} />
-                    <InputGroup.Suffix><Button type="button" size="sm" variant="ghost" isPending={resolving === kind} isDisabled={disabled || values[kind].trim().length < 2} onPress={() => void resolve(kind)}>Search</Button></InputGroup.Suffix>
+                  <InputGroup fullWidth className="min-w-0">
+                    <InputGroup.Input className="min-w-0 flex-1" placeholder={kind === 'school' ? 'School or organization' : 'City or region'} />
+                    <InputGroup.Suffix className="shrink-0"><Button type="button" size="sm" variant="ghost" isPending={resolving === kind} isDisabled={disabled || values[kind].trim().length < 2} onPress={() => void resolve(kind)}>Search</Button></InputGroup.Suffix>
                   </InputGroup><FieldError />
                 </TextField>
                 {matches[kind].length > 0 && <ListBox aria-label={`${kind} matches`} className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-separator" onAction={key => selectMatch(kind, String(key))}>
