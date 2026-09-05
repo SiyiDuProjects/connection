@@ -57,7 +57,7 @@ jobs:
       POSTGRES_URL: postgresql://user:password@localhost:5432/reachard
       STRIPE_SECRET_KEY: sk_test_validation
       STRIPE_WEBHOOK_SECRET: whsec_validation
-      HEROUI_AUTH_TOKEN: ${{ secrets.HEROUI_AUTH_TOKEN }}
+      HEROUI_KEY: ${{ secrets.HEROUI_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -69,6 +69,9 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - name: Install Pro components through CollectUI
+        run: npx -y hpsetup@4.7.1 react --auto
+      - run: node scripts/check-pro-install.mjs
       - run: pnpm test:billing
       - run: pnpm test:email
       - run: node --test scripts/dashboard.test.mjs

@@ -20,6 +20,12 @@
 - Run `npm run preview` from `web/` for `http://127.0.0.1:3012/`. It runs the actual app source with a separate build cache; public homepage and Pricing previews need no database or Stripe credentials. Do not create a second app or duplicate page/header implementation for previewing.
 - `.archive/` holds retired versions and recovery copies, not active source. Inspect `git worktree list` before assuming a separate checkout is authoritative.
 
+## HeroUI Pro Installation Channel
+
+- This project uses the user-provided CollectUI distribution, not direct heroui.pro account login. Existing MCP and the `heroui-react-pro` / `heroui-pro-design-taste` Skills use that channel.
+- For cloud builds, use `hpsetup@4.7.1` with the secret `HEROUI_KEY`. The CollectUI personal token is for MCP/Skills and must not be substituted for the install key. Do not request an official HeroUI CI token for this setup.
+- Follow `web/docs/cloud-build.md` and https://docs.collectui.pro/hpsetup/usage. Keep credentials in GitHub/Vercel secrets only; never commit keys, authenticated documentation URLs, or downloaded Pro library files.
+
 ## Web App Invite Rewards
 
 - Dashboard friend invite links use direct attribution only: `/sign-up?ref=CODE` records the direct inviter at sign-up.

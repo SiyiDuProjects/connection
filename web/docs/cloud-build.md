@@ -1,19 +1,25 @@
 # Cloud builds
 
-Reachard uses licensed `@heroui-pro/react` components. A package-manager install
-without an authorized CI token installs the public installer, not the components.
-Do not commit the downloaded library or local credentials to this public repo.
+Reachard's current HeroUI Pro distribution comes through the user-provided
+CollectUI channel. Its MCP and Skills are already available locally. Do not
+confuse this setup with direct heroui.pro account authentication.
 
-Create a CI/CD token in https://heroui.pro/dashboard and configure it as
-`HEROUI_AUTH_TOKEN` in both:
+Cloud installation uses `hpsetup@4.7.1` with the secret `HEROUI_KEY` in:
 
-- This repository's GitHub Actions secrets (the web job already references it).
-- The existing Vercel project's environment variables for Production and Preview.
+- GitHub Actions repository secrets.
+- The Vercel connection project's Production and Preview environments.
 
-Use a CI/CD token, not a personal token. Then rerun the failed GitHub workflow and
-redeploy the current commit in Vercel without the old dependency cache.
+The CollectUI personal token is for MCP/Skills, not package installation. Never
+put either credential in source, documentation, or an install command. The
+workflow and `vercel.json` use environment variables without embedded values.
 
-The pnpm workspace permits HeroUI's postinstall script, which uses the token to
-download the licensed components. No token belongs in this document or source.
+Both builds install the frozen dependency lockfile, run hpsetup in CI mode, then
+verify the Pro component entry point, CSS, and exact version. CI mode also keeps
+hpsetup from generating local Vercel configuration containing a key. If the
+installer selects a newer component version, verification stops the release
+until that upgrade is reviewed and tested.
 
-Reference: https://heroui.pro/docs/react/getting-started/installation#cicd
+No local environment variables are needed for the existing preview setup.
+Do not commit downloaded library files or private template reference copies.
+
+Reference: https://docs.collectui.pro/hpsetup/usage
