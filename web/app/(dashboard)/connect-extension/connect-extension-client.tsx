@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
-import { Card, buttonVariants } from '@heroui/react';
+import { Button } from '@/components/ui/button';
 import { sendExtensionBridgeMessage } from '@/components/extension-session-bridge';
-import { useI18n } from '@/components/language-provider';
+import { translate as t } from '@/lib/i18n';
 
 type ConnectState = 'sending' | 'connected' | 'failed';
 
@@ -23,7 +23,6 @@ export function ConnectExtensionClient({
   returnTo?: string;
 }) {
   const [state, setState] = useState<ConnectState>('sending');
-  const { language, t } = useI18n();
   const [message, setMessage] = useState(t('connect.syncing'));
   const started = useRef(false);
 
@@ -63,7 +62,6 @@ export function ConnectExtensionClient({
           token: tokenPayload.token,
           webBaseUrl,
           apiBaseUrl,
-          language,
           returnTo
         }
       }, { extensionId });
@@ -82,13 +80,13 @@ export function ConnectExtensionClient({
       setMessage(error instanceof Error ? error.message : t('connect.notAccepted'));
       revokePendingToken(tokenId);
     });
-  }, [apiBaseUrl, blockedReason, extensionId, language, returnTo, t, webBaseUrl]);
+  }, [apiBaseUrl, blockedReason, extensionId, returnTo, webBaseUrl]);
 
   const Icon = state === 'connected' ? CheckCircle2 : state === 'failed' ? XCircle : Loader2;
 
   return (
     <div className="mx-auto max-w-xl px-4 py-16 sm:px-6 lg:px-8">
-      <Card>
+      <div className="rounded-[8px] bg-white p-6 shadow-sm">
         <Icon className={`h-8 w-8 ${state === 'sending' ? 'animate-spin' : ''}`} />
         <h1 className="mt-5 text-2xl font-semibold text-gray-950">
           {state === 'connected'
@@ -100,11 +98,15 @@ export function ConnectExtensionClient({
         <p className="mt-3 text-sm leading-6 text-gray-600">{message}</p>
         {state !== 'sending' ? (
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/dashboard" className={buttonVariants({ variant: 'primary' })}>{t('connect.openDashboard')}</Link>
-            <Link href="https://www.linkedin.com/jobs/" className={buttonVariants({ variant: 'outline' })}>{t('connect.openLinkedinJobs')}</Link>
+            <Button asChild>
+              <Link href="/dashboard">{t('connect.openDashboard')}</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="https://www.linkedin.com/jobs/">{t('connect.openLinkedinJobs')}</Link>
+            </Button>
           </div>
         ) : null}
-      </Card>
+      </div>
     </div>
   );
 }

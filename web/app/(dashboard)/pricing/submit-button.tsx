@@ -1,20 +1,21 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@heroui/react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
-import { useI18n } from '@/components/language-provider';
+import { translate as t } from '@/lib/i18n';
 
-export function SubmitButton() {
+export function SubmitButton({ plan, featured = false }: { plan: string; featured?: boolean }) {
   const { pending } = useFormStatus();
-  const { t } = useI18n();
 
   return (
     <Button
       type="submit"
-      disabled={pending}
-      variant="outline"
-      className="w-full rounded-full"
+      isPending={pending}
+      isDisabled={pending}
+      variant={featured ? 'primary' : 'secondary'}
+      size="lg"
+      fullWidth
     >
       {pending ? (
         <>
@@ -23,7 +24,7 @@ export function SubmitButton() {
         </>
       ) : (
         <>
-          {t('pricing.getStarted')}
+          Get {plan}
           <ArrowRight className="ml-2 h-4 w-4" />
         </>
       )}

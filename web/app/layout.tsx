@@ -1,8 +1,5 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
-import { cookies, headers } from 'next/headers';
-import { LanguageProvider } from '@/components/language-provider';
-import { normalizeLanguage } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Reachard',
@@ -11,17 +8,14 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {};
 
-export default async function RootLayout({
+export default function RootLayout({
   children
 }: {
   children: React.ReactNode;
 }) {
-  const languageCookie = (await cookies()).get('language')?.value;
-  const language = normalizeLanguage(languageCookie || (await headers()).get('accept-language'));
-
   return (
     <html
-      lang={language}
+      lang="en"
       className="bg-background text-foreground"
     >
       <head>
@@ -33,9 +27,7 @@ export default async function RootLayout({
         />
       </head>
       <body className="min-h-[100dvh] bg-background">
-        <LanguageProvider initialLanguage={language} initialLanguageMode={languageCookie ? 'manual' : 'browser'}>
-          {children}
-        </LanguageProvider>
+        {children}
       </body>
     </html>
   );

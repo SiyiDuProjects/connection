@@ -1,14 +1,13 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, FileText, Loader2, Pencil, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label, TextField, TextArea, InputGroup, Chip, Card } from '@heroui/react';
-import { ResolvedOptions } from '@/components/ui/profile-controls';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { useI18n } from '@/components/language-provider';
+import { translate as t } from '@/lib/i18n';
 import {
   extractResumeText,
   getResumeTextErrorKey,
@@ -47,6 +46,10 @@ type SearchPreferences = {
   };
 };
 
+const controlClass =
+  'h-14 rounded-[12px] border border-transparent bg-transparent px-4 text-[17px] font-normal leading-none text-[#1d1d1f] shadow-[inset_0_0_0_1px_#86868b] placeholder:text-[#6e6e73] transition-shadow duration-150 ease-out focus-visible:bg-transparent focus-visible:ring-0 focus-visible:shadow-[inset_0_0_0_2px_#0071e3] md:text-[17px]';
+const textareaClass =
+  'w-full rounded-[12px] border border-transparent bg-transparent px-4 py-4 text-[17px] font-normal leading-6 text-[#1d1d1f] shadow-[inset_0_0_0_1px_#86868b] placeholder:text-[#6e6e73] outline-none transition-shadow duration-150 ease-out focus:ring-0 focus:shadow-[inset_0_0_0_2px_#0071e3]';
 const sectionDivider = 'border-t border-[#d2d2d7] pt-8';
 
 export function OnboardingClient({
@@ -57,8 +60,6 @@ export function OnboardingClient({
   redirectTo: string;
 }) {
   const router = useRouter();
-  const resumeInputRef = useRef<HTMLInputElement>(null);
-  const { language, t } = useI18n();
   const [values, setValues] = useState<OnboardingValues>(initial);
   const [status, setStatus] = useState('');
   const [resolving, setResolving] = useState<'school' | 'region' | ''>('');
@@ -209,10 +210,10 @@ export function OnboardingClient({
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label={t('onboarding.firstName')} required>
-                  <Input value={nameParts.first} onChange={(event) => updateNamePart('first', event.target.value)} placeholder={t('onboarding.firstName')} />
+                  <Input value={nameParts.first} onChange={(event) => updateNamePart('first', event.target.value)} placeholder={t('onboarding.firstName')} className={controlClass} />
                 </Field>
                 <Field label={t('onboarding.lastName')} required>
-                  <Input value={nameParts.last} onChange={(event) => updateNamePart('last', event.target.value)} placeholder={t('onboarding.lastName')} />
+                  <Input value={nameParts.last} onChange={(event) => updateNamePart('last', event.target.value)} placeholder={t('onboarding.lastName')} className={controlClass} />
                 </Field>
               </div>
               <Field label={t('onboarding.schoolAffiliation')} required>
@@ -238,15 +239,15 @@ export function OnboardingClient({
                 <ResolveOptions items={regionOptions} onSelect={(item) => selectResolved('region', item)} />
               </Field>
               <Field label={t('onboarding.extraPersonalInfo')}>
-                <TextArea
+                <textarea
                   value={values.senderProfile}
                   onChange={(event) => update('senderProfile', event.target.value)}
-                  className="min-h-28"
+                  className={cn(textareaClass, 'min-h-28')}
                   placeholder={t('onboarding.extraPersonalInfo')}
                 />
               </Field>
               <Field label={t('onboarding.resume')}>
-                <Card variant="secondary" className="flex-row items-center justify-between gap-4">
+                <div className="flex min-h-14 min-w-0 items-center justify-between gap-4 rounded-[12px] border border-transparent bg-transparent px-4 py-3 shadow-[inset_0_0_0_1px_#86868b]">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center text-[#6e6e73]">
                       <FileText className="h-5 w-5" aria-hidden="true" />
@@ -257,41 +258,46 @@ export function OnboardingClient({
                           {values.resumeFileName || t('onboarding.noResume')}
                         </p>
                         {values.resumeFileName ? (
-                          <Chip size="sm">{t('onboarding.default')}</Chip>
+                          <span className="rounded-full bg-[#f5f5f7] px-2.5 py-1 text-xs font-semibold text-[#3a3a3c]">
+                            {t('onboarding.default')}
+                          </span>
                         ) : null}
                       </div>
                       <p className="mt-1 text-[13px] font-normal text-[#6e6e73]">
                         {values.resumeUploadedAt
-                          ? t('onboarding.stored', { date: formatDateTime(values.resumeUploadedAt, language) })
+                          ? t('onboarding.stored', { date: formatDateTime(values.resumeUploadedAt) })
                           : t('onboarding.resumeHelp')}
                       </p>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     {values.resumeFileName ? (
-                      <Button type="button" onClick={clearResume} variant="ghost" size="sm">
+                      <button type="button" onClick={clearResume} className="text-sm font-medium text-[#6e6e73] transition-colors hover:text-[#1d1d1f]">
                         {t('onboarding.clear')}
-                      </Button>
+                      </button>
                     ) : null}
-                    <Button variant="ghost" size="icon" aria-label={values.resumeFileName ? t('onboarding.replaceResume') : t('onboarding.uploadResume')} onPress={() => resumeInputRef.current?.click()}><Pencil className="h-4 w-4" aria-hidden="true" /></Button>
-                      <input ref={resumeInputRef}
+                    <label className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#86868b] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]" title={values.resumeFileName ? t('onboarding.replaceResume') : t('onboarding.uploadResume')}>
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                      <span className="sr-only">{values.resumeFileName ? t('onboarding.replaceResume') : t('onboarding.uploadResume')}</span>
+                      <input
                         type="file"
                         accept={RESUME_FILE_ACCEPT}
                         onChange={importResumeFile}
-                        hidden
+                        className="sr-only"
                       />
+                    </label>
                   </div>
-                </Card>
+                </div>
               </Field>
             </div>
 
             <div className={cn(sectionDivider, 'space-y-3')}>
               <h2 className="text-[21px] font-semibold leading-6 text-[#1d1d1f]">{t('onboarding.outreach')}</h2>
               <Field label={t('onboarding.extraStyleNotes')}>
-                <TextArea
+                <textarea
                   value={values.outreachStyleNotes}
                   onChange={(event) => update('outreachStyleNotes', event.target.value.slice(0, 500))}
-                  className="min-h-24"
+                  className={cn(textareaClass, 'min-h-24')}
                   placeholder={t('onboarding.extraStyleNotes')}
                 />
               </Field>
@@ -309,7 +315,7 @@ export function OnboardingClient({
                 type="button"
                 disabled={!canContinue || saving}
                 onClick={submit}
-
+                className="min-h-10 rounded-full bg-[#0071e3] px-5 text-white hover:bg-[#0077ed]"
               >
                 {saving ? t('onboarding.saving') : t('onboarding.finish')}
               </Button>
@@ -322,9 +328,11 @@ export function OnboardingClient({
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  const { t } = useI18n();
   return (
-    <TextField isRequired={required}><Label>{label}</Label>{children}</TextField>
+    <div>
+      <Label className="sr-only">{label}{required ? ` ${t('onboarding.required')}` : ''}</Label>
+      {children}
+    </div>
   );
 }
 
@@ -343,16 +351,15 @@ function ResolveInput({
   verified: boolean;
   placeholder: string;
 }) {
-  const { t } = useI18n();
   return (
-    <InputGroup>
-      <InputGroup.Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
-      <InputGroup.Suffix>
-      <Button
+    <div className="relative">
+      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={cn(controlClass, 'pr-12')} />
+      <button
         type="button"
-        variant="ghost" size="icon"
+        className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-[#86868b] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f] disabled:opacity-60"
         onClick={onResolve}
         disabled={resolving}
+        title={verified ? t('onboarding.verified') : t('onboarding.search')}
       >
         {resolving ? (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -362,15 +369,34 @@ function ResolveInput({
           <Search className="h-4 w-4" aria-hidden="true" />
         )}
         <span className="sr-only">{verified ? t('onboarding.verified') : t('onboarding.search')}</span>
-      </Button>
-      </InputGroup.Suffix>
-    </InputGroup>
+      </button>
+    </div>
   );
 }
 
-function ResolveOptions({ items, onSelect }: { items: ResolvedItem[]; onSelect: (item: ResolvedItem) => void }) {
-  const { t } = useI18n();
-  return <ResolvedOptions items={items} onSelect={onSelect} label={t('onboarding.search')} />;
+function ResolveOptions({
+  items,
+  onSelect
+}: {
+  items: ResolvedItem[];
+  onSelect: (item: ResolvedItem) => void;
+}) {
+  if (!items.length) return null;
+  return (
+    <div className="mt-2 overflow-hidden rounded-[12px] border border-[#d2d2d7] bg-white">
+      {items.map((item) => (
+        <button
+          key={`${item.type}-${item.id}`}
+          type="button"
+          onClick={() => onSelect(item)}
+          className="block w-full border-b border-[#f5f5f7] px-3 py-2 text-left last:border-b-0 hover:bg-[#f5f5f7]"
+        >
+          <span className="block text-sm font-semibold text-[#1d1d1f]">{item.label}</span>
+          {item.subtitle ? <span className="block text-xs font-medium text-[#6e6e73]">{item.subtitle}</span> : null}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function splitName(name: string) {
@@ -390,9 +416,9 @@ function validate(values: OnboardingValues) {
   return missing;
 }
 
-function formatDateTime(value: string | null | undefined, language: 'en' | 'zh') {
+function formatDateTime(value: string | null | undefined) {
   if (!value) return '';
-  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
+  return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',

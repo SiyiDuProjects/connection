@@ -1,10 +1,12 @@
 const DEFAULT_API_BASE_URL = "https://contacts.reachard.co";
 const DEFAULT_WEB_BASE_URL = "https://reachard.co";
-const DEFAULT_LANGUAGE = "en";
 const SUPPORTED_URLS = ["https://*/*", "http://*/*"];
 const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connection settings.";
 const SESSION_EXPIRED_ERROR = "Session expired. Sign in again.";
 const pendingIdempotencyKeys = new Map();
+let customizeWriteQueue = Promise.resolve();
+
+chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:true}).catch(error => console.warn(error.message));
 
 chrome.runtime.onInstalled.addListener((details) => {
   migrateSensitiveStorage().catch(() => {});
@@ -18,6 +20,12 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === 'OPEN_REACHARD_SIDE_PANEL') {
+    if (!sender.tab || sender.frameId !== 0) { sendResponse({ok:false,error:'Open from the current page.'}); return; }
+    // Keep the user gesture: no awaits before opening the browser-owned panel.
+    chrome.sidePanel.open({windowId:sender.tab.windowId}).then(() => sendResponse({ok:true})).catch(error => sendResponse({ok:false,error:error.message}));
+    return true;
+  }
   handleMessage(message, sender)
     .then(sendResponse)
     .catch((error) => sendResponse({ ok: false, error: error.message || "Unexpected error" }));
@@ -31,8 +39,30 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
   return true;
 });
 
+async function resolvePanelSender(message, sender) {
+  if (sender.url === chrome.runtime.getURL('sidepanel.html') && Number.isInteger(message?.sourceTabId)) {
+    try {
+      const tab = await chrome.tabs.get(message.sourceTabId);
+      const response = await chrome.tabs.sendMessage(tab.id, {type:'GET_REACHARD_PAGE_CONTEXT'});
+      const url = response?.pageContext?.sourceUrl || tab.url || '';
+      return {...sender, url, tab:{...tab,url}};
+    } catch { return {...sender,url:''}; }
+  }
+  return sender;
+}
+
 async function handleMessage(message, sender) {
+  if (message?.type === "SET_EMAIL_CUSTOMIZE") {
+    // The final close/pagehide save cannot overtake an older preference write.
+    customizeWriteQueue = customizeWriteQueue.catch(() => {}).then(async () =>
+      setEmailCustomize(message.payload || {}, await resolvePanelSender(message, sender))
+    );
+    return customizeWriteQueue;
+  }
+  sender = await resolvePanelSender(message, sender);
   switch (message?.type) {
+    case "REACHARD_PAGE_CHANGED":
+      return { ok: true };
     case "GET_EXTENSION_SESSION_STATUS":
       return getLocalSessionStatus(sender);
     case "CONNECT_EXTENSION_TOKEN":
@@ -47,14 +77,12 @@ async function handleMessage(message, sender) {
       return postJson("/api/email/draft", message.payload, sender);
     case "GET_ACCOUNT_STATUS":
       return getAccountStatus(sender);
+    // Acknowledge older clients without storing or broadcasting language.
     case "GET_EXTENSION_LANGUAGE":
-      return getExtensionLanguage();
     case "SET_EXTENSION_LANGUAGE":
-      return setExtensionLanguage(message.payload || {});
+      return { ok: true, language: "en" };
     case "GET_EMAIL_CUSTOMIZE":
       return getEmailCustomize(sender);
-    case "SET_EMAIL_CUSTOMIZE":
-      return setEmailCustomize(message.payload || {}, sender);
     default:
       return { ok: false, error: "Unknown message type" };
   }
@@ -69,12 +97,8 @@ async function openInstallConnectPage() {
 }
 
 async function handleExternalMessage(message, sender) {
-  if (message?.type === "SET_EXTENSION_LANGUAGE") {
-    return setExtensionLanguage(message.payload || message);
-  }
-
-  if (message?.type === "GET_EXTENSION_LANGUAGE") {
-    return getExtensionLanguage();
+  if (["GET_EXTENSION_LANGUAGE", "SET_EXTENSION_LANGUAGE"].includes(message?.type)) {
+    return { ok: true, language: "en" };
   }
 
   if (message?.type === "GET_EXTENSION_SESSION_STATUS") {
@@ -104,10 +128,9 @@ async function connectExtensionSession(message, sender) {
 
   const webBaseUrl = normalizeWebBaseUrl(message.webBaseUrl);
   const apiBaseUrl = normalizeApiBaseUrl(message.apiBaseUrl, webBaseUrl);
-  const extensionLanguage = normalizeLanguage(message.language);
   await Promise.all([
     chrome.storage.local.set({ extensionApiToken: token }),
-    chrome.storage.sync.set({ apiBaseUrl, webBaseUrl, extensionLanguage })
+    chrome.storage.sync.set({ apiBaseUrl, webBaseUrl })
   ]);
   await notifySupportedTabsAccountUpdated();
   await returnToSourceTab(message.returnTo, sender);
@@ -180,6 +203,8 @@ async function returnToSourceTab(value, sender) {
 }
 
 async function notifySupportedTabsAccountUpdated() {
+  // Extension pages do not receive tabs.sendMessage; notify the native panel too.
+  chrome.runtime.sendMessage({ type: "ACCOUNT_AUTH_UPDATED" }).catch(() => {});
   try {
     const tabs = await chrome.tabs.query({ url: SUPPORTED_URLS });
     await Promise.allSettled(tabs.map(async (tab) => {
@@ -398,42 +423,13 @@ async function webJson(path, options, sender) {
   return payload;
 }
 
-async function getExtensionLanguage() {
-  const stored = await chrome.storage.sync.get(["extensionLanguage"]);
-  return { ok: true, language: normalizeLanguage(stored.extensionLanguage || browserLanguage()) };
-}
-
-async function setExtensionLanguage(message) {
-  const extensionLanguage = normalizeLanguage(message.language || browserLanguage());
-  await chrome.storage.sync.set({ extensionLanguage });
-  await notifySupportedTabsLanguageUpdated(extensionLanguage);
-  return { ok: true, language: extensionLanguage };
-}
-
-async function notifySupportedTabsLanguageUpdated(language) {
-  try {
-    const tabs = await chrome.tabs.query({ url: SUPPORTED_URLS });
-    await Promise.allSettled(tabs.map(async (tab) => {
-      if (!tab.id) return;
-      try {
-        await chrome.tabs.sendMessage(tab.id, { type: "LANGUAGE_UPDATED", language });
-      } catch (_error) {
-        // The content script is not active in every matching tab yet.
-      }
-    }));
-  } catch (error) {
-    console.warn("Could not notify supported tabs after language update", error);
-  }
-}
-
 async function loginAction(sender) {
-  const language = (await getExtensionLanguage()).language;
   const url = new URL(`${await getWebBaseUrl()}/connect-extension`);
   url.searchParams.set("extensionId", chrome.runtime.id);
   const returnTo = safeReturnUrl(sender);
   if (returnTo) url.searchParams.set("return", returnTo);
   return {
-    label: t(language, "signIn"),
+    label: "Sign in",
     url: url.toString()
   };
 }
@@ -458,9 +454,8 @@ function safeReturnUrl(sender) {
 }
 
 async function pricingAction() {
-  const language = (await getExtensionLanguage()).language;
   return {
-    label: t(language, "openPricing"),
+    label: "Open pricing",
     url: `${await getWebBaseUrl()}/pricing`
   };
 }
@@ -487,14 +482,6 @@ function cleanUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
 }
 
-function normalizeLanguage(_value) {
-  return "en";
-}
-
-function browserLanguage() {
-  return "en";
-}
-
 function normalizeCustomize(value) {
   const input = value && typeof value === "object" ? value : {};
   const allowed = {
@@ -508,18 +495,4 @@ function normalizeCustomize(value) {
     goal: allowed.goal.has(input.goal) ? input.goal : "advice",
     notes: String(input.notes || "").trim().slice(0, 500)
   };
-}
-
-function t(language, key) {
-  const labels = {
-    en: {
-      signIn: "Sign in",
-      openPricing: "Open pricing"
-    },
-    zh: {
-      signIn: "登录",
-      openPricing: "打开价格页"
-    }
-  };
-  return labels[normalizeLanguage(language)][key] || labels.en[key] || key;
 }

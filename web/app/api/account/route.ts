@@ -94,5 +94,5 @@ function isBetaUnlimitedUsage() {
   if (['0', 'false', 'no', 'off'].includes(configured)) return false;
   if (['1', 'true', 'yes', 'on'].includes(configured)) return true;
 
-  return true;
+  return false;
 }

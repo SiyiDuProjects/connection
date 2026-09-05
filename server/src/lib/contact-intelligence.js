@@ -15,8 +15,8 @@ import {
 } from "./contact-taxonomy.js";
 
 const WEIGHTS = Object.freeze({
-  roleFit: 30,
-  seniorityFit: 25,
+  roleFit: 40,
+  seniorityFit: 15,
   teamFit: 15,
   companyFit: 10,
   alumniFit: 10,
@@ -227,25 +227,26 @@ function scoreRoleFit(contact, targetFunction, job, reasons, warnings) {
 
 function scoreSeniorityFit(contact, targetSeniority, targetFunction, reasons) {
   const seniority = contact.normalizedSeniority;
-  if (seniority === SENIORITIES.UNKNOWN) return 0.2;
+  if (seniority === SENIORITIES.UNKNOWN) return 0.4;
+  if (targetFunction === FUNCTIONS.UNKNOWN) return isExecutiveOnlyTitle(contact.title) ? 0.2 : 0.6;
   if (contact.normalizedFunction === FUNCTIONS.RECRUITING) {
     reasons.push("Hiring-side recruiting contact");
-    return [SENIORITIES.SENIOR_IC, SENIORITIES.MANAGER, SENIORITIES.DIRECTOR, SENIORITIES.HEAD, SENIORITIES.VP].includes(seniority)
-      ? 0.95
-      : 0.7;
+    return [SENIORITIES.VP, SENIORITIES.C_SUITE, SENIORITIES.FOUNDER].includes(seniority) ? 0.35 : 0.9;
   }
-  if (targetFunction === FUNCTIONS.RECRUITING && [SENIORITIES.SENIOR_IC, SENIORITIES.MANAGER, SENIORITIES.DIRECTOR, SENIORITIES.HEAD].includes(seniority)) {
-    reasons.push(`${readableSeniority(seniority)} fit`);
-    return 1;
+  // Seniority in an unrelated function is not evidence of a useful connection.
+  if (contact.normalizedFunction !== targetFunction) return 0.15;
+  if (targetFunction === FUNCTIONS.EXECUTIVE) return 0.9;
+  const leadershipTarget = [SENIORITIES.MANAGER, SENIORITIES.DIRECTOR, SENIORITIES.HEAD, SENIORITIES.VP, SENIORITIES.C_SUITE].includes(targetSeniority);
+  if (seniority === SENIORITIES.IC || seniority === SENIORITIES.SENIOR_IC) {
+    reasons.push("Same-function colleague");
+    return leadershipTarget ? 0.8 : 1;
   }
-  if ([SENIORITIES.MANAGER, SENIORITIES.DIRECTOR, SENIORITIES.HEAD].includes(seniority)) {
-    reasons.push(`${readableSeniority(seniority)} fit`);
-    return 0.95;
+  if (seniority === SENIORITIES.MANAGER) {
+    reasons.push("Manager in the target function");
+    return 0.9;
   }
-  if (seniority === SENIORITIES.VP) return targetSeniority === SENIORITIES.VP || targetFunction === FUNCTIONS.EXECUTIVE ? 0.9 : 0.65;
-  if (seniority === SENIORITIES.C_SUITE || seniority === SENIORITIES.FOUNDER) return targetFunction === FUNCTIONS.EXECUTIVE ? 1 : 0.25;
-  if (seniority === SENIORITIES.SENIOR_IC) return 0.7;
-  return 0.45;
+  if (seniority === SENIORITIES.DIRECTOR || seniority === SENIORITIES.HEAD) return leadershipTarget ? 0.9 : 0.5;
+  return leadershipTarget ? 0.65 : 0.2;
 }
 
 function scoreTeamFit(contact, targetTeam, reasons, warnings) {

@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { AppHeader } from '@/components/app-header';
+import { DashboardShell } from './dashboard-shell';
 import { getCreditBalance, getSettings, getUser } from '@/lib/db/queries';
 import { getOnboardingStatus } from '@/lib/onboarding';
 
@@ -25,22 +25,20 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#f5f5f7] text-foreground">
-      <AppHeader
-        className="bg-[#f5f5f7]"
+      <DashboardShell
         account={{
           user: {
             id: user.id,
             name: user.name,
             email: user.email
           },
+          settings: { senderName: settings?.senderName },
           credits: {
             remaining: credits
           }
         }}
-      />
-
+      >
       {children}
-    </div>
+      </DashboardShell>
   );
 }

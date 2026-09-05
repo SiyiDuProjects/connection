@@ -17,9 +17,11 @@
 .hu-auth-icon { display: flex; align-items: center; justify-content: center; width: 70px; height: 70px; border-radius: 50%; background: var(--default); margin: 7px 0 24px; }
 .hu-auth-card .card__title { font-size: 25px; font-weight: 550; letter-spacing: -.035em; }
 .hu-auth-card .card__description { font-size: 18px; line-height: 1.5; margin-top: 20px; color: var(--muted); }
-.hu-auth-fields { display: grid; gap: 21px; }
+.hu-auth-fields { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 21px; }
+.hu-auth-card .card__content { min-width: 0; overflow-wrap: anywhere; }
 .hu-auth-fields .label { font-size: 14px; }
 .hu-auth-fields .input,.hu-auth-fields .input-group { min-height: 48px; }
+.hu-auth-fields .input-group__input { min-width: 0; }
 .hu-auth-fields .button[type=submit] { margin-top: 5px; }
 .hu-auth-card .button--lg { min-height: 50px; font-size: 16px; }
 .hu-auth-email-note { color: var(--muted); text-align: center; font-size: 12px; margin-top: 14px; }

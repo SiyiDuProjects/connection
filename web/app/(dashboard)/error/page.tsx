@@ -1,11 +1,10 @@
 import Link from 'next/link';
-import { Card } from '@/components/ui/card';
-import { buttonVariants } from '@heroui/styles';
+import { Button } from '@/components/ui/button';
 
 export default function ErrorPage() {
   return (
     <main className="mx-auto flex min-h-[70vh] max-w-xl items-center px-6 py-20">
-      <Card className="w-full p-8">
+      <section className="apple-card w-full p-8">
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           We could not finish that request.
         </h1>
@@ -13,10 +12,14 @@ export default function ErrorPage() {
           No additional action is needed right now. Check your billing status, then retry from the pricing page.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
-          <Link href="/pricing" className={buttonVariants({ variant: 'primary' })}>Return to pricing</Link>
-          <Link href="/dashboard" className={buttonVariants({ variant: 'outline' })}>Open dashboard</Link>
+          <Button asChild>
+            <Link href="/pricing">Return to pricing</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/dashboard">Open dashboard</Link>
+          </Button>
         </div>
-      </Card>
+      </section>
     </main>
   );
 }

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Software Engineer, Distributed Data Systems — Robotics</title><meta property="og:site_name" content="OpenAI"><link rel="stylesheet" href="/content.css">
+<style>body{margin:0;background:#f9f9f8;color:#292e35;font-family:Arial,sans-serif}main{max-width:850px;padding:100px 7vw 80px;box-sizing:content-box}nav{font-size:13px;color:#8a8a8a;margin-bottom:65px}h1{font-size:42px;letter-spacing:-1.8px;line-height:1.12;font-weight:500}h2{font-size:20px;margin-top:40px}p{line-height:1.8;color:#8a8a8a;font-size:14px}.fixture-label{position:fixed;bottom:12px;left:18px;color:#999;font-size:11px;max-width:calc(100vw - 475px)}@media(max-width:700px){main{padding:40px 24px}.fixture-label{display:none}}.fixture-header{position:fixed;top:0;left:0;width:100vw;height:56px;display:flex;justify-content:space-between;align-items:center;box-sizing:border-box;padding:0 24px;background:white;border-bottom:1px solid #ddd}.fixture-chat{position:fixed;bottom:0;right:16px;width:230px;height:48px;padding:12px;box-sizing:border-box;background:white;border:1px solid #ddd;border-radius:10px 10px 0 0}.legacyNotifLineHeight{display:grid;grid-template-columns:100vw;width:max-content}.legacyNotifLineHeight>div{min-width:0}</style>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"JobPosting","title":"Software Engineer, Distributed Data Systems — Robotics","hiringOrganization":{"@type":"Organization","name":"OpenAI"},"jobLocation":{"address":{"addressLocality":"San Francisco","addressRegion":"CA"}},"description":"Build distributed data systems that support robotics research."}</script></head>
+<body><div id="root"><div class="legacyNotifLineHeight"><div><header class="fixture-header"><b>Careers</b><span>Search jobs · Profile</span></header><main><nav>OpenAI / Careers</nav><h1>Software Engineer,<br>Distributed Data Systems — Robotics</h1><p>San Francisco, CA · Engineering</p><h2>About the team</h2><p>Build the data infrastructure that connects robotics research to the real world.</p><h2>About the role</h2><p>Work across distributed systems, data pipelines and robotics. Collaborate with researchers and engineers to turn ambitious ideas into reliable systems.</p></main></div></div></div><aside class="fixture-chat">Messaging</aside><span class="fixture-label">Local test page · Actual extension UI · Simulated account and contacts</span>
+<script>
+const otherPlugin=document.createElement('div');otherPlugin.id='fixture-other-plugin';document.documentElement.appendChild(otherPlugin);
+otherPlugin.attachShadow({mode:'open'}).innerHTML='<style>button{position:fixed;right:10px;top:64px;width:90px;height:38px}</style><button style="right:10px!important">Other plugin</button>';
+const scenario = new URLSearchParams(location.search).get('state');
+if (scenario === 'compact-host') document.documentElement.style.fontSize = '10px';
+const calls=[]; window.__fixtureCalls=calls;
+// Actual packaged custom panel and page reader; service responses are simulated.
+let custom={tone:'warm',length:'concise',goal:'advice',notes:''};
+const contact={id:'fixture-maya',name:'Maya Chen',title:'Engineering Manager',location:'San Francisco, CA',reasons:['Sample contact: leads a robotics engineering team.'],companyName:'OpenAI'};
+window.chrome={runtime:{id:'reachard-local-fixture',onMessage:{addListener(){},removeListener(){}},async sendMessage(message){
+  calls.push({type:message.type,payload:message.payload});
+  await new Promise(resolve=>setTimeout(resolve,180));
+  if(scenario==='signed-out')return{ok:false,status:401,error:'Sign in on the website.',action:{label:'Log In to Reachard',url:'https://reachard.co/dashboard'}};
+  if(message.type==='GET_EMAIL_CUSTOMIZE')return{ok:true,custom};
+  if(message.type==='SET_EMAIL_CUSTOMIZE'){if(scenario==='slow-save')await new Promise(resolve=>setTimeout(resolve,900));if(scenario==='save-error')return{ok:false,error:'Could not save your style. Try again.'};custom=message.payload;return{ok:true,custom};}
+  if(message.type==='GET_ACCOUNT_STATUS')return{ok:true,account:{onboarding:{profile:{complete:true}},credits:{remaining:10}}};
+  if(message.type==='CONTACTS_SEARCH'){await new Promise(resolve=>setTimeout(resolve,600));if(scenario==='error')return{ok:false,status:503,error:'Search is temporarily unavailable. Please try again.'};return{ok:true,contacts:scenario==='empty'?[]:[contact,{...contact,id:'fixture-priya',name:'Priya Raman',title:'Technical Recruiter',reasons:['Sample contact: recruits for engineering roles.']}]};}
+  if(message.type==='CONTACTS_REVEAL')return{ok:true,email:'sample@example.com',credits:{remaining:9}};
+  if(message.type==='EMAIL_DRAFT')return{ok:true,subject:'A question about robotics at OpenAI',body:'Hi '+message.payload.contact.name.split(' ')[0]+',\n\nI came across the robotics role at OpenAI. I’d love to hear about your experience on the team.\n\nThanks for considering it!\n[Your name]',mailtoUrl:'mailto:sample@example.com',personalizationNotes:['Current role','Saved '+custom.tone+' tone'],missingContext:[],warnings:['Local preview uses sample data.']};
+  return{ok:false,error:'Unsupported fixture message'};
+}},storage:{local:{get(key,callback){callback({})},set(){}}}};
+chrome.runtime.getURL=path=>new URL(path,location.origin).href;
+</script><script src="/ui.js"></script><script src="/content.js"></script><script src="/sidepanel-context.js"></script><script src="/sidepanel.js"></script></body></html>

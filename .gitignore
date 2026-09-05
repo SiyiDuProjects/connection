@@ -4,6 +4,7 @@ node_modules/
 dist/
 coverage/
 output/
+.archive/
 .playwright-cli/
 .pnpm-store/
 node_modules.*/

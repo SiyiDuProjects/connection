@@ -12,7 +12,6 @@ type ExtensionMessageResponse = {
   ok?: boolean;
   hasToken?: boolean;
   extensionId?: string;
-  language?: string;
   error?: string;
 };
 
@@ -67,14 +66,12 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
         const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
         const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_BASE_URL || '').trim()
           || (isLocal ? 'http://localhost:8787' : 'https://contacts.reachard.co');
-        const language = document.documentElement.lang || window.navigator.language || 'en';
         const connected = await sendExtensionBridgeMessage({
           type: 'CONNECT_EXTENSION_TOKEN',
           payload: {
             token: tokenPayload.token,
             webBaseUrl,
-            apiBaseUrl,
-            language
+            apiBaseUrl
           }
         }, { extensionId });
         if (cancelled || !connected?.ok) {

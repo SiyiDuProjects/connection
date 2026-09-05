@@ -106,4 +106,4 @@ In your Vercel project settings (or during deployment), add all the necessary en
 3. `STRIPE_WEBHOOK_SECRET`: Use the webhook secret from the production webhook you created in step 1.
 4. `POSTGRES_URL`: Set this to your production database URL.
 5. `AUTH_SECRET`: Set this to a random string. `openssl rand -base64 32` will generate one.
-6. `EMAIL_FROM` and `RESEND_API_KEY`: Configure these for production email verification. In local development, verification links are printed to the server log when they are omitted.
+6. `EMAIL_FROM` and `RESEND_API_KEY`: Configure a verified Resend sender (for example `Reachard <noreply@reachard.co>`) and a server-only sending API key. `AUTH_SECRET` must contain at least 32 characters. Delivery is required in every environment; missing configuration does not log codes or silently mark accounts verified. See [email setup and verification](docs/email-verification.md).

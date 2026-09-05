@@ -142,10 +142,14 @@ export const emailVerificationTokens = pgTable('email_verification_tokens', {
     .notNull()
     .references(() => users.id),
   tokenHash: text('token_hash').notNull().unique(),
+  codeHash: text('code_hash'),
+  attempts: integer('attempts').notNull().default(0),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   usedAt: timestamp('used_at'),
-});
+}, (table) => ({
+  userCreatedIdx: index('email_verification_tokens_user_created_idx').on(table.userId, table.createdAt),
+}));
 
 export const userSettings = pgTable(
   'user_settings',
@@ -217,6 +221,12 @@ export const creditLedger = pgTable(
     requestUnique: uniqueIndex('credit_ledger_user_action_request_unique')
       .on(table.userId, table.action, table.requestId)
       .where(sql`${table.requestId} is not null`),
+    initialSubscriptionUnique: uniqueIndex('credit_ledger_initial_subscription_unique')
+      .on(sql`(${table.metadata}->>'subscriptionId')`)
+      .where(sql`${table.action} = 'subscription.initial_grant'`),
+    monthlyInvoiceUnique: uniqueIndex('credit_ledger_monthly_invoice_unique')
+      .on(sql`(${table.metadata}->>'invoiceId')`)
+      .where(sql`${table.action} = 'subscription.monthly_grant'`),
   })
 );
 

@@ -9,6 +9,7 @@
     "test:hunter": "node src/lib/hunter.test-fixtures.js",
     "test:rapidapi": "node src/lib/rapidapi.test-fixtures.js",
     "test:treg": "node src/lib/treg.test-fixtures.js",
+    "test:search-quality": "node src/lib/search-quality.test-fixtures.js",
     "test:email": "node src/lib/email.test-fixtures.js",
     "report:costs": "node src/scripts/report-internal-costs.js",
     "test:live-flow": "node scripts/test-live-contact-flow.mjs",

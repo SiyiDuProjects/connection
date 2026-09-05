@@ -1,10 +1,13 @@
 import Stripe from 'stripe';
+import { createHash } from 'node:crypto';
 import { redirect } from 'next/navigation';
-import { Team } from '@/lib/db/schema';
+import { Team, teams } from '@/lib/db/schema';
+import { db } from '@/lib/db/drizzle';
+import { eq } from 'drizzle-orm';
+import { isMonthlyPrice, isTerminalSubscription, stripeObjectId } from '@/lib/payments/billing-policy';
 import {
   getTeamByStripeCustomerId,
-  getUser,
-  updateTeamSubscription
+  getUser
 } from '@/lib/db/queries';
 import {
   getReachardPlanByName,
@@ -30,161 +33,133 @@ export async function createCheckoutSession({
     redirect(`/sign-up?redirect=checkout&priceId=${priceId}`);
   }
 
-  if (
-    team.stripeSubscriptionId
-    && ['active', 'trialing'].includes(team.subscriptionStatus || '')
-  ) {
-    redirect('/dashboard?billing=already-active');
-  }
-
   const checkoutPlan = await resolveCheckoutPlan(priceId);
-  const checkoutAttempt = Math.floor(Date.now() / 60_000);
-
-  const session = await stripe.checkout.sessions.create(
-    {
-      line_items: [
-        {
-          price: checkoutPlan.priceId,
-          quantity: 1
-        }
-      ],
+  const result = await db.transaction(async tx => {
+    const [currentTeam] = await tx.select().from(teams).where(eq(teams.id, team.id)).for('update');
+    if (!currentTeam) throw new Error('Billing account is unavailable.');
+    let customerId = currentTeam.stripeCustomerId;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email, metadata: { reachardTeamId: String(team.id), reachardUserId: String(user.id) }
+      }, { idempotencyKey: `reachard-customer-${team.id}` });
+      customerId = customer.id;
+      await tx.update(teams).set({ stripeCustomerId: customerId, updatedAt: new Date() }).where(eq(teams.id, team.id));
+    }
+    const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 100 });
+    if (subscriptions.has_more || subscriptions.data.some(subscription => !isTerminalSubscription(subscription.status))) {
+      return { url: '/dashboard?billing=already-active', sessionId: null };
+    }
+    const sessions = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 });
+    if (sessions.has_more) throw new Error('Too many pending checkouts. Contact support.');
+    for (const session of sessions.data) {
+      if (session.mode !== 'subscription' || session.metadata?.reachardTeamId !== String(team.id)) continue;
+      const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 2 });
+      if (items.data.length === 1 && items.data[0].price?.id === checkoutPlan.priceId && session.url) {
+        return { url: session.url, sessionId: session.id };
+      }
+      // Changing plan retires the user's unfinished session before creating another one.
+      // If payment won the race, Stripe rejects expiration and no second session is created.
+      await stripe.checkout.sessions.expire(session.id);
+    }
+    const metadata = {
+      reachardUserId: String(user.id), reachardTeamId: String(team.id), reachardPlan: checkoutPlan.name
+    };
+    const recent = await stripe.checkout.sessions.list({ customer: customerId, limit: 1 });
+    const attempt = createHash('sha256').update(JSON.stringify(recent.data.map(item => [item.id, item.status]))).digest('hex');
+    const trialDays = subscriptions.data.length === 0 ? checkoutPlan.trialPeriodDays : 0;
+    const session = await stripe.checkout.sessions.create({
+      line_items: [{ price: checkoutPlan.priceId, quantity: 1 }],
       mode: 'subscription',
       success_url: `${process.env.BASE_URL}/api/stripe/checkout?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.BASE_URL}/pricing`,
-      customer: team.stripeCustomerId || undefined,
-      client_reference_id: user.id.toString(),
-      allow_promotion_codes: true,
-      metadata: {
-        reachardUserId: String(user.id),
-        reachardTeamId: String(team.id),
-        reachardPlan: checkoutPlan.name
-      },
-      subscription_data: checkoutPlan.trialPeriodDays
-        ? { trial_period_days: checkoutPlan.trialPeriodDays }
-        : undefined
-    },
-    {
-      idempotencyKey: `checkout-${user.id}-${checkoutPlan.key}-${checkoutAttempt}`
-    }
-  );
-
-  await recordProductEvent(user.id, 'checkout.started', {
-    checkoutSessionId: session.id,
-    planName: checkoutPlan.name
+      customer: customerId, client_reference_id: String(user.id),
+      allow_promotion_codes: true, metadata,
+      subscription_data: { metadata, ...(trialDays ? { trial_period_days: trialDays } : {}) }
+    }, { idempotencyKey: `checkout-${team.id}-${checkoutPlan.priceId}-${attempt}` });
+    if (!session.url) throw new Error('Stripe did not return a checkout URL.');
+    return { url: session.url, sessionId: session.id };
   });
-
-  redirect(session.url!);
+  if (result.sessionId) await recordProductEvent(user.id, 'checkout.started', {
+    checkoutSessionId: result.sessionId, planName: checkoutPlan.name
+  });
+  redirect(result.url);
 }
 
 export async function createCustomerPortalSession(team: Team) {
-  if (!team.stripeCustomerId || !team.stripeProductId) {
-    redirect('/pricing');
-  }
-
-  let configuration: Stripe.BillingPortal.Configuration;
-  const configurations = await stripe.billingPortal.configurations.list();
-
-  if (configurations.data.length > 0) {
-    configuration = configurations.data[0];
+  if (!team.stripeCustomerId) redirect('/pricing');
+  const configuredId = process.env.STRIPE_PORTAL_CONFIGURATION_ID?.trim();
+  let configuration: Stripe.BillingPortal.Configuration | undefined;
+  if (configuredId) {
+    configuration = await stripe.billingPortal.configurations.retrieve(configuredId);
+    if (!configuration.active) throw new Error('Configured billing portal is inactive.');
+    // Until paid upgrade allowances are implemented, use a management-only portal.
+    if (configuration.features.subscription_update.enabled
+      || !configuration.features.subscription_cancel.enabled
+      || configuration.features.subscription_cancel.mode !== 'at_period_end') {
+      throw new Error('Reachard portal must disable subscription updates until upgrade fulfillment is configured.');
+    }
   } else {
-    const product = await stripe.products.retrieve(team.stripeProductId);
-    if (!product.active) {
-      throw new Error("Team's product is not active in Stripe");
-    }
-
-    const prices = await stripe.prices.list({
-      product: product.id,
-      active: true
-    });
-    if (prices.data.length === 0) {
-      throw new Error("No active prices found for the team's product");
-    }
-
-    configuration = await stripe.billingPortal.configurations.create({
-      business_profile: {
-        headline: 'Manage your subscription'
-      },
-      features: {
-        subscription_update: {
-          enabled: true,
-          default_allowed_updates: ['price', 'quantity', 'promotion_code'],
-          proration_behavior: 'create_prorations',
-          products: [
-            {
-              product: product.id,
-              prices: prices.data.map((price) => price.id)
-            }
-          ]
-        },
-        subscription_cancel: {
-          enabled: true,
-          mode: 'at_period_end',
-          cancellation_reason: {
-            enabled: true,
-            options: [
-              'too_expensive',
-              'missing_features',
-              'switched_service',
-              'unused',
-              'other'
-            ]
-          }
-        },
-        payment_method_update: {
-          enabled: true
-        }
-      }
-    });
+    const configurations = await stripe.billingPortal.configurations.list({ active: true, limit: 100 });
+    configuration = configurations.data.find(item => item.metadata?.reachardPolicy === 'membership-management-v1'
+      && !item.features.subscription_update.enabled
+      && item.features.subscription_cancel.enabled
+      && item.features.subscription_cancel.mode === 'at_period_end');
   }
-
+  if (!configuration) {
+    configuration = await stripe.billingPortal.configurations.create({
+      metadata: { reachardPolicy: 'membership-management-v1' },
+      business_profile: { headline: 'Manage your Reachard membership' },
+      features: {
+        subscription_update: { enabled: false },
+        subscription_cancel: { enabled: true, mode: 'at_period_end' },
+        payment_method_update: { enabled: true },
+        invoice_history: { enabled: true }
+      }
+    }, { idempotencyKey: 'reachard-portal-membership-management-v1' });
+  }
   return stripe.billingPortal.sessions.create({
     customer: team.stripeCustomerId,
-    return_url: `${process.env.BASE_URL}/dashboard`,
+    return_url: `${process.env.BASE_URL}/dashboard/general`,
     configuration: configuration.id
   });
 }
 
-export async function handleSubscriptionChange(
-  subscription: Stripe.Subscription
-) {
-  const customerId = subscription.customer as string;
-  const subscriptionId = subscription.id;
-  const status = subscription.status;
-
+export async function handleSubscriptionChange(eventSubscription: Stripe.Subscription) {
+  const customerId = stripeObjectId(eventSubscription.customer);
+  if (!customerId) throw new Error('Subscription has no customer.');
   const team = await getTeamByStripeCustomerId(customerId);
-
   if (!team) {
-    console.error('Team not found for Stripe customer:', customerId);
+    if (eventSubscription.metadata?.reachardTeamId) throw new Error('Subscription is awaiting account mapping.');
     return;
   }
-
-  if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') {
-    await updateTeamSubscription(team.id, {
-      stripeSubscriptionId: null,
-      stripeProductId: null,
-      planName: null,
-      subscriptionStatus: status
-    });
-    return;
-  }
-
-  const plan = await resolveSubscriptionPlan(subscription);
-  await updateTeamSubscription(team.id, {
-    stripeSubscriptionId: subscriptionId,
-    stripeProductId: plan.productId,
-    planName: plan.name,
-    subscriptionStatus: status
+  await db.transaction(async tx => {
+    const [currentTeam] = await tx.select().from(teams).where(eq(teams.id, team.id)).for('update');
+    if (currentTeam.stripeSubscriptionId && currentTeam.stripeSubscriptionId !== eventSubscription.id) return;
+    // Event snapshots can arrive out of order; synchronize Stripe's current object.
+    const subscription = await stripe.subscriptions.retrieve(eventSubscription.id, { expand: ['items.data.price.product'] });
+    const inactive = ['canceled', 'unpaid', 'incomplete_expired'].includes(subscription.status);
+    const plan = inactive ? null : await resolveSubscriptionPlan(subscription);
+    await tx.update(teams).set({
+      stripeSubscriptionId: subscription.id,
+      stripeProductId: plan?.productId || currentTeam.stripeProductId,
+      planName: plan?.name || null,
+      subscriptionStatus: subscription.status, updatedAt: new Date()
+    }).where(eq(teams.id, team.id));
   });
 }
 
 export async function cancelSubscriptionAtPeriodEnd(subscriptionId: string) {
   if (!subscriptionId) return;
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  if (isTerminalSubscription(subscription.status) || subscription.cancel_at_period_end) return;
   await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
 }
 
 export async function resolveSubscriptionPlan(subscription: Stripe.Subscription) {
   const price = subscription.items.data[0]?.price;
-  if (!price) throw new Error('Subscription does not contain a price.');
+  if (!price || subscription.items.data.length !== 1 || subscription.items.data[0].quantity !== 1 || !isMonthlyPrice(price)) {
+    throw new Error('Subscription must contain exactly one monthly Reachard membership.');
+  }
   const productValue = typeof price.product === 'string'
     ? await stripe.products.retrieve(price.product)
     : price.product;
@@ -207,7 +182,7 @@ export async function resolveCheckoutPlan(priceId: string) {
   const product = requireAvailableProduct(productValue);
   const plan = getReachardPlanByName(product.name);
 
-  if (!plan || !product.active || !price.active || price.type !== 'recurring' || price.recurring?.interval !== 'month') {
+  if (!plan || !product.active || !price.active || !isMonthlyPrice(price)) {
     throw new Error('This Stripe price is not an active Reachard monthly plan.');
   }
 
@@ -238,7 +213,7 @@ async function canonicalPriceIdForPlan(plan: ReachardPlan, product: Stripe.Produ
     type: 'recurring',
     limit: 100
   });
-  const monthlyPrices = prices.data.filter((candidate) => candidate.recurring?.interval === 'month');
+  const monthlyPrices = prices.data.filter((candidate) => isMonthlyPrice(candidate));
   if (monthlyPrices.length !== 1) {
     throw new Error(`Configure STRIPE_${plan.key.toUpperCase()}_PRICE_ID because ${plan.name} has multiple active prices.`);
   }
@@ -260,7 +235,7 @@ export async function getStripePrices() {
     limit: 100
   });
 
-  return prices.data.map((price) => ({
+  return prices.data.filter(isMonthlyPrice).map((price) => ({
     id: price.id,
     productId:
       typeof price.product === 'string' ? price.product : price.product.id,

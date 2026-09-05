@@ -16,7 +16,7 @@ export default function PrivacyPage() {
 
         <h2>Information we process</h2>
         <ul>
-          <li>Account information such as name, email address, authentication data, subscription status, and Contact Kit balance.</li>
+          <li>Account information such as name, email address, authentication data, subscription status, and remaining included usage.</li>
           <li>Profile information you choose to save, including school, region, resume context, and outreach preferences.</li>
           <li>Job, company, and public professional-profile context from the page where you invoke Reachard, including the page URL, job description, company, title, and selected contact.</li>
           <li>Product usage and reliability data, such as searches, reveals, drafts, request status, and timestamps.</li>
@@ -27,7 +27,7 @@ export default function PrivacyPage() {
           The extension reads supported page content locally so it can recognize a job, company, or professional-profile page. Page context is sent to Reachard only when you ask it to search, reveal a work email, or create a draft. Reachard does not sell browsing history, run advertising profiles, or send messages on your behalf.
         </p>
         <p>
-          Authentication tokens and recent account status are stored in Chrome local storage. Non-sensitive preferences such as language and configured Reachard URLs may use Chrome sync storage. A short recent-find history is stored locally on the device.
+          Authentication tokens and recent account status are stored in Chrome local storage. Configured Reachard URLs may use Chrome sync storage. A short recent-find history is stored locally on the device.
         </p>
 
         <h2>Service providers</h2>

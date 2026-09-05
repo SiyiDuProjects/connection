@@ -1,12 +1,8 @@
 import Link from 'next/link';
-import { buttonVariants } from '@heroui/styles';
 import { Compass } from 'lucide-react';
-import { cookies, headers } from 'next/headers';
-import { normalizeLanguage, translate } from '@/lib/i18n';
+import { translate as t } from '@/lib/i18n';
 
-export default async function NotFound() {
-  const language = normalizeLanguage((await cookies()).get('language')?.value || (await headers()).get('accept-language'));
-  const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
+export default function NotFound() {
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background text-foreground">
@@ -24,7 +20,7 @@ export default async function NotFound() {
         </p>
         <Link
           href="/"
-          className={buttonVariants({ variant: 'primary' })}
+          className="mx-auto flex min-h-11 max-w-48 items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-[background,transform] duration-200 ease-out hover:bg-primary/90 active:scale-[0.98] focus:outline-none focus-visible:ring-[4px] focus-visible:ring-ring/30"
         >
           {t('notFound.back')}
         </Link>

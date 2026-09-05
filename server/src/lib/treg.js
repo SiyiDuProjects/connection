@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
-import { cleanDomain, normalizeCompanyName } from "./contact-taxonomy.js";
+import { cleanDomain, normalizeCompanyName, inferFunction, FUNCTIONS } from "./contact-taxonomy.js";
+import { scoreCandidate } from "./contact-intelligence.js";
 import { fetchWithTimeout, writeLog } from "./http.js";
 
 const DEFAULT_BASE_URL = "https://treg.to";
@@ -21,25 +22,64 @@ export async function searchTregContacts(job = {}, request = {}) {
     currentCompanyName: includeFilter(job.companyName)
   });
 
-  const data = await tregPost(
-    endpointName("TREG_SEARCH_ENDPOINT", DEFAULT_SEARCH_ENDPOINT),
-    {
-      query,
-      pagination: { size: boundedInteger(process.env.TREG_SEARCH_SIZE, 25, 1, 200) }
-    },
-    {
-      action: "search",
-      customerId: request.customerId,
-      idempotencyKey: scopedIdempotencyKey(request.idempotencyKey, "treg-search"),
-      timeoutMs: process.env.TREG_SEARCH_TIMEOUT_MS || 15_000,
-      usageTarget: request
+  const pageSize = boundedInteger(process.env.TREG_SEARCH_SIZE, 25, 1, 200);
+  const maxPages = boundedInteger(process.env.TREG_SEARCH_MAX_PAGES, 3, 1, 3);
+  const targetFunction = inferFunction(job.originalJobTitle, job.jobTitle, job.jobDescription);
+  const contacts = new Map();
+  const seenTokens = new Set();
+  const usage = [];
+  const diagnostics = { pages: 0, received: 0, invalid: 0, companyMismatch: 0, duplicates: 0 };
+  let pagination = { size: pageSize };
+  for (let page = 0; page < maxPages; page += 1) {
+    const pageRequest = {};
+    let data;
+    try {
+      data = await tregPost(
+        endpointName("TREG_SEARCH_ENDPOINT", DEFAULT_SEARCH_ENDPOINT),
+        { query, pagination },
+        {
+          action: "search",
+          customerId: request.customerId,
+          idempotencyKey: scopedIdempotencyKey(request.idempotencyKey, page === 0 ? "treg-search" : `treg-search-page-${page + 1}`),
+          timeoutMs: process.env.TREG_SEARCH_TIMEOUT_MS || 15_000,
+          usageTarget: pageRequest
+        }
+      );
+    } catch (error) {
+      if (!contacts.size) throw error;
+      // Optional replenishment must not discard a successfully retrieved first page.
+      writeLog("warn", "contacts.search_replenishment_failed", { page: page + 1, status: error.status || 503 });
+      break;
     }
-  );
-
-  return extractPeople(data)
-    .map((person) => normalizeTregPerson(person, job))
-    .filter((person) => person.name && person.linkedinUrl)
-    .filter((person) => matchesTargetCompany(person, job));
+    diagnostics.pages += 1;
+    if (pageRequest.internalCost) usage.push(pageRequest.internalCost);
+    if (usage.length) setInternalCost(request, {
+      ...usage[0],
+      costMicroUsd: usage.every(item => Number.isFinite(item.costMicroUsd)) ? usage.reduce((sum, item) => sum + item.costMicroUsd, 0) : null,
+      durationMs: usage.reduce((sum, item) => sum + (item.durationMs || 0), 0),
+      calls: usage.length
+    });
+    const people = extractPeople(data);
+    diagnostics.received += people.length;
+    for (const raw of people) {
+      if (!raw || typeof raw !== "object") { diagnostics.invalid += 1; continue; }
+      const person = normalizeTregPerson(raw, job);
+      if (!person.name || !person.linkedinUrl) { diagnostics.invalid += 1; continue; }
+      if (!matchesTargetCompany(person, job)) { diagnostics.companyMismatch += 1; continue; }
+      const key = person.linkedinUrl.toLowerCase();
+      if (contacts.has(key)) { diagnostics.duplicates += 1; continue; }
+      contacts.set(key, person);
+    }
+    const next = data?.pagination || data?.data?.pagination;
+    const token = firstString(next?.token);
+    const relevantCount = targetFunction === FUNCTIONS.UNKNOWN ? contacts.size
+      : [...contacts.values()].filter(person => scoreCandidate(person, job).dimensions.roleFit >= 26).length;
+    if ((contacts.size >= 10 && relevantCount >= 3) || !people.length || !token || seenTokens.has(token)) break;
+    seenTokens.add(token);
+    pagination = { size: pageSize, token };
+  }
+  writeLog("info", "contacts.search_candidates", { ...diagnostics, eligible: contacts.size });
+  return [...contacts.values()];
 }
 
 export async function revealTregEmail(contact = {}, request = {}) {
@@ -126,16 +166,6 @@ function tregHeaders(options = {}) {
     "X-Treg-Meta": tregMeta(options.customerId, options.action)
   };
 
-  if (options.route) {
-    headers["X-Treg-Route-Max-Cost"] = boundedNumberString(process.env.TREG_EMAIL_ROUTE_MAX_COST, 0.03, 0.000001, 1);
-    if (String(process.env.TREG_EMAIL_ROUTE_WATERFALL ?? "1") === "0") {
-      headers["X-Treg-Route-Waterfall"] = "0";
-    }
-    headers["X-Treg-Route-Exclude"] = cleanRouteList(process.env.TREG_EMAIL_ROUTE_EXCLUDE || "leadmagic.x.personal-email-finder");
-    const preferred = cleanRouteList(process.env.TREG_EMAIL_ROUTE_PREFER || "");
-    if (preferred) headers["X-Treg-Route-Prefer"] = preferred;
-  }
-
   return Object.fromEntries(Object.entries(headers).filter(([_key, value]) => value));
 }
 
@@ -180,14 +210,8 @@ function normalizeTregPerson(person = {}, job = {}) {
     currentJob.companyWebsite,
     currentJob.company_website
   ));
-  const companyMatchesTarget = Boolean(
-    job.companyName
-    && companyName
-    && normalizeCompanyName(companyName) === normalizeCompanyName(job.companyName)
-  );
-  const companyDomain = companyMatchesTarget && job.companyDomain
-    ? cleanDomain(job.companyDomain)
-    : providerCompanyDomain;
+  // Preserve provider evidence: never manufacture a matching domain from the job.
+  const companyDomain = providerCompanyDomain;
   const preferredSchool = firstString(job.searchPreferences?.school?.label, job.school);
   const education = normalizeEducation(person);
   const linkedinUrl = normalizeLinkedinUrl(firstString(
@@ -247,10 +271,10 @@ function matchesTargetCompany(person, job) {
   const actualName = normalizeCompanyName(person.companyName);
   const wantedDomain = cleanDomain(job.companyDomain);
   const actualDomain = cleanDomain(person.companyDomain);
-  if (wantedName && actualName) return actualName === wantedName;
   if (wantedDomain && actualDomain) {
     return actualDomain === wantedDomain || actualDomain.endsWith(`.${wantedDomain}`);
   }
+  if (wantedName && actualName) return actualName === wantedName;
   return !wantedName && !wantedDomain;
 }
 
@@ -348,6 +372,7 @@ function normalizeLinkedinUrl(value) {
     if (host !== "linkedin.com" || !url.pathname.toLowerCase().startsWith("/in/")) return "";
     url.protocol = "https:";
     url.hostname = "www.linkedin.com";
+    url.pathname = url.pathname.replace(/\/+$/, "");
     url.search = "";
     url.hash = "";
     return url.toString();
@@ -359,7 +384,7 @@ function normalizeLinkedinUrl(value) {
 function currentExperience(person) {
   const values = person.experience || person.experiences || person.positions || [];
   return Array.isArray(values)
-    ? values.find((item) => item?.current === true || item?.isCurrent === true || item?.is_current === true) || values[0]
+    ? values.find((item) => item?.current === true || item?.isCurrent === true || item?.is_current === true)
     : {};
 }
 
@@ -409,15 +434,6 @@ function scopedIdempotencyKey(value, scope) {
   return `${scope}-${crypto.createHash("sha256").update(seed).digest("hex").slice(0, 32)}`;
 }
 
-function cleanRouteList(value) {
-  return String(value || "")
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter((item) => /^[a-z0-9][a-z0-9._-]*$/.test(item))
-    .slice(0, 20)
-    .join(",");
-}
-
 function schoolMatches(actual, wanted) {
   const normalize = (value) => normalizeCompanyName(value).replace(/\b(university|college|school|of|the)\b/g, " ").replace(/\s+/g, " ").trim();
   const left = normalize(actual);
@@ -428,11 +444,6 @@ function schoolMatches(actual, wanted) {
 function boundedInteger(value, fallback, min, max) {
   const parsed = Number(value ?? fallback);
   return Number.isSafeInteger(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
-}
-
-function boundedNumberString(value, fallback, min, max) {
-  const parsed = Number(value ?? fallback);
-  return String(Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback);
 }
 
 function numericHeader(value) {

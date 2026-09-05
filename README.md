@@ -2,6 +2,21 @@
 
 Chrome Extension + Express API + Next.js SaaS app for finding relevant company contacts from job pages, company sites, and public professional profiles.
 
+## Current Website and Local Preview
+
+`web/` is the single active web app. The approved homepage is **Opportunity starts with a conversation.**, with the landscape hero, black/white/gray surfaces, and blue actions. Homepage and Pricing share `web/components/reachard/design.tsx` and `web/app/marketing.css`.
+
+For local visual review, no database or Stripe credentials are required:
+
+```powershell
+cd web
+npm run preview
+```
+
+Open **http://127.0.0.1:3012/** for the homepage, **http://127.0.0.1:3012/pricing** for Pricing, and `/sign-in` or `/sign-up` for the centered account-card pages. This runs the actual app, not a separate preview implementation. Prices remain unavailable without a billing configuration; account and payment operations still require their normal services.
+
+Retired design checkouts and recovery copies belong in `.archive/` and are not development entry points. Do not use the former `artifacts/marketing-preview` app or the old green homepage.
+
 ## Structure
 
 - `extension/`: Manifest V3 Chrome extension for supported job, company, and public professional-profile pages.
@@ -73,7 +88,9 @@ AI drafts open through `mailto:` or a Gmail compose URL. The app does not requir
 
 Friend invite links are direct-attribution only. A copied dashboard invite link points to `/sign-up?ref=CODE`; the inviter earns one month free only after that directly invited user completes Stripe checkout. If the invited user later invites another buyer, that later purchase rewards the invited user, not the original inviter. Rewards are recorded in `friend_invite_rewards` and applied as Stripe customer balance credit to the inviter, with pending rewards retried after the inviter has a Stripe subscription.
 
-After signing in, open `Dashboard > Extension` and generate an extension API token.
+After signing in, the website connects an installed extension automatically. Account and connection settings stay on the website.
+
+The website and extension ship in English. Shared website copy lives in `web/lib/i18n.ts`; no language cookie, browser-language detection, or language synchronization is needed.
 
 ### Landing Hero Background
 
@@ -142,10 +159,9 @@ Production VPS access uses the shared local SSH handle documented in `/Users/byt
 2. Enable Developer mode.
 3. Load unpacked.
 4. Select the `extension/` folder.
-5. Open the extension options page.
-6. Paste the token from `Dashboard > Extension`.
-7. Open a LinkedIn job page like `https://www.linkedin.com/jobs/view/...`.
+5. Sign in on the Reachard website to connect the extension.
+6. Open a supported job, company, or LinkedIn profile page.
 
-The extension defaults to `https://contacts.reachard.co`. Change the API base URL in the extension options page if you need to use a local or staging server.
+The extension defaults to `https://contacts.reachard.co`. For local or staging use, the website supplies the API URL during connection through `NEXT_PUBLIC_API_BASE_URL` (localhost defaults to `http://localhost:8787`).
 
 During private beta, `ALLOW_ANY_EXTENSION_ID` defaults to enabled so unpacked builds with different valid Chrome extension IDs can connect after the user signs in. Before public launch, set `ALLOW_ANY_EXTENSION_ID=false` and set `ALLOWED_EXTENSION_IDS` to the final Chrome Web Store ID. Keep `NEXT_PUBLIC_CHROME_STORE_URL` empty during private beta; the website then shows `Join private beta` instead of pretending the extension is already installable. After publication, set it to the verified Chrome Web Store listing URL.

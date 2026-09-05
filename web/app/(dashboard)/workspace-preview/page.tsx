@@ -1,8 +1,5 @@
-import { ContactWorkspace } from '../dashboard/search/search-workspace';
-import { ComponentPreview } from '@/components/dev/component-preview';
+import { DashboardPreview } from './dashboard-preview';
 
-export default async function WorkspacePreviewPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  const { view } = await searchParams;
-  if (process.env.NODE_ENV === 'development' && view === 'components') return <ComponentPreview />;
-  return <ContactWorkspace />;
+export default function WorkspacePreviewPage() {
+  return <DashboardPreview />;
 }

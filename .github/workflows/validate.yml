@@ -68,4 +68,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: pnpm test:billing
+      - run: pnpm test:email
+      - run: node --test scripts/dashboard.test.mjs
       - run: pnpm build

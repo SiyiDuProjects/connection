@@ -1,0 +1,6 @@
+@import '../web/node_modules/@heroui/styles/dist/index.css';
+@import '../web/node_modules/@heroui-pro/react/dist/css/components/item-card.css';
+@import '../web/node_modules/@heroui-pro/react/dist/css/components/empty-state.css';
+@import '../web/node_modules/@heroui-pro/react/dist/css/components/segment.css';
+@import './panel.css';
+@source './index.jsx';

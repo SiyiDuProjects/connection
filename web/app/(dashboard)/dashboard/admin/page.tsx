@@ -5,8 +5,8 @@ import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label, TextArea } from '@heroui/react';
-import { useI18n } from '@/components/language-provider';
+import { Label } from '@/components/ui/label';
+import { translate as t } from '@/lib/i18n';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -53,7 +53,6 @@ export default function AdminPage() {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
-  const { t, language } = useI18n();
 
   const overviewUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -167,7 +166,7 @@ export default function AdminPage() {
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t('admin.searchEmail')}
               />
-              <Button type="submit" variant="outline" >{t('admin.search')}</Button>
+              <Button type="submit" variant="outline" className="button-text">{t('admin.search')}</Button>
             </form>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -191,8 +190,8 @@ export default function AdminPage() {
                         </span>
                       </td>
                       <td className="py-2 pr-4">{user.creditBalance}</td>
-                      <td className="py-2 pr-4">{formatDate(user.lastUsedAt, language)}</td>
-                      <td className="py-2">{formatDate(user.createdAt, language)}</td>
+                      <td className="py-2 pr-4">{formatDate(user.lastUsedAt)}</td>
+                      <td className="py-2">{formatDate(user.createdAt)}</td>
                     </tr>
                   ))}
                   {!isLoading && !data?.users?.length ? (
@@ -224,14 +223,14 @@ export default function AdminPage() {
               </div>
               <div>
                 <Label htmlFor="note">{t('admin.note')}</Label>
-                <TextArea
+                <textarea
                   id="note"
                   name="note"
-                  className="min-h-24 w-full"
+                  className="value min-h-24 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 py-3 outline-none focus-visible:ring-ring/35 focus-visible:ring-[3px]"
                   placeholder={t('admin.notePlaceholder')}
                 />
               </div>
-              <Button type="submit" >{t('admin.grantCredits')}</Button>
+              <Button type="submit" className="button-text">{t('admin.grantCredits')}</Button>
               <p className="secondary">{status}</p>
             </form>
           </CardContent>
@@ -261,7 +260,7 @@ export default function AdminPage() {
                     <td className="py-2 pr-4">{row.action}</td>
                     <td className="py-2 pr-4">{row.credits}</td>
                     <td className="py-2 pr-4">{row.status}</td>
-                    <td className="py-2">{formatDate(row.createdAt, language)}</td>
+                    <td className="py-2">{formatDate(row.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -290,7 +289,7 @@ function formatUsd(value: number | undefined) {
   return Number.isFinite(Number(value)) ? `$${Number(value).toFixed(4)}` : '...';
 }
 
-function formatDate(value: string | null, language = 'en') {
-  if (!value) return language === 'zh' ? '从未' : 'Never';
-  return new Date(value).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US');
+function formatDate(value: string | null) {
+  if (!value) return 'Never';
+  return new Date(value).toLocaleString('en-US');
 }

@@ -1,9 +1,6 @@
 'use client';
 
-import { Chip } from '@heroui/react';
-
-import { useI18n } from '@/components/language-provider';
-import { translate, type Language } from '@/lib/i18n';
+import { translate as t } from '@/lib/i18n';
 
 export type RecentUsageRow = {
   id: number;
@@ -15,17 +12,17 @@ export type RecentUsageRow = {
   };
 };
 
-export function recentOutreach(usage: RecentUsageRow[] | undefined, language: Language = 'en') {
+export function recentOutreach(usage: RecentUsageRow[] | undefined) {
   return (usage || [])
     .filter((item) => item.action === 'email.draft' || item.action === 'contacts.reveal')
     .slice(0, 4)
     .map((item) => ({
       id: item.id,
-      title: formatActionName(item.action, language),
+      title: formatActionName(item.action),
       detail: [item.request?.jobTitle, item.request?.companyName]
         .filter(Boolean)
-        .join(' @ ') || translate(language, 'activity.detailFallback'),
-      time: formatRelative(item.createdAt, language)
+        .join(' @ ') || t('activity.detailFallback'),
+      time: formatRelative(item.createdAt)
     }));
 }
 
@@ -38,7 +35,6 @@ export function RecentOutreachList({
   compact?: boolean;
   plain?: boolean;
 }) {
-  const { t } = useI18n();
   if (!outreach.length) {
     return (
       <div className={plain ? 'p-0' : 'mt-3 rounded-[8px] bg-white p-4'}>
@@ -59,9 +55,9 @@ export function RecentOutreachList({
               <p className="value">{item.title}</p>
               <p className="secondary mt-1">{item.detail}</p>
             </div>
-            <Chip size="sm" className="shrink-0">
+            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
               {item.time}
-            </Chip>
+            </span>
           </div>
         </article>
       ))}
@@ -69,16 +65,16 @@ export function RecentOutreachList({
   );
 }
 
-function formatActionName(action: string, language: Language) {
-  if (action === 'email.draft') return translate(language, 'activity.draftCreated');
-  if (action === 'contacts.reveal') return translate(language, 'activity.emailUnlocked');
-  return translate(language, 'activity.outreach');
+function formatActionName(action: string) {
+  if (action === 'email.draft') return t('activity.draftCreated');
+  if (action === 'contacts.reveal') return t('activity.emailUnlocked');
+  return t('activity.outreach');
 }
 
-function formatRelative(value: string | undefined, language: Language) {
-  if (!value) return translate(language, 'activity.recently');
+function formatRelative(value: string | undefined) {
+  if (!value) return t('activity.recently');
   const days = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 86_400_000));
-  if (days === 0) return translate(language, 'activity.today');
-  if (days === 1) return translate(language, 'activity.oneDayAgo');
-  return translate(language, 'activity.daysAgo', { count: days });
+  if (days === 0) return t('activity.today');
+  if (days === 1) return t('activity.oneDayAgo');
+  return t('activity.daysAgo', { count: days });
 }

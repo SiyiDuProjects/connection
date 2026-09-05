@@ -114,7 +114,7 @@ export function apolloSenioritiesForFunction(functionName) {
 
 export function isExecutiveOnlyTitle(title) {
   const text = searchableText([title]);
-  return isFounderText(text) || /\b(ceo|chief executive officer|president)\b/.test(text);
+  return isFounderText(text) || /\b(ceo|chief executive officer|chairman|chairwoman|chairperson|board member|member of.*board|conseil de surveillance)\b/.test(text) || (/\bpresident\b/.test(text) && !/\bvice president\b/.test(text));
 }
 
 export function isCtoTitle(title) {
@@ -135,7 +135,8 @@ export function normalizeCompanyName(value) {
     .toLowerCase()
     .replace(/&/g, "and")
     .replace(/\b(inc|llc|ltd|corp|corporation|company|co)\b/g, "")
-    .replace(/[^a-z0-9]+/g, "")
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}]+/gu, "")
     .trim();
 }
 
@@ -156,8 +157,11 @@ export function unique(values) {
 }
 
 function inferFunctionFromText(text) {
-  if (isFounderText(text) || /\b(ceo|chief executive officer|president)\b/.test(text)) return FUNCTIONS.EXECUTIVE;
+  if (isExecutiveOnlyTitle(text)) return FUNCTIONS.EXECUTIVE;
   if (/\b(cto|chief technology officer)\b/.test(text)) return FUNCTIONS.ENGINEERING;
+  if (/\b(recruiter|recruiting|sourcer|talent acquisition)\b/.test(text)) return FUNCTIONS.RECRUITING;
+  if (/\b(financial|finance|investment|accounting|accountant)\b/.test(text)) return FUNCTIONS.FINANCE;
+  if (/\b(designer|design|ux|ui)\b/.test(text)) return FUNCTIONS.DESIGN;
 
   for (const [label, terms] of FUNCTION_RULES) {
     if (containsAny(text, terms)) return label;
@@ -174,7 +178,7 @@ function inferTeamFromText(text) {
 }
 
 function containsAny(text, terms) {
-  return terms.some((term) => text.includes(term));
+  return terms.some((term) => new RegExp(`\\b${term.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(text));
 }
 
 function isFounderText(text) {

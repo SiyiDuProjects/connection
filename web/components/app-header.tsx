@@ -3,16 +3,16 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { Bolt, Chrome } from 'lucide-react';
-import { buttonVariants } from '@heroui/react';
-import { AccountDropdown } from '@/components/ui/account-menu';
+import { Bolt, ChevronDown } from 'lucide-react';
+import { buttonVariants } from '@heroui/styles';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { signOut } from '@/app/(login)/actions';
 import {
   ExtensionSessionBridge,
   clearExtensionSessionBeforeSignOut
 } from '@/components/extension-session-bridge';
 import { cn } from '@/lib/utils';
-import { useI18n } from '@/components/language-provider';
+import { translate as t } from '@/lib/i18n';
 
 type HeaderUser = {
   id?: number;
@@ -32,13 +32,13 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 type HeaderVariant = 'default' | 'hero';
 
 const baseActionClass =
-  'nav-link inline-flex min-h-11 items-center justify-center rounded-full px-4 transition-[background,color,transform] duration-200 ease-out active:scale-[0.98]';
+  'nav-link inline-flex min-h-11 items-center justify-center rounded-full px-3 sm:px-4 transition-[background,color,transform] duration-200 ease-out active:scale-[0.98]';
 
 function getActionClass(variant: HeaderVariant) {
   return cn(
     baseActionClass,
     variant === 'hero'
-      ? 'text-white/90 hover:bg-white/15 hover:text-white'
+      ? 'text-[#5f6167] hover:bg-white/70 hover:text-[#18181b]'
       : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
   );
 }
@@ -63,29 +63,29 @@ export function AppHeader({
   if (hideOnDashboard && pathname.startsWith('/dashboard')) return null;
 
   return (
-    <header className={cn('h-16 bg-surface', variant === 'hero' && 'bg-transparent text-white', className)}>
+    <header className={cn('h-16 bg-white', variant === 'hero' && 'bg-transparent text-[#18181b]', className)}>
       <div
         className={cn(
-          'mx-auto flex h-full max-w-[948px] items-center justify-between gap-5 px-6',
+          'mx-auto flex h-full max-w-[948px] items-center justify-between gap-3 px-4 sm:gap-5 sm:px-6',
           variant !== 'hero' && "relative after:absolute after:bottom-0 after:left-6 after:right-6 after:h-px after:bg-[#d2d2d7] after:content-['']",
           innerClassName
         )}
       >
-        <Link href="/" className="flex cursor-pointer items-center gap-3">
+        <Link href="/" className="flex cursor-pointer items-center gap-2 sm:gap-3">
           <img
             src="/images/brand/reachard-logo-mark.png"
             alt=""
             aria-hidden="true"
-            className="h-10 w-10 shrink-0 object-contain"
+            className="h-9 w-9 shrink-0 object-contain sm:h-10 sm:w-10"
           />
           <span
             style={{
               fontFamily: '"Geist", sans-serif',
               fontWeight: 600,
-              fontSize: 24,
+              fontSize: 'clamp(20px, 4vw, 24px)',
               letterSpacing: '-0.045em',
               lineHeight: 1,
-              color: 'var(--foreground)'
+              color: '#171717'
             }}
           >
             Reachard
@@ -107,32 +107,25 @@ function HeaderActions({
   showCredits: boolean;
   variant: HeaderVariant;
 }) {
-  const { t } = useI18n();
   const { data: userData } = useSWR<HeaderUser | null>(
     account?.user ? null : '/api/user',
     fetcher
   );
   const user = account?.user || userData;
   const actionClass = getActionClass(variant);
-  const chromeStoreUrl = String(process.env.NEXT_PUBLIC_CHROME_STORE_URL || '').trim();
-  const chromeCta = chromeStoreUrl
-    ? { href: chromeStoreUrl, label: t('header.addToChrome'), external: true }
-    : { href: '/sign-up', label: t('header.joinPrivateBeta'), external: false };
 
   if (!user) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
+        <Link href="/pricing" className={cn(actionClass, 'hidden sm:inline-flex')}>Pricing</Link>
         <Link href="/sign-in" className={actionClass}>
           {t('header.logIn')}
         </Link>
         <Link
-          href={chromeCta.href}
-          target={chromeCta.external ? '_blank' : undefined}
-          rel={chromeCta.external ? 'noreferrer' : undefined}
+          href="/sign-up"
           className={buttonVariants({ variant: 'primary' })}
         >
-          <Chrome />
-          <span>{chromeCta.label}</span>
+          Sign up
         </Link>
       </div>
     );
@@ -150,18 +143,16 @@ function HeaderActions({
 }
 
 function CreditsLink({ value, variant }: { value?: number; variant: HeaderVariant }) {
-  const { language, t } = useI18n();
   return (
     <Link href="/pricing" className={cn(getActionClass(variant), variant === 'default' && 'text-foreground')}>
-      <Bolt className={cn('h-4 w-4', variant === 'hero' ? 'text-white' : 'text-primary')} />
-      {t('header.credits', { count: formatNumber(value, language) })}
+      <Bolt className={cn('h-4 w-4', variant === 'hero' ? 'text-[#007aff]' : 'text-primary')} />
+      {t('header.credits', { count: formatNumber(value) })}
     </Link>
   );
 }
 
 function AccountMenu({ user, variant }: { user: HeaderUser; variant: HeaderVariant }) {
   const router = useRouter();
-  const { t } = useI18n();
 
   async function handleSignOut() {
     await clearExtensionSessionBeforeSignOut();
@@ -170,7 +161,49 @@ function AccountMenu({ user, variant }: { user: HeaderUser; variant: HeaderVaria
     router.push('/');
   }
 
-  return <AccountDropdown initials={initials(user)} labels={{ menu: t('header.accountMenu'), account: t('header.viewAccount'), settings: t('header.settings'), signOut: t('header.logOut') }} onAccount={() => router.push('/dashboard')} onSettings={() => router.push('/dashboard/security')} onSignOut={() => void handleSignOut()} />;
+  return (
+    <div className="group relative">
+      <button
+        type="button"
+        className={cn(
+          'inline-flex h-11 cursor-pointer items-center gap-3 rounded-full px-2 outline-none transition-opacity duration-150 ease-out',
+          variant === 'hero' ? 'text-[#66686d] hover:text-[#18181b]' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+        )}
+        aria-haspopup="menu"
+        aria-label={t('header.accountMenu')}
+      >
+        <ChevronDown className="h-5 w-5 stroke-[2.4]" aria-hidden="true" />
+        <Avatar className="size-10 rounded-full">
+          <AvatarFallback className="rounded-full bg-[#007aff] text-[17px] font-semibold text-white">
+            {initials(user)}
+          </AvatarFallback>
+        </Avatar>
+      </button>
+      <div className="absolute right-0 top-full z-50 hidden min-w-[236px] pt-3 group-focus-within:block group-hover:block">
+        <div className="overflow-hidden rounded-[12px] border border-[#d2d2d7] bg-white text-left shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
+          <Link
+            href="/dashboard"
+            className="block border-b border-[#e5e5ea] px-7 py-4 text-[17px] font-semibold text-[#6e6e73] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+          >
+            {t('header.viewAccount')}
+          </Link>
+          <Link
+            href="/dashboard/security"
+            className="block border-b border-[#e5e5ea] px-7 py-4 text-[17px] font-semibold text-[#6e6e73] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
+          >
+            {t('header.settings')}
+          </Link>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="block w-full px-7 py-4 text-left text-[17px] font-semibold text-[#d70015] transition-colors hover:bg-[#fff2f2]"
+          >
+            {t('header.logOut')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function displayName(user?: HeaderUser) {
@@ -189,6 +222,6 @@ function initials(user?: HeaderUser) {
     .join('');
 }
 
-function formatNumber(value: number | undefined, language: 'en' | 'zh') {
-  return Number.isFinite(Number(value)) ? Number(value).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US') : '...';
+function formatNumber(value: number | undefined) {
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US') : '...';
 }

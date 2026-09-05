@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Copy, Check } from 'lucide-react';
-import { Button } from '@heroui/react';
 
 export function Terminal() {
   const [terminalStep, setTerminalStep] = useState(0);
@@ -41,7 +40,7 @@ export function Terminal() {
             <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
             <div className="w-3 h-3 rounded-full bg-green-500"></div>
           </div>
-          <Button variant="ghost" isIconOnly
+          <button
             onClick={copyToClipboard}
             className="text-gray-400 hover:text-white transition-colors"
             aria-label="Copy to clipboard"
@@ -51,7 +50,7 @@ export function Terminal() {
             ) : (
               <Copy className="h-5 w-5" />
             )}
-          </Button>
+          </button>
         </div>
         <div className="space-y-2">
           {terminalSteps.map((step, index) => (

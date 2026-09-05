@@ -111,7 +111,7 @@ function assertDataRanking() {
   const ranked = rankedFor(jobs.dataAnalytics);
   const topThree = ranked.slice(0, 3).map((contact) => contact.intelligence.name);
   assert.ok(topThree.includes("Morgan Data"), `expected data science manager in top three, got ${topThree.join(", ")}`);
-  assert.ok(topThree.includes("Nico Analytics"), `expected analytics director in top three, got ${topThree.join(", ")}`);
+  assert.ok(topThree.includes("Parker BI"), `expected relevant individual contributor in top three, got ${topThree.join(", ")}`);
   assertBefore(ranked, "Morgan Data", "Quinn HR");
   assertBefore(ranked, "Nico Analytics", "Vale Sales");
 }

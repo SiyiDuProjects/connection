@@ -4,215 +4,17 @@
   const BUTTON_ID = "fc-linkedin-button";
   const CLEANUP_KEY = "__fcLinkedInCleanup";
   const AUTH_LISTENER_KEY = "__fcLinkedInAuthListener";
-  const DEFAULT_LANGUAGE = "en";
   const BUTTON_REFRESH_DELAY_MS = 250;
   const SIDEBAR_POSITION_KEY = "fcSidebarCenterY";
   const SIDEBAR_DRAG_MARGIN_PX = 18;
   const SIDEBAR_DRAG_THRESHOLD_PX = 5;
-  const DEFAULT_EMAIL_CUSTOMIZE = {
-    tone: "warm",
-    length: "concise",
-    goal: "advice",
-    notes: ""
-  };
-  const I18N = {
-    en: {
-      emailWithReachard: "Email with Reachard",
-      findWithReachard: "Find with Reachard",
-      close: "Close",
-      thisCompany: "this company",
-      linkedInProfile: "LinkedIn profile",
-      linkedInPeopleProfile: "LinkedIn people profile",
-      companyContext: "Company context",
-      noContacts: "No contacts found yet.",
-      findJobContacts: "Find contacts for this role",
-      findCompanyContacts: "Find company contacts",
-      prepareContact: "Prepare this contact",
-      revealEmail: "Reveal work email",
-      checkingEmail: "Checking email...",
-      viewJob: "View job",
-      viewCompany: "View company",
-      viewProfile: "View profile",
-      optionalRole: "Optional role or ask",
-      rolePlaceholder: "Software Engineer Intern, product team, or leave blank",
-      contactKitLeft: "Contact Kit left",
-      contactKitsLeft: "Contact Kits left",
-      openWebsite: "Open website",
-      companyContact: "Company contact",
-      selectedProfile: "Selected LinkedIn profile",
-      rankedReason: "Ranked by role and company relevance",
-      unlockedContact: "Unlocked contact",
-      relevantContact: "Relevant contact",
-      kitUnlocked: "Contact Kit unlocked",
-      unlockPrompt: "Unlock to see email and personalized outreach",
-      unlocking: "Unlocking...",
-      unlockKit: "Unlock Contact Kit",
-      writing: "Writing...",
-      regenerate: "Regenerate outreach",
-      writeOutreach: "Write outreach",
-      outreachIncluded: "Personalized outreach included",
-      used: "Used:",
-      missing: "Missing:",
-      review: "Review:",
-      aiUnavailable: "AI was unavailable, so a safe template was used.",
-      openEmailApp: "Open email app",
-      unsupportedPage: "This page is not supported yet.",
-      couldNotReadCompany: "Could not read the company name from this page.",
-      couldNotReadPage: "Could not read the page.",
-      couldNotFindContacts: "Could not find contacts.",
-      couldNotUnlock: "Could not unlock contact.",
-      unlockBeforeWriting: "Unlock this contact before writing outreach.",
-      couldNotDraft: "Could not draft email.",
-      signInWebsite: "Sign in on the website.",
-      logInToReachard: "Log In to Reachard",
-      viewContacts: "View contacts",
-      closeSearch: "Close",
-      searchingContacts: "Finding contacts...",
-      searchingCompany: "Searching relevant people at {company}",
-      contactsAtCompany: "Contacts at {company}",
-      extensionRefreshed: "Extension context was refreshed. Reload this tab and try again.",
-      customize: "Email preferences",
-      finishSetup: "Finish setup",
-      openSupportedPage: "Open a job, company, or LinkedIn profile page to search.",
-      tone: "Tone",
-      warm: "Warm",
-      direct: "Direct",
-      formal: "Formal",
-      confident: "Confident",
-      length: "Length",
-      short: "Short",
-      concise: "Concise",
-      detailed: "Detailed",
-      goal: "Goal",
-      askAdvice: "Ask advice",
-      exploreReferral: "Explore referral",
-      requestIntro: "Request intro",
-      extraStyleNotes: "Extra style notes",
-      styleNotesPlaceholder: "Example: sound less formal, mention curiosity about product work.",
-      saveStyle: "Save style",
-      reset: "Reset",
-      draftIntro: "Draft intro",
-      couldNotLoadCustom: "Could not load custom settings.",
-      couldNotLoadAccount: "Could not load account.",
-      couldNotSaveCustom: "Could not save custom settings.",
-      customSaved: "Custom settings saved.",
-      couldNotResetCustom: "Could not reset custom settings.",
-      customReset: "Custom settings reset."
-    },
-    zh: {
-      emailWithReachard: "用 Reachard 写邮件",
-      findWithReachard: "用 Reachard 查找",
-      close: "关闭",
-      thisCompany: "这家公司",
-      linkedInProfile: "LinkedIn 个人主页",
-      linkedInPeopleProfile: "LinkedIn 个人资料",
-      companyContext: "公司上下文",
-      noContacts: "还没有找到联系人。",
-      findJobContacts: "查找该岗位的联系人",
-      findCompanyContacts: "查找公司联系人",
-      prepareContact: "准备这个联系人",
-      revealEmail: "查找工作邮箱",
-      checkingEmail: "正在查找邮箱...",
-      viewJob: "查看职位",
-      viewCompany: "查看公司",
-      viewProfile: "查看主页",
-      optionalRole: "可选职位或诉求",
-      rolePlaceholder: "软件工程实习生、产品团队，或留空",
-      contactKitLeft: "个 Contact Kit 剩余",
-      contactKitsLeft: "个 Contact Kits 剩余",
-      openWebsite: "打开网站",
-      companyContact: "公司联系人",
-      selectedProfile: "当前 LinkedIn 个人主页",
-      rankedReason: "按职位和公司相关性排序",
-      unlockedContact: "已解锁联系人",
-      relevantContact: "相关联系人",
-      kitUnlocked: "Contact Kit 已解锁",
-      unlockPrompt: "解锁后查看邮箱和个性化外联邮件",
-      unlocking: "解锁中...",
-      unlockKit: "解锁 Contact Kit",
-      writing: "撰写中...",
-      regenerate: "重新生成外联邮件",
-      writeOutreach: "撰写外联邮件",
-      outreachIncluded: "包含个性化外联邮件",
-      used: "已使用：",
-      missing: "缺失：",
-      review: "请检查：",
-      aiUnavailable: "AI 暂不可用，已使用安全模板。",
-      openEmailApp: "打开邮件应用",
-      unsupportedPage: "暂不支持这个页面。",
-      couldNotReadCompany: "无法从这个页面读取公司名称。",
-      couldNotReadPage: "无法读取页面。",
-      couldNotFindContacts: "无法查找联系人。",
-      couldNotUnlock: "无法解锁联系人。",
-      unlockBeforeWriting: "请先解锁这个联系人，再撰写外联邮件。",
-      couldNotDraft: "无法生成邮件草稿。",
-      signInWebsite: "请先在网站上登录。",
-      logInToReachard: "登录 Reachard",
-      viewContacts: "查看联系人",
-      closeSearch: "关闭",
-      searchingContacts: "正在查找联系人...",
-      searchingCompany: "正在查找 {company} 的相关联系人",
-      contactsAtCompany: "{company} 的联系人",
-      extensionRefreshed: "扩展上下文已刷新。请重新加载此标签页后再试。",
-      customize: "邮件偏好",
-      finishSetup: "完成设置",
-      openSupportedPage: "请打开职位、公司或 LinkedIn 个人主页后再查找。",
-      tone: "语气",
-      warm: "友好",
-      direct: "直接",
-      formal: "正式",
-      confident: "自信",
-      length: "长度",
-      short: "简短",
-      concise: "精炼",
-      detailed: "详细",
-      goal: "目的",
-      askAdvice: "请教建议",
-      exploreReferral: "询问内推",
-      requestIntro: "请求介绍",
-      extraStyleNotes: "其他风格要求",
-      styleNotesPlaceholder: "例如：语气不要太正式，并提到我对产品工作的兴趣。",
-      saveStyle: "保存风格",
-      reset: "重置",
-      draftIntro: "生成邮件",
-      couldNotLoadCustom: "无法加载邮件偏好。",
-      couldNotLoadAccount: "无法加载账户。",
-      couldNotSaveCustom: "无法保存邮件偏好。",
-      customSaved: "邮件偏好已保存。",
-      couldNotResetCustom: "无法重置邮件偏好。",
-      customReset: "邮件偏好已重置。"
-    }
-  };
-
+  let lastPublishedContext = "";
   const PAGE_TYPES = {
     LINKEDIN_JOB: "linkedin_job",
     LINKEDIN_COMPANY: "linkedin_company",
     LINKEDIN_PERSON: "linkedin_person",
     EXTERNAL_JOB: "external_job",
     COMPANY_SITE: "company_site"
-  };
-
-  let state = {
-    loading: false,
-    error: "",
-    prompt: null,
-    action: null,
-    creditsRemaining: null,
-    account: null,
-    authenticated: null,
-    accountLoading: false,
-    accountError: "",
-    accountNotice: "",
-    emailCustomize: { ...DEFAULT_EMAIL_CUSTOMIZE },
-    contacts: [],
-    searchSheetOpen: false,
-    pageContext: null,
-    manualJobTitle: "",
-    revealed: new Map(),
-    revealing: new Set(),
-    drafts: new Map(),
-    drafting: new Set(),
-    language: DEFAULT_LANGUAGE
   };
 
   function clampSidebarCenterY(value, root) {
@@ -307,31 +109,6 @@
     button.addEventListener("lostpointercapture", finishDrag);
   }
 
-  if (window[AUTH_LISTENER_KEY]) {
-    chrome.runtime.onMessage.removeListener(window[AUTH_LISTENER_KEY]);
-  }
-
-  window[AUTH_LISTENER_KEY] = (message) => {
-    if (message?.type === "LANGUAGE_UPDATED") {
-      state.language = normalizeLanguage(message.language);
-      ensureButton();
-      if (document.getElementById(PANEL_ID)?.classList.contains("fc-open")) {
-        renderPanel();
-      }
-      return;
-    }
-
-    if (message?.type === "ACCOUNT_AUTH_UPDATED") {
-      state.error = "";
-      state.prompt = null;
-      state.action = null;
-      if (document.getElementById(PANEL_ID)?.classList.contains("fc-open")) {
-        openPanel();
-      }
-    }
-  };
-  chrome.runtime.onMessage.addListener(window[AUTH_LISTENER_KEY]);
-
   const adapters = [
     linkedInAdapter(),
     handshakeAdapter(),
@@ -340,6 +117,7 @@
   ];
 
   function getPageContext() {
+    if (isReachardWebsite()) return null;
     for (const adapter of adapters) {
       const context = adapter.getContext();
       if (context?.type && isSupportedContext(context)) {
@@ -365,12 +143,46 @@
       jobTitle: cleanText(context.jobTitle),
       jobLocation: cleanText(context.jobLocation),
       jobDescription: cleanMultiline(context.jobDescription),
+      ...([PAGE_TYPES.LINKEDIN_JOB, PAGE_TYPES.EXTERNAL_JOB].includes(context.type) ? readJobMetadata() : {}),
       personName: cleanText(context.personName),
       personTitle: cleanText(context.personTitle),
       personLinkedInUrl: cleanText(context.personLinkedInUrl),
       sourceUrl,
       pageTitle: cleanText(context.pageTitle)
     };
+  }
+
+  // Only describe metadata published by the job page. Reading the page does
+  // not establish that the role was independently verified as still open.
+  function readJobMetadata() {
+    const posting = structuredJobPosting();
+    const explicitSalary = textFrom([
+      '[data-testid="salary"]', '[data-testid="job-salary"]',
+      '[data-automation-id="compensation"]', '.salary', '.salary-range'
+    ]);
+    const salary = formatJobSalary(posting?.baseSalary);
+    const published = String(posting?.datePosted || '').trim();
+    const publishedDay = published.slice(0, 10);
+    const postedTime = /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(published) && Number.isFinite(Date.parse(published)) ? Date.parse(`${publishedDay}T00:00:00Z`) : NaN;
+    return {
+      jobSalary: salary || (explicitSalary.length <= 160 && /(?:[$€£¥]|\b(?:USD|EUR|GBP|CAD|AUD|KRW)\b)\s*[\d,]+|[\d,]+\s*(?:USD|EUR|GBP|CAD|AUD|KRW)\b/i.test(explicitSalary) ? explicitSalary : ''),
+      jobDatePosted: Number.isFinite(postedTime) && postedTime <= Date.now() && new Date(postedTime).toISOString().startsWith(publishedDay) ? new Date(postedTime).toISOString() : ''
+    };
+  }
+
+  function formatJobSalary(salary) {
+    if (!salary || Array.isArray(salary)) return '';
+    const currency = String(salary.currency || '').toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) return '';
+    const amount = salary.value;
+    const range = amount && typeof amount === 'object' ? amount : { value: amount };
+    const number = value => value !== null && value !== '' && Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : null;
+    const min = number(range.minValue), max = number(range.maxValue), exact = number(range.value);
+    if (min !== null && max !== null && min > max) return '';
+    const unit = { HOUR: 'hour', DAY: 'day', WEEK: 'week', MONTH: 'month', YEAR: 'year' }[String(range.unitText || salary.unitText || '').toUpperCase()];
+    const format = value => `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value)}`;
+    const value = min !== null && max !== null ? `${format(min)}–${format(max)}` : exact !== null ? format(exact) : min !== null ? `From ${format(min)}` : max !== null ? `Up to ${format(max)}` : '';
+    return value ? `${currency} ${value}${unit ? ` / ${unit}` : ''}` : '';
   }
 
   function linkedInAdapter() {
@@ -566,6 +378,11 @@
 
   function ensureButton() {
     const context = getPageContext();
+    const signature = JSON.stringify(context);
+    if (signature !== lastPublishedContext) {
+      lastPublishedContext = signature;
+      chrome.runtime.sendMessage({ type: "REACHARD_PAGE_CHANGED" }).catch(() => {});
+    }
     if (!context) {
       document.getElementById(ROOT_ID)?.remove();
       return;
@@ -592,7 +409,7 @@
     button.setAttribute("aria-label", buttonLabel(context));
     button.setAttribute("title", buttonLabel(context));
     button.innerHTML = `
-      <span class="fc-sidebar-logo" aria-hidden="true">G</span>
+      <span class="fc-sidebar-logo" aria-hidden="true">R</span>
       <span class="fc-sidebar-text">Reachard</span>
     `;
     button.addEventListener("click", (event) => {
@@ -611,671 +428,11 @@
     makeSidebarDraggable(root, button);
   }
 
-  function ensurePanel() {
-    let panel = document.getElementById(PANEL_ID);
-    if (panel) return panel;
-
-    panel = document.createElement("aside");
-    panel.className = "fc-root fc-panel";
-    panel.id = PANEL_ID;
-    document.body.appendChild(panel);
-    return panel;
+  function openPanel() {
+    chrome.runtime.sendMessage({ type: 'OPEN_REACHARD_SIDE_PANEL' }).then(result => {
+      if (!result?.ok) console.warn('Could not open Reachard', result?.error);
+    }).catch(error => console.warn('Could not open Reachard', error.message));
   }
-
-  function renderPanel() {
-    const panel = ensurePanel();
-
-    panel.innerHTML = `
-      <div class="fc-brand">
-        <span class="fc-logo">G</span>
-        <span>Reachard</span>
-      </div>
-      <button class="fc-close" type="button" aria-label="${escapeAttr(t("close"))}"></button>
-      <div class="fc-body">${renderHome()}</div>
-      ${renderSearchSheet()}
-    `;
-
-    panel.querySelector(".fc-close").addEventListener("click", () => {
-      panel.classList.remove("fc-open");
-    });
-
-    const manualJobTitle = panel.querySelector("[data-manual-job-title]");
-    if (manualJobTitle) {
-      manualJobTitle.addEventListener("input", (event) => {
-        state.manualJobTitle = event.target.value;
-      });
-    }
-
-    panel.querySelectorAll("[data-reveal]").forEach((button) => {
-      button.addEventListener("click", () => revealEmail(button.dataset.reveal));
-    });
-
-    panel.querySelectorAll("[data-draft]").forEach((button) => {
-      button.addEventListener("click", () => draftEmail(button.dataset.draft));
-    });
-
-    panel.querySelectorAll("[data-open-mailto]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const draft = state.drafts.get(button.dataset.openMailto);
-        if (draft?.mailtoUrl) window.location.href = draft.mailtoUrl;
-      });
-    });
-
-    panel.querySelectorAll("[data-action-url]").forEach((button) => {
-      button.addEventListener("click", () => {
-        window.open(button.dataset.actionUrl, "_blank", "noopener,noreferrer");
-      });
-    });
-
-    panel.querySelector("[data-start-search]")?.addEventListener("click", runSearch);
-    panel.querySelector("[data-view-contacts]")?.addEventListener("click", () => {
-      state.searchSheetOpen = true;
-      renderPanel();
-    });
-    panel.querySelector("[data-close-search-sheet]")?.addEventListener("click", () => {
-      state.searchSheetOpen = false;
-      renderPanel();
-    });
-    panel.querySelector("[data-save-customize]")?.addEventListener("click", saveCustomizeFromPanel);
-    panel.querySelector("[data-reset-customize]")?.addEventListener("click", resetCustomize);
-    panel.querySelectorAll('input[type="radio"][data-customize-field]').forEach((input) => {
-      input.addEventListener("change", () => {
-        const key = input.dataset.customizeField;
-        state.emailCustomize = {
-          ...state.emailCustomize,
-          [key]: input.value
-        };
-        input.closest(".fc-segments")?.querySelectorAll(".fc-segment").forEach((option) => {
-          const optionInput = option.querySelector('input[type="radio"]');
-          option.classList.toggle("fc-segment-active", Boolean(optionInput?.checked));
-        });
-      });
-    });
-  }
-
-  function panelTitle(context) {
-    if (context.type === PAGE_TYPES.LINKEDIN_PERSON) return context.personName || t("linkedInProfile");
-    return context.jobTitle || context.companyName || context.companyDomain || t("thisCompany");
-  }
-
-  function isCompanyContext(context) {
-    return [PAGE_TYPES.LINKEDIN_COMPANY, PAGE_TYPES.COMPANY_SITE].includes(context?.type);
-  }
-
-  function searchButtonLabel(context) {
-    if (context.type === PAGE_TYPES.LINKEDIN_PERSON) return t("prepareContact");
-    if (isCompanyContext(context)) return t("findCompanyContacts");
-    return t("findJobContacts");
-  }
-
-  function renderSourceAction(context) {
-    const url = safeHttpUrl(context.sourceUrl || context.jobUrl);
-    if (!url) return "";
-    const label = context.type === PAGE_TYPES.LINKEDIN_PERSON
-      ? t("viewProfile")
-      : isCompanyContext(context)
-        ? t("viewCompany")
-        : t("viewJob");
-    return `<button class="fc-link-button" type="button" data-action-url="${escapeAttr(url)}">${escapeHtml(label)}</button>`;
-  }
-
-  function renderHome() {
-    const context = state.pageContext || {};
-    const hasContext = Boolean(state.pageContext);
-    const needsLogin = state.authenticated === false;
-    const needsProfile = state.authenticated === true
-      && state.account?.onboarding?.profile
-      && !state.account.onboarding.profile.complete;
-    const canSearch = hasContext && !state.loading;
-
-    return `
-      ${hasContext ? renderContextCard(context) : `<div class="fc-empty-card">${escapeHtml(t("openSupportedPage"))}</div>`}
-      ${hasContext ? renderMissingJobTitleInput() : ""}
-      ${needsLogin
-        ? `<button class="fc-primary-wide fc-search-button" type="button" data-action-url="${escapeAttr(state.action?.url || "https://reachard.co/dashboard")}">${escapeHtml(t("logInToReachard"))}</button>`
-        : needsProfile
-          ? `<button class="fc-primary-wide fc-search-button" type="button" data-action-url="https://reachard.co/onboarding">${escapeHtml(t("finishSetup"))}</button>`
-          : state.loading
-            ? `<button class="fc-primary-wide fc-search-button" type="button" data-view-contacts>
-                <span class="fc-spinner fc-spinner-on-primary"></span>
-                <span>${escapeHtml(t("searchingContacts"))}</span>
-              </button>`
-            : state.contacts.length
-              ? `<button class="fc-primary-wide fc-search-button" type="button" data-view-contacts>${escapeHtml(t("viewContacts"))}</button>`
-              : `<button class="fc-primary-wide fc-search-button" type="button" data-start-search ${canSearch ? "" : "disabled"}>
-                  <span>${escapeHtml(searchButtonLabel(context))}</span>
-                </button>`}
-      ${renderCustomize()}
-    `;
-  }
-
-  function renderContextCard(context) {
-    const title = panelTitle(context);
-    const company = context.companyName || context.companyDomain || "";
-    const meta = context.type === PAGE_TYPES.LINKEDIN_PERSON
-      ? [context.personTitle, company].filter(Boolean).join(" · ")
-      : isCompanyContext(context)
-        ? [context.source, context.companyDomain].filter(Boolean).join(" · ")
-        : [company, context.jobLocation].filter(Boolean).join(" · ");
-    const initialSource = company || context.personName || title || "R";
-
-    return `
-      <section class="fc-job-card">
-        <div class="fc-job-card-main">
-          <span class="fc-company-mark" aria-hidden="true">${escapeHtml(initialSource.slice(0, 1).toUpperCase())}</span>
-          <div class="fc-job-copy">
-            <h2 class="fc-job-title">${escapeHtml(title)}</h2>
-            ${meta ? `<p class="fc-job-meta">${escapeHtml(meta)}</p>` : ""}
-          </div>
-        </div>
-        ${renderSourceAction(context)}
-      </section>
-    `;
-  }
-
-  function renderSearchSheet() {
-    if (!state.searchSheetOpen) return "";
-
-    const context = state.pageContext || {};
-    const company = context.companyName || context.companyDomain || t("thisCompany");
-    const title = state.loading
-      ? t("searchingContacts")
-      : t("contactsAtCompany", { company });
-
-    return `
-      <div class="fc-search-sheet-backdrop" aria-hidden="true"></div>
-      <section class="fc-search-sheet" role="dialog" aria-modal="true" aria-label="${escapeAttr(title)}">
-        <div class="fc-search-sheet-header">
-          <div>
-            <h2>${escapeHtml(title)}</h2>
-            <p>${escapeHtml(state.loading ? t("searchingCompany", { company }) : panelTitle(context))}</p>
-          </div>
-          <button class="fc-search-sheet-close" type="button" data-close-search-sheet aria-label="${escapeAttr(t("closeSearch"))}">×</button>
-        </div>
-        <div class="fc-search-sheet-body">${renderSearchResults()}</div>
-      </section>
-    `;
-  }
-
-  function renderSearchResults() {
-    if (state.loading) {
-      return `
-        <div class="fc-search-progress">
-          <span class="fc-spinner"></span>
-          <span>${escapeHtml(t("searchingCompany", {
-            company: state.pageContext?.companyName || state.pageContext?.companyDomain || t("thisCompany")
-          }))}</span>
-        </div>
-      `;
-    }
-    if (state.prompt) {
-      return `
-        <div class="fc-status fc-prompt">${escapeHtml(state.prompt)}</div>
-        ${renderActionButton(state.action)}
-      `;
-    }
-    if (state.error) {
-      return `
-        <div class="fc-status fc-error">${escapeHtml(state.error)}</div>
-        ${renderActionButton(state.action)}
-      `;
-    }
-    if (!state.contacts.length) {
-      return `<div class="fc-empty-card">${escapeHtml(t("noContacts"))}</div>`;
-    }
-
-    return `<div class="fc-contact-results">${state.contacts.map(renderContact).join("")}</div>`;
-  }
-
-  function renderCustomize() {
-    const values = { ...DEFAULT_EMAIL_CUSTOMIZE, ...state.emailCustomize };
-    return `
-      <section class="fc-customize fc-customize-inline">
-        <h2 class="fc-page-title">${escapeHtml(t("customize"))}</h2>
-        ${state.accountError ? `<div class="fc-status fc-error">${escapeHtml(state.accountError)}</div>` : ""}
-        ${state.accountError ? renderActionButton(state.action) : ""}
-        ${state.accountNotice ? `<div class="fc-status fc-success">${escapeHtml(state.accountNotice)}</div>` : ""}
-        ${renderSegmentedField(t("tone"), "tone", values.tone, [
-          ["warm", t("warm")],
-          ["direct", t("direct")],
-          ["formal", t("formal")],
-          ["confident", t("confident")]
-        ])}
-        ${renderSegmentedField(t("length"), "length", values.length, [
-          ["short", t("short")],
-          ["concise", t("concise")],
-          ["detailed", t("detailed")]
-        ])}
-        ${renderSegmentedField(t("goal"), "goal", values.goal, [
-          ["advice", t("askAdvice")],
-          ["referral", t("exploreReferral")],
-          ["intro", t("requestIntro")]
-        ])}
-        <label class="fc-field">
-          ${escapeHtml(t("extraStyleNotes"))}
-          <textarea data-customize-field="notes" rows="3" placeholder="${escapeAttr(t("styleNotesPlaceholder"))}">${escapeHtml(values.notes)}</textarea>
-        </label>
-        <div class="fc-form-actions">
-          <button class="fc-primary-action" type="button" data-save-customize>${escapeHtml(t("saveStyle"))}</button>
-          <button class="fc-secondary" type="button" data-reset-customize>${escapeHtml(t("reset"))}</button>
-        </div>
-      </section>
-    `;
-  }
-
-  function renderSegmentedField(label, name, value, options) {
-    return `
-      <fieldset class="fc-field">
-        <legend>${escapeHtml(label)}</legend>
-        <div class="fc-segments fc-segments-${options.length}">
-          ${options.map(([optionValue, optionLabel]) => `
-            <label class="fc-segment ${value === optionValue ? "fc-segment-active" : ""}">
-              <input type="radio" name="${escapeAttr(name)}" data-customize-field="${escapeAttr(name)}" value="${escapeAttr(optionValue)}" ${value === optionValue ? "checked" : ""}>
-              <span>${escapeHtml(optionLabel)}</span>
-            </label>
-          `).join("")}
-        </div>
-      </fieldset>
-    `;
-  }
-
-  function renderMissingJobTitleInput() {
-    if (state.pageContext?.jobTitle) return "";
-    return `
-      <label class="fc-manual-role">
-        ${escapeHtml(t("optionalRole"))}
-        <input data-manual-job-title type="text" value="${escapeAttr(state.manualJobTitle)}" placeholder="${escapeAttr(t("rolePlaceholder"))}" />
-      </label>
-    `;
-  }
-
-  function renderActionButton(action) {
-    if (!action) return "";
-    const label = escapeHtml(action.label || t("openWebsite"));
-    if (action.url) {
-      return `<button class="fc-secondary" type="button" data-action-url="${escapeAttr(action.url)}">${label}</button>`;
-    }
-    return "";
-  }
-
-  function renderContact(contact, index) {
-    const id = contact.id || contact.linkedinUrl || String(index);
-    const email = state.revealed.get(id) || contact.email;
-    const isRevealing = state.revealing.has(id);
-    const isDrafting = state.drafting.has(id);
-    const draft = state.drafts.get(id);
-    const education = contact.education ? `Past: ${contact.education}` : "";
-    const locationText = contact.location ? contact.location : "";
-    const reasons = Array.isArray(contact.reasons) && contact.reasons.length
-      ? contact.reasons.join(" - ")
-      : contact.provider === "linkedin-profile" ? t("selectedProfile") : t("rankedReason");
-    const name = escapeHtml(contact.name || lockedContactName(contact, index));
-    const linkedInUrl = safeHttpUrl(contact.linkedinUrl);
-    const nameContent = linkedInUrl
-      ? `<a class="fc-contact-link" href="${escapeAttr(linkedInUrl)}" target="_blank" rel="noopener noreferrer">${name}</a>`
-      : name;
-    const metaParts = [contact.title || t("companyContact"), locationText].filter(Boolean).join(" - ");
-
-    return `
-      <article class="fc-contact">
-        <div class="fc-contact-copy">
-          <p class="fc-contact-name">${nameContent}</p>
-          <p class="fc-contact-meta">${escapeHtml(metaParts)}</p>
-          <div class="fc-reasons">
-            ${education ? `<p>${escapeHtml(education.replace(/^Past: /, ""))}</p>` : ""}
-            <p>${escapeHtml(reasons)}</p>
-          </div>
-        </div>
-        ${email ? `<div class="fc-email">${escapeHtml(email)}</div>` : ""}
-        <div class="fc-actions">
-          ${email && linkedInUrl ? `<button class="fc-secondary" type="button" data-action-url="${escapeAttr(linkedInUrl)}">LinkedIn</button>` : ""}
-          ${email ? "" : `<button class="fc-primary-action" type="button" data-reveal="${escapeAttr(id)}" ${isRevealing ? "disabled" : ""}>${isRevealing ? t("checkingEmail") : t("revealEmail")}</button>`}
-          ${email ? `<button class="fc-primary-action" type="button" data-draft="${escapeAttr(id)}" ${isDrafting ? "disabled" : ""}>${escapeHtml(isDrafting ? t("writing") : t("draftIntro"))}</button>` : ""}
-        </div>
-        ${draft ? renderDraftPreview(id, draft) : ""}
-      </article>
-    `;
-  }
-
-  function lockedContactName(contact) {
-    const title = contact.title || t("relevantContact");
-    return title;
-  }
-
-  function renderDraftPreview(id, draft) {
-    const notes = Array.isArray(draft.personalizationNotes) ? draft.personalizationNotes : [];
-    const missing = Array.isArray(draft.missingContext) ? draft.missingContext : [];
-    const warnings = Array.isArray(draft.warnings) ? draft.warnings : [];
-    return `
-      <div class="fc-draft">
-        <div class="fc-draft-label">${escapeHtml(t("outreachIncluded"))}</div>
-        <div class="fc-draft-subject">${escapeHtml(draft.subject || "")}</div>
-        <pre class="fc-draft-body">${escapeHtml(draft.body || "")}</pre>
-        ${notes.length ? `<div class="fc-draft-notes"><strong>${escapeHtml(t("used"))}</strong> ${escapeHtml(notes.join(" - "))}</div>` : ""}
-        ${missing.length ? `<div class="fc-draft-missing"><strong>${escapeHtml(t("missing"))}</strong> ${escapeHtml(missing.join(" - "))}</div>` : ""}
-        ${warnings.length ? `<div class="fc-draft-missing"><strong>${escapeHtml(t("review"))}</strong> ${escapeHtml(warnings.join(" - "))}</div>` : ""}
-        ${draft.ai?.provider === "template" ? `<div class="fc-draft-missing">${escapeHtml(t("aiUnavailable"))}</div>` : ""}
-        <button class="fc-secondary" type="button" data-open-mailto="${escapeAttr(id)}">${escapeHtml(t("openEmailApp"))}</button>
-      </div>
-    `;
-  }
-
-  async function openPanel() {
-    const nextContext = getPageContext();
-    if (contextIdentity(nextContext) !== contextIdentity(state.pageContext)) {
-      state.contacts = [];
-      state.revealed.clear();
-      state.drafts.clear();
-    }
-    state.pageContext = nextContext;
-    state.manualJobTitle = "";
-    const panel = ensurePanel();
-    panel.classList.add("fc-open");
-    state.error = "";
-    state.prompt = null;
-    state.action = null;
-    state.searchSheetOpen = false;
-    await loadPanelData();
-    renderPanel();
-    loadAccountStatus();
-  }
-
-  async function runSearch() {
-    state.pageContext = getPageContext();
-    state.loading = true;
-    state.searchSheetOpen = true;
-    state.error = "";
-    state.prompt = null;
-    state.action = null;
-    state.contacts = [];
-    state.drafts.clear();
-    renderPanel();
-
-    try {
-      if (!state.pageContext) {
-        throw apiError({ ok: false, status: 400, error: t("unsupportedPage") }, t("unsupportedPage"));
-      }
-
-      if (state.pageContext.type === PAGE_TYPES.LINKEDIN_PERSON) {
-        state.contacts = [contactFromPersonContext(state.pageContext)];
-        return;
-      }
-
-      if (!state.pageContext.companyName && !state.pageContext.companyDomain) {
-        throw apiError({
-          ok: false,
-          status: 400,
-          error: t("couldNotReadCompany")
-        }, t("couldNotReadPage"));
-      }
-
-      const response = await sendRuntimeMessage({
-        type: "CONTACTS_SEARCH",
-        payload: { pageContext: effectivePageContext() }
-      });
-      if (!response?.ok) throw apiError(response, t("couldNotFindContacts"));
-      setCredits(response);
-      state.contacts = response.contacts || [];
-    } catch (error) {
-      applyError(error, t("couldNotFindContacts"));
-    } finally {
-      state.loading = false;
-      renderPanel();
-    }
-  }
-
-  async function loadPanelData() {
-    await loadEmailCustomize();
-  }
-
-  function contextIdentity(context) {
-    if (!context) return "";
-    return [
-      context.type,
-      context.sourceUrl || context.jobUrl || context.personLinkedInUrl,
-      context.companyName || context.companyDomain,
-      context.jobTitle || context.personName
-    ].filter(Boolean).join("|");
-  }
-
-  async function loadEmailCustomize() {
-    state.accountNotice = "";
-    try {
-      const response = await sendRuntimeMessage({ type: "GET_EMAIL_CUSTOMIZE" });
-      if (!response?.ok) {
-        state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
-        state.authenticated = response?.status === 401 ? false : null;
-        state.accountError = response?.error || t("signInWebsite");
-        state.action = response?.action || null;
-        return;
-      }
-      state.emailCustomize = normalizeCustomize(response.custom);
-      state.authenticated = true;
-      state.accountError = "";
-    } catch (error) {
-      state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
-      state.accountError = error.message || t("couldNotLoadCustom");
-    }
-  }
-
-  async function loadAccountStatus() {
-    state.accountLoading = true;
-    state.accountError = "";
-    state.accountNotice = "";
-    renderPanel();
-    try {
-      const response = await sendRuntimeMessage({ type: "GET_ACCOUNT_STATUS" });
-      if (!response?.ok) {
-        state.account = null;
-        state.authenticated = response?.status === 401 ? false : state.authenticated;
-        state.accountError = response?.error || t("signInWebsite");
-        state.action = response?.action || null;
-        return;
-      }
-      state.account = response.account;
-      state.authenticated = true;
-      setCredits(response.account);
-    } catch (error) {
-      state.accountError = error.message || t("couldNotLoadAccount");
-    } finally {
-      state.accountLoading = false;
-      renderPanel();
-    }
-  }
-
-  function contactFromPersonContext(context) {
-    return {
-      id: context.personLinkedInUrl || context.personName || "linkedin-person",
-      provider: "linkedin-profile",
-      name: context.personName,
-      title: context.personTitle,
-      companyName: context.companyName,
-      companyDomain: context.companyDomain,
-      linkedinUrl: context.personLinkedInUrl,
-      email: "",
-      reasons: [t("selectedProfile")]
-    };
-  }
-
-  async function revealEmail(contactId) {
-    const contact = findContact(contactId);
-    if (!contact) return;
-    if (state.revealed.has(contactId) || contact.email || state.revealing.has(contactId)) return;
-
-    state.revealing.add(contactId);
-    state.error = "";
-    state.prompt = null;
-    state.action = null;
-    renderPanel();
-
-    try {
-      const response = await sendRuntimeMessage({
-        type: "CONTACTS_REVEAL",
-        payload: { contact, pageContext: state.pageContext }
-      });
-      if (!response?.ok) throw apiError(response, t("couldNotUnlock"));
-      setCredits(response);
-      state.revealed.set(contactId, response.email);
-      await draftEmail(contactId);
-    } catch (error) {
-      applyError(error, t("couldNotUnlock"));
-    } finally {
-      state.revealing.delete(contactId);
-      renderPanel();
-    }
-  }
-
-  async function draftEmail(contactId) {
-    const contact = findContact(contactId);
-    if (!contact) return;
-
-    const email = state.revealed.get(contactId) || contact.email;
-    if (!email) {
-      state.error = t("unlockBeforeWriting");
-      state.prompt = null;
-      state.action = null;
-      renderPanel();
-      return;
-    }
-
-    state.drafting.add(contactId);
-    state.error = "";
-    state.prompt = null;
-    state.action = null;
-    renderPanel();
-
-    try {
-      const response = await sendRuntimeMessage({
-        type: "EMAIL_DRAFT",
-        payload: {
-          contact: { ...contact, email },
-          pageContext: effectivePageContext()
-        }
-      });
-      if (!response?.ok) throw apiError(response, t("couldNotDraft"));
-      setCredits(response);
-      state.drafts.set(contactId, response);
-    } catch (error) {
-      applyError(error, t("couldNotDraft"));
-    } finally {
-      state.drafting.delete(contactId);
-      renderPanel();
-    }
-  }
-
-  function effectivePageContext() {
-    return {
-      ...(state.pageContext || {}),
-      jobTitle: state.pageContext?.jobTitle || state.manualJobTitle.trim()
-    };
-  }
-
-  function apiError(response, fallback) {
-    const error = new Error(response?.error || fallback);
-    error.action = response?.action || null;
-    error.status = response?.status || null;
-    error.credits = response?.credits || null;
-    return error;
-  }
-
-  function applyError(error, fallback) {
-    setCredits(error);
-    if (error.status === 401) {
-      state.authenticated = false;
-      state.prompt = error.message || t("signInWebsite");
-      state.error = "";
-    } else {
-      state.error = error.message || fallback;
-      state.prompt = null;
-    }
-    state.action = error.action || null;
-  }
-
-  function setCredits(source) {
-    const remaining = source?.credits?.remaining
-      ?? source?.credits?.balance
-      ?? source?.onboarding?.billing?.creditsRemaining;
-    if (Number.isFinite(Number(remaining))) {
-      state.creditsRemaining = Number(remaining);
-    }
-  }
-
-  async function saveCustomizeFromPanel() {
-    const panel = ensurePanel();
-    const next = { ...DEFAULT_EMAIL_CUSTOMIZE };
-    panel.querySelectorAll("[data-customize-field]").forEach((field) => {
-      const key = field.dataset.customizeField;
-      if (field.type === "radio" && !field.checked) return;
-      next[key] = field.value.trim();
-    });
-    state.emailCustomize = normalizeCustomize(next);
-    state.accountError = "";
-    state.accountNotice = "";
-    const response = await sendRuntimeMessage({ type: "SET_EMAIL_CUSTOMIZE", payload: state.emailCustomize });
-    if (!response?.ok) {
-      state.accountError = response?.error || t("couldNotSaveCustom");
-      state.action = response?.action || null;
-      renderPanel();
-      return;
-    }
-    state.emailCustomize = normalizeCustomize(response.custom);
-    state.accountNotice = t("customSaved");
-    renderPanel();
-  }
-
-  async function resetCustomize() {
-    state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
-    state.accountError = "";
-    state.accountNotice = "";
-    const response = await sendRuntimeMessage({ type: "SET_EMAIL_CUSTOMIZE", payload: state.emailCustomize });
-    if (!response?.ok) {
-      state.accountError = response?.error || t("couldNotResetCustom");
-      state.action = response?.action || null;
-      renderPanel();
-      return;
-    }
-    state.emailCustomize = normalizeCustomize(response.custom);
-    state.accountNotice = t("customReset");
-    renderPanel();
-  }
-
-  function normalizeCustomize(value) {
-    const input = value && typeof value === "object" ? value : {};
-    const allowed = {
-      tone: new Set(["warm", "direct", "formal", "confident"]),
-      length: new Set(["short", "concise", "detailed"]),
-      goal: new Set(["advice", "referral", "intro"])
-    };
-    return {
-      tone: allowed.tone.has(input.tone) ? input.tone : DEFAULT_EMAIL_CUSTOMIZE.tone,
-      length: allowed.length.has(input.length) ? input.length : DEFAULT_EMAIL_CUSTOMIZE.length,
-      goal: allowed.goal.has(input.goal) ? input.goal : DEFAULT_EMAIL_CUSTOMIZE.goal,
-      notes: String(input.notes || "").slice(0, 500)
-    };
-  }
-
-  function findContact(contactId) {
-    return state.contacts.find((contact, index) => {
-      const id = contact.id || contact.linkedinUrl || String(index);
-      return id === contactId;
-    });
-  }
-
-  async function sendRuntimeMessage(message) {
-    if (typeof chrome === "undefined" || !chrome.runtime?.id) {
-      throw new Error(t("extensionRefreshed"));
-    }
-
-    try {
-      return await chrome.runtime.sendMessage(message);
-    } catch (error) {
-      if (String(error?.message || "").includes("Extension context invalidated")) {
-        throw new Error(t("extensionRefreshed"));
-      }
-      throw error;
-    }
-  }
-
   function textFrom(selectors) {
     for (const selector of selectors) {
       const element = document.querySelector(selector);
@@ -1513,43 +670,25 @@
     return context.type === PAGE_TYPES.LINKEDIN_PERSON ? t("emailWithReachard") : t("findWithReachard");
   }
 
-  function normalizeLanguage(_value) {
-    return "en";
-  }
-
-  function browserLanguage() {
-    return "en";
-  }
-
   function t(key, values = {}) {
-    const template = I18N[normalizeLanguage(state.language)]?.[key] || I18N.en[key] || key;
+    const template = ({ emailWithReachard: "Email with Reachard", findWithReachard: "Find with Reachard" })[key] || key;
     return Object.entries(values).reduce(
       (result, [name, value]) => result.replaceAll(`{${name}}`, String(value)),
       template
     );
   }
 
-  async function loadExtensionLanguage() {
-    try {
-      const response = await sendRuntimeMessage({ type: "GET_EXTENSION_LANGUAGE" });
-      const language = normalizeLanguage(response?.language);
-      if (language === state.language) return;
-      state.language = language;
-      ensureButton();
-      if (document.getElementById(PANEL_ID)?.classList.contains("fc-open")) {
-        renderPanel();
-      }
-    } catch (_error) {
-      state.language = browserLanguage();
-    }
-  }
-
   function boot() {
-    if (isReachardWebsite()) return;
-
     window[CLEANUP_KEY]?.();
+    window[AUTH_LISTENER_KEY] = (message, sender, sendResponse) => {
+      if (message?.type === "GET_REACHARD_PAGE_CONTEXT") {
+        sendResponse({ ok: true, pageContext: isReachardWebsite() ? null : getPageContext() });
+      }
+    };
+    chrome.runtime.onMessage.addListener(window[AUTH_LISTENER_KEY]);
     document.getElementById(ROOT_ID)?.remove();
-    document.getElementById(PANEL_ID)?.remove();
+    window.ReachardUI?.unmount(document.getElementById(PANEL_ID));
+      document.getElementById(PANEL_ID)?.remove();
 
     let refreshTimer = 0;
     const scheduleEnsureButton = () => {
@@ -1560,8 +699,7 @@
       }, BUTTON_REFRESH_DELAY_MS);
     };
 
-    ensureButton();
-    loadExtensionLanguage();
+    if (!isReachardWebsite()) ensureButton();
     let observer = null;
     const startObserverIfNeeded = () => {
       if (observer || !shouldWatchDynamicPage()) return;
@@ -1602,6 +740,7 @@
       }
       window.clearInterval(intervalId);
       document.getElementById(ROOT_ID)?.remove();
+      window.ReachardUI?.unmount(document.getElementById(PANEL_ID));
       document.getElementById(PANEL_ID)?.remove();
     };
   }

@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import ProfileEditor from './profile-editor';
 
 export default function ProfilePage() {
-  redirect('/dashboard');
+  return <ProfileEditor />;
 }

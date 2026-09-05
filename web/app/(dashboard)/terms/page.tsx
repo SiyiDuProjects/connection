@@ -27,9 +27,9 @@ export default function TermsPage() {
           <li>Keep your account and extension access secure.</li>
         </ul>
 
-        <h2>Subscriptions and Contact Kits</h2>
+        <h2>Monthly memberships and included usage</h2>
         <p>
-          Current plan price, billing interval, trial period, and monthly Contact Kit allowance are shown at checkout. One Contact Kit is charged only after Reachard successfully returns a work email. Search previews and included draft generation currently do not consume Contact Kits.
+          Reachard charges a recurring monthly membership fee for access to its software features. The plan price, billing interval, any trial, and included monthly work email allowance are disclosed before purchase. A successful verified work email lookup uses one included lookup; searches and draft generation do not use this allowance. We do not sell individual Contact Kits or automatically charge extra for exceeding the included allowance.
         </p>
         <p>
           Subscriptions renew until canceled. You can manage or cancel renewal through the Stripe billing portal. Deleting an owner account schedules its active subscription to stop renewing. Chargebacks, refunds, promotions, and trial eligibility may affect access or balances.

@@ -2,3 +2,5 @@ allowBuilds:
   '@tailwindcss/oxide': true
   esbuild: true
   sharp: true
+  "@heroui-pro/react": true
+  "@zowe/secrets-for-zowe-sdk": true

@@ -1,122 +1,103 @@
 import 'server-only';
 
-import { randomBytes, createHash } from 'crypto';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { randomBytes, createHash } from 'node:crypto';
+import { and, desc, eq, gt, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { emailVerificationTokens, users } from '@/lib/db/schema';
+import { requireEmailDelivery, sendVerificationEmail } from '@/lib/email/resend';
+import {
+  CODE_TTL_MS, MAX_CODE_ATTEMPTS, MAX_SENDS_PER_HOUR, RESEND_COOLDOWN_MS,
+  generateVerificationCode, hashVerificationCode, matchesVerificationCode,
+} from './verification-code';
 
-const TOKEN_BYTES = 32;
-const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
-
-function hashToken(token: string) {
-  return createHash('sha256').update(token).digest('hex');
-}
-
-function appUrl() {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.APP_URL ||
-    'http://localhost:3000'
-  ).replace(/\/$/, '');
-}
-
-export async function createEmailVerification(userId: number) {
-  const token = randomBytes(TOKEN_BYTES).toString('base64url');
-  const tokenHash = hashToken(token);
-  const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
-
-  await db.transaction(async (tx) => {
-    await tx
-      .update(emailVerificationTokens)
-      .set({ usedAt: new Date() })
-      .where(
-        and(
-          eq(emailVerificationTokens.userId, userId),
-          isNull(emailVerificationTokens.usedAt)
-        )
-      );
-
-    await tx.insert(emailVerificationTokens).values({
-      userId,
-      tokenHash,
-      expiresAt,
-    });
-  });
-
-  return {
-    token,
-    expiresAt,
-    url: `${appUrl()}/verify-email/confirm?token=${encodeURIComponent(token)}`,
-  };
-}
-
-export async function sendVerificationEmail(
-  email: string,
-  verificationUrl: string
-) {
-  const from = process.env.EMAIL_FROM;
-  const apiKey = process.env.RESEND_API_KEY;
-
-  if (!apiKey || !from) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.info(`Email verification link for ${email}: ${verificationUrl}`);
-      return;
-    }
-    throw new Error('Email delivery is not configured.');
-  }
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: email,
-      subject: 'Verify your email',
-      html: [
-        '<p>Confirm your email address to finish signing in.</p>',
-        `<p><a href="${verificationUrl}">Verify email</a></p>`,
-        '<p>This link expires in 24 hours.</p>',
-      ].join(''),
-      text: `Confirm your email address to finish signing in:\n\n${verificationUrl}\n\nThis link expires in 24 hours.`,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Email delivery failed with status ${response.status}.`);
+export class VerificationRateLimitError extends Error {
+  retryAfter: number;
+  constructor(retryAfter: number) {
+    super('Please wait before requesting another code.');
+    this.retryAfter = retryAfter;
   }
 }
 
 export async function issueEmailVerification(userId: number, email: string) {
-  const verification = await createEmailVerification(userId);
-  await sendVerificationEmail(email, verification.url);
-  return verification;
+  requireEmailDelivery();
+  const verification = await db.transaction(async (tx) => {
+    // Serialize issuance and verification per user, including concurrent requests.
+    const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update');
+    if (!user || user.emailVerifiedAt || user.deletedAt || user.email !== email) return null;
+    const now = new Date();
+    const recent = await tx.select().from(emailVerificationTokens).where(and(
+      eq(emailVerificationTokens.userId, userId),
+      gt(emailVerificationTokens.createdAt, new Date(now.getTime() - 60 * 60 * 1000)),
+    )).orderBy(desc(emailVerificationTokens.createdAt));
+    const latest = recent[0];
+    if (latest && now.getTime() - latest.createdAt.getTime() < RESEND_COOLDOWN_MS) {
+      throw new VerificationRateLimitError(Math.ceil((RESEND_COOLDOWN_MS - (now.getTime() - latest.createdAt.getTime())) / 1000));
+    }
+    if (recent.length >= MAX_SENDS_PER_HOUR) {
+      throw new VerificationRateLimitError(Math.ceil((recent[recent.length - 1].createdAt.getTime() + 60 * 60 * 1000 - now.getTime()) / 1000));
+    }
+    const code = generateVerificationCode();
+    const nonce = randomBytes(32).toString('hex');
+    await tx.update(emailVerificationTokens).set({ usedAt: now }).where(and(
+      eq(emailVerificationTokens.userId, userId), isNull(emailVerificationTokens.usedAt),
+    ));
+    const [record] = await tx.insert(emailVerificationTokens).values({
+      userId, tokenHash: nonce,
+      codeHash: hashVerificationCode(userId, nonce, code, process.env.AUTH_SECRET!),
+      createdAt: now, expiresAt: new Date(now.getTime() + CODE_TTL_MS),
+    }).returning();
+    return { id: record.id, code, nonce };
+  });
+  if (!verification) return;
+  try {
+    await sendVerificationEmail(email, verification.code, verification.nonce);
+  } catch {
+    await db.update(emailVerificationTokens).set({ usedAt: new Date() }).where(eq(emailVerificationTokens.id, verification.id));
+    throw new Error('We could not send your code. Please wait a minute and try again.');
+  }
 }
 
-export async function verifyEmailToken(token: string) {
-  const tokenHash = hashToken(token);
-  const verifiedAt = new Date();
+export async function verifyEmailCode(email: string, code: string) {
+  if (!/^\d{6}$/.test(code)) return null;
   return db.transaction(async (tx) => {
-    const [record] = await tx
-      .update(emailVerificationTokens)
-      .set({ usedAt: verifiedAt })
-      .where(
-        and(
-          eq(emailVerificationTokens.tokenHash, tokenHash),
-          isNull(emailVerificationTokens.usedAt),
-          gt(emailVerificationTokens.expiresAt, verifiedAt)
-        )
-      )
-      .returning();
-    if (!record) return null;
+    const [user] = await tx.select().from(users).where(eq(users.email, email)).for('update');
+    if (!user || user.emailVerifiedAt || user.deletedAt) return null;
+    const now = new Date();
+    const [record] = await tx.select().from(emailVerificationTokens).where(and(
+      eq(emailVerificationTokens.userId, user.id), isNull(emailVerificationTokens.usedAt),
+      gt(emailVerificationTokens.expiresAt, now),
+    )).orderBy(desc(emailVerificationTokens.createdAt)).limit(1);
+    if (!record?.codeHash || record.attempts >= MAX_CODE_ATTEMPTS) return null;
+    const matches = matchesVerificationCode(record.codeHash, hashVerificationCode(user.id, record.tokenHash, code, process.env.AUTH_SECRET || ''));
+    const attempts = record.attempts + 1;
+    await tx.update(emailVerificationTokens).set({
+      attempts, usedAt: matches || attempts >= MAX_CODE_ATTEMPTS ? now : null,
+    }).where(eq(emailVerificationTokens.id, record.id));
+    if (!matches) return null;
+    await tx.update(emailVerificationTokens).set({ usedAt: now }).where(and(
+      eq(emailVerificationTokens.userId, user.id), isNull(emailVerificationTokens.usedAt),
+    ));
+    const [verified] = await tx.update(users).set({ emailVerifiedAt: now, updatedAt: now }).where(eq(users.id, user.id)).returning();
+    return verified;
+  });
+}
 
-    const [user] = await tx
-      .update(users)
-      .set({ emailVerifiedAt: verifiedAt, updatedAt: verifiedAt })
-      .where(eq(users.id, record.userId))
-      .returning();
-    return user || null;
+// Compatibility for outstanding 24-hour links issued before the code flow.
+export async function verifyEmailToken(token: string) {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+  const tokenHash = createHash('sha256').update(token).digest('hex');
+  return db.transaction(async (tx) => {
+    const [candidate] = await tx.select().from(emailVerificationTokens).where(eq(emailVerificationTokens.tokenHash, tokenHash)).limit(1);
+    if (!candidate) return null;
+    const [user] = await tx.select().from(users).where(eq(users.id, candidate.userId)).for('update');
+    if (!user || user.deletedAt || user.emailVerifiedAt) return null;
+    const now = new Date();
+    const [record] = await tx.update(emailVerificationTokens).set({ usedAt: now }).where(and(
+      eq(emailVerificationTokens.id, candidate.id), isNull(emailVerificationTokens.codeHash),
+      isNull(emailVerificationTokens.usedAt), gt(emailVerificationTokens.expiresAt, now),
+    )).returning();
+    if (!record) return null;
+    const [verified] = await tx.update(users).set({ emailVerifiedAt: now, updatedAt: now }).where(eq(users.id, user.id)).returning();
+    return verified;
   });
 }

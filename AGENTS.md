@@ -2,8 +2,23 @@
 
 ## Change Hygiene
 
-- Follow the global documentation and context rules in `/Users/bytedance/.codex/AGENTS.md`.
 - Keep this file focused on Reachard-specific product, provider, deployment, and verification details.
+
+## Canonical Web App and Design
+
+- The only active web app is `web/` in the repository root. Do not implement product changes in `output/`, `.archive/`, or an artifact preview copy.
+- The active homepage uses a Granola-inspired split hero: **Find the people behind the job you want.** on the left, layered Reachard imagery and an automatically looping extension demonstration on the right. Its source is `web/app/(dashboard)/page.tsx`, homepage styles are `web/app/(dashboard)/home.css`, and the illustrative demo is `web/components/reachard/extension-demo.tsx`. Shared navigation remains in `web/components/reachard/design.tsx` and marketing tokens in `web/app/marketing.css`. The previous landscape homepage is recoverable from `.archive/home-before-granola-20260904-202829/`.
+- The approved visual baseline is black, white, gray, and blue actions (`#007aff`). Do not restore the old green brand palette or the retired **Know who to contact. Know what to say.** homepage.
+- Login and registration use the same approved design version: the centered account card in `web/app/(login)/login.tsx`, with `web/app/auth.css`. Do not restore the retired split-screen green login page.
+- Pricing follows the concise HeroUI pricing-card reference: one short heading, Base/Plus cards, prices, purchase buttons, and brief benefits. Do not add a second marketing hero, repeated feature sections, FAQ, or a closing CTA without a request.
+- Pricing separates **Individuals** (Base/Plus) from **Teams & Agencies** (one organization inquiry card linking to `support@reachard.co`). Do not invent organization prices or advertise unimplemented team features.
+- Public homepage actions are **Install extension** (blue primary) and **Get started** (secondary, links to sign-up). The shared header uses one **Get started** account entry and centers its navigation independently of the logo and actions. Do not add public Dashboard / Explore Workspace / workspace-preview navigation. The homepage demo starts automatically, is silent, loops, and uses clearly labeled sample data without backend calls. Keep the homepage short: hero, three-step explanation, closing installation section, footer.
+- The centered marketing navigation contains only **How it works** and **Pricing**. Do not repeat **Install extension** in the header navigation; keep installation in the page buttons.
+- The account sidebar has **Dashboard**, **My profile**, **Refer a Friend**, and **Settings**. Dashboard shows recent activity once; do not restore duplicate charts/KPIs or a separate Recent activity navigation item.
+- **Refer a Friend** lives at `/dashboard/refer-a-friend` and uses `/api/invite-friend`. Account details, password changes, and account deletion share `/dashboard/general`; `/dashboard/security` redirects there.
+- Dashboard offers **Add to Chrome**, not a manual **Connect extension** action. Preserve the automatic session bridge and the extension-initiated authentication callback route.
+- Run `npm run preview` from `web/` for `http://127.0.0.1:3012/`. It runs the actual app source with a separate build cache; public homepage and Pricing previews need no database or Stripe credentials. Do not create a second app or duplicate page/header implementation for previewing.
+- `.archive/` holds retired versions and recovery copies, not active source. Inspect `git worktree list` before assuming a separate checkout is authoritative.
 
 ## Web App Invite Rewards
 
@@ -28,7 +43,7 @@
 
 - Host: `49.51.38.235`
 - SSH user: `ubuntu`
-- Shared VPS SSH access: see `/Users/bytedance/.codex/AGENTS.md`
+- Resolve SSH access from the current host configuration; do not reuse paths from a different machine.
 - Project env file on host: `/opt/connection/server/.env`
 - Docker Compose file: `/home/ubuntu/siyi/docker-compose.yml`
 - Contacts service/container: `connection_contacts`
@@ -37,7 +52,7 @@
 - Server command inside container: `node src/index.js`
 - Public/local server port: `8787`
 
-Shared key location, permission repair, and secret-printing rules are documented globally. Project-specific health check:
+Keep SSH keys and server secrets out of chat and logs. Run this health check on the deployment host:
 
 ```bash
 curl -sS http://127.0.0.1:8787/health
@@ -60,12 +75,10 @@ Then verify:
 
 ```bash
 curl -sS http://127.0.0.1:8787/health
-sudo docker inspect connection_contacts --format '{{range .Config.Env}}{{println .}}{{end}}' \
-  | grep -E 'CONTACT_PROVIDER|RAPIDAPI|CONTACT_SEARCH_CREDITS|CONTACT_REVEAL_CREDITS|EMAIL_DRAFT_CREDITS'
 sudo docker logs --tail 30 connection_contacts
 ```
 
-When showing env verification, follow global secret-masking rules.
+Use `/health` for effective provider status. If configuration inspection is necessary, select only named non-secret fields; do not dump container environment variables. Inspect logs locally and redact secrets before sharing excerpts.
 
 ## Current Contact Pipeline Env
 
@@ -102,11 +115,3 @@ Do not send paid live Treg requests during verification without explicit approva
 - Location lookup endpoint: `/api/v1/search/location?keyword=...`
 
 These hosts are retained only for the legacy `rapidapi` provider path. RapidAPI marketplace page URLs are not the runtime host; use the `*.p.rapidapi.com` host in env and requests.
-
-## Lessons From 2026-05-08
-
-- `/opt/connection/server/.env` is the correct host env file, but the running app reads it only through Docker Compose `env_file`.
-- The container cwd is `/app`; `/proc/<pid>/cwd` showing `/app` means the process is in Docker.
-- `/proc/<pid>/environ` can show startup env, but `/health` is the better source for the app's effective provider status.
-- If `/health` shows `contactProvider: "apollo"` after changing `/opt/connection/server/.env`, recreate the container with Compose.
-- The server backup made during the RapidAPI switch was `/opt/connection/server/.env.bak-20260508001058`.

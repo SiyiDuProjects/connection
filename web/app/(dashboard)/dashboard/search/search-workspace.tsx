@@ -1,169 +1,121 @@
 'use client';
 
-import { Avatar, Button, Card, Chip, Input, Label, Modal, Tabs, TextArea, TextField, Toast, toast } from '@heroui/react';
-import { ArrowLeft, ArrowUpRight, Bookmark, Building2, Check, ChevronRight, Copy, FileText, Globe, Mail, Plus, PanelLeftClose, PanelLeftOpen, Search, Sparkles, Users, X } from 'lucide-react';
-import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
-import { PreferenceOptions } from '@/components/ui/profile-controls';
-import { Brand, ThemeSwitch } from '@/components/reachard/design';
+import { Avatar, Button, Card, Chip, Input, Label, TextField } from '@heroui/react';
+import { ArrowRight, Check, CheckCircle2, Copy, FileText, PanelLeftClose, PanelLeftOpen, Plus, Search, Sparkles, X } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 
-type Opportunity = { id: string; company: string; role: string; status?: 'Saved' | 'Researching' | 'Ready' };
-type Person = { id: string; name: string; role: string; category: string; photo: string; signal: string; reason: string; question: string };
-type Draft = { id: string; name: string; company: string; text: string; subject: string };
-const startingOpportunities: Opportunity[] = [
-  { id: 'stripe', company: 'Stripe', role: 'Product Designer', status: 'Researching' },
-  { id: 'notion', company: 'Notion', role: 'Product Designer', status: 'Ready' },
-  { id: 'airbnb', company: 'Airbnb', role: 'Design Engineer', status: 'Saved' }
+type Opportunity = { id: string; company: string; role: string; location: string; status: 'Saved' | 'Researching' | 'Ready' };
+type Contact = { id: string; name: string; role: string; avatar: string; route: string; reason: string; ask: string; confidence: number };
+
+const initialOpportunities: Opportunity[] = [
+  { id: 'stripe', company: 'Stripe', role: 'Senior Product Designer', location: 'San Francisco, CA', status: 'Researching' },
+  { id: 'notion', company: 'Notion', role: 'Product Designer', location: 'San Francisco, CA', status: 'Ready' },
+  { id: 'airbnb', company: 'Airbnb', role: 'Product Designer, AI', location: 'San Francisco, CA', status: 'Saved' }
 ];
-const peopleByCompany: Record<string, Person[]> = {
-  stripe: [
-    { id: 'maya', name: 'Maya Chen', role: 'Product Design Lead', category: 'Team', photo: 'maya-chen', signal: 'Closest to the team', reason: 'Leads the design discipline this role would join. A useful first perspective on the team’s priorities and the kind of ownership a new designer could take.', question: 'What is one challenge you would want a new designer to be excited about?' },
-    { id: 'marcus', name: 'Marcus Johnson', role: 'Design Recruiter', category: 'Recruiters', photo: 'marcus-johnson', signal: 'Hiring process context', reason: 'A recruiting perspective can help clarify the interview process, timing, and how to present relevant work.', question: 'What does the team most want to see in a designer’s portfolio for this role?' },
-    { id: 'priya', name: 'Priya Raman', role: 'Product Design Manager', category: 'Team', photo: 'priya-raman', signal: 'A peer perspective', reason: 'A manager in the design organization can offer perspective on collaboration, product decisions, and the day-to-day work.', question: 'How does the design team balance systems thinking with hands-on product craft?' }
-  ],
-  notion: [
-    { id: 'priya-notion', name: 'Priya Raman', role: 'Product Design Manager', category: 'Team', photo: 'priya-raman', signal: 'Product team perspective', reason: 'This sample contact illustrates a route into understanding the product team’s working style.', question: 'What kind of product ambiguity does this team find most interesting right now?' }
-  ],
-  airbnb: []
-};
-const storageKey = 'reachard-studio-preview-v1';
-function setNotice(message: string) { toast(message, { timeout: 5000 }); }
+
+const contacts: Contact[] = [
+  { id: 'maya', name: 'Maya Chen', role: 'Product Design Lead', avatar: '/images/workspace/maya-chen.png', route: 'Hiring context', reason: 'Closest to the team mandate and the portfolio bar for this role.', ask: 'What part of the role is hardest to understand from the outside?', confidence: 94 },
+  { id: 'marcus', name: 'Marcus Johnson', role: 'Design Recruiter', avatar: '/images/workspace/marcus-johnson.png', route: 'Process signal', reason: 'Best path for timing, interview structure, and whether the search is active.', ask: 'Is the team still prioritizing systems-thinking experience for this search?', confidence: 88 },
+  { id: 'priya', name: 'Priya Raman', role: 'Product Design Manager', avatar: '/images/workspace/priya-raman.png', route: 'Peer perspective', reason: 'A lower-pressure route to learn how product design decisions are made.', ask: 'Which portfolio decisions best signal judgment and ownership on the team?', confidence: 84 }
+];
 
 export function ContactWorkspace() {
-  const [opportunities, setOpportunities] = useState(startingOpportunities);
+  const [opportunities, setOpportunities] = useState(initialOpportunities);
+  const [activeOpportunityId, setActiveOpportunityId] = useState('stripe');
+  const [selectedContactId, setSelectedContactId] = useState('maya');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeId, setActiveId] = useState('stripe');
-  const [selectedId, setSelectedId] = useState('maya');
-  const [view, setView] = useState<'people' | 'saved' | 'drafts'>('people');
-  const [filter, setFilter] = useState('All people');
-  const [saved, setSaved] = useState<string[]>([]);
-  const [drafts, setDrafts] = useState<Draft[]>([]);
-  const [ready, setReady] = useState(false);
-  const [companyQuery, setCompanyQuery] = useState('Stripe');
-  const [roleQuery, setRoleQuery] = useState('Product Designer');
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [notice, setNotice] = useState('');
   const [newOpen, setNewOpen] = useState(false);
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [draftText, setDraftText] = useState('');
-  const [subject, setSubject] = useState('');
-  const [draftIdentity, setDraftIdentity] = useState({ id: '', name: '', company: '' });
-  const [tone, setTone] = useState<'Thoughtful' | 'Concise'>('Thoughtful');
-  const opportunity = opportunities.find(item => item.id === activeId) ?? opportunities[0];
-  const allPeople = peopleByCompany[opportunity.company.toLowerCase()] ?? [];
-  const filteredPeople = allPeople.filter(person => (filter === 'All people' || person.category === filter) && (view !== 'saved' || saved.includes(person.id)));
-  const selected = filteredPeople.find(person => person.id === selectedId) ?? filteredPeople[0];
+  const [company, setCompany] = useState('');
+  const [role, setRole] = useState('');
+  const opportunity = opportunities.find((item) => item.id === activeOpportunityId) ?? opportunities[0];
+  const contact = contacts.find((item) => item.id === selectedContactId) ?? contacts[0];
 
-  useEffect(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(storageKey) || 'null');
-      if (raw) {
-        if (Array.isArray(raw.saved) && raw.saved.every((v: unknown) => typeof v === 'string')) setSaved(raw.saved);
-        if (Array.isArray(raw.drafts) && raw.drafts.every((v: Draft) => v && typeof v.id === 'string' && typeof v.text === 'string' && typeof v.name === 'string' && typeof v.company === 'string' && typeof v.subject === 'string')) setDrafts(raw.drafts);
-        if (Array.isArray(raw.opportunities) && raw.opportunities.length && raw.opportunities.every((v: Opportunity) => v && typeof v.id === 'string' && typeof v.company === 'string' && typeof v.role === 'string')) setOpportunities(raw.opportunities);
-      }
-    } catch { /* A broken browser cache should not prevent a preview. */ }
-    setReady(true);
-  }, []);
-  useEffect(() => {
-    if (!ready) return;
-    try { localStorage.setItem(storageKey, JSON.stringify({ opportunities, saved, drafts })); }
-    catch { setNotice('Browser storage is unavailable. Changes will last for this visit.'); }
-  }, [opportunities, saved, drafts, ready]);
-
-  function selectOpportunity(item: Opportunity) {
-    setActiveId(item.id); setCompanyQuery(item.company); setRoleQuery(item.role); setFilter('All people'); setView('people'); setSelectedId('');
-  }
+  function selectOpportunity(id: string) { setActiveOpportunityId(id); setSelectedContactId('maya'); setNotice(''); }
   function markReady() {
-    const status = opportunity.status === 'Ready' ? 'Researching' : 'Ready';
-    setOpportunities(items => items.map(item => item.id === opportunity.id ? { ...item, status } : item));
-    setNotice(status === 'Ready' ? 'Opportunity marked ready.' : 'Moved back to research.');
-  }
-  function search(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const company = companyQuery.trim();
-    if (!company) return;
-    const existing = opportunities.find(item => item.company.toLowerCase() === company.toLowerCase() && item.role.toLowerCase() === roleQuery.trim().toLowerCase());
-    const next = existing ?? { id: crypto.randomUUID(), company, role: roleQuery.trim() || 'Explore the team' };
-    if (!existing) setOpportunities(items => [...items, next]);
-    selectOpportunity(next);
-    setNotice(peopleByCompany[company.toLowerCase()]?.length ? `Showing example people for ${company}.` : `Saved ${company}. This preview has no live search results.`);
+    setOpportunities((current) => current.map((item) => item.id === opportunity.id ? { ...item, status: item.status === 'Ready' ? 'Researching' : 'Ready' } : item));
+    setNotice(opportunity.status === 'Ready' ? 'Moved back to research.' : 'Opportunity marked ready.');
   }
   function addOpportunity(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const company = String(data.get('company') || '').trim();
-    if (!company) return;
-    const item = { id: crypto.randomUUID(), company, role: String(data.get('role') || '').trim() || 'Explore the team' };
-    setOpportunities(items => [...items, item]); selectOpportunity(item); setNewOpen(false); setNotice('Opportunity saved in this browser.');
+    if (!company.trim() || !role.trim()) { setNotice('Add a company and role first.'); return; }
+    const id = `${company}-${role}-${Date.now()}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    setOpportunities((current) => [...current, { id, company: company.trim(), role: role.trim(), location: 'Location to confirm', status: 'Saved' }]);
+    setActiveOpportunityId(id); setSelectedContactId('maya'); setCompany(''); setRole(''); setNewOpen(false); setNotice('Opportunity added to this local preview.');
   }
-  function toggleSave(person: Person) {
-    const alreadySaved = saved.includes(person.id);
-    setSaved(items => alreadySaved ? items.filter(id => id !== person.id) : [...items, person.id]);
-    setNotice(alreadySaved ? 'Person removed from saved.' : `${person.name} saved.`);
-  }
-  function makeDraft(person: Person, style: 'Thoughtful' | 'Concise') {
-    return style === 'Concise'
-      ? `Hi ${person.name.split(' ')[0]},\n\nI'm interested in ${opportunity.role} opportunities at ${opportunity.company}. ${person.question}\n\nThanks for your time.`
-      : `Hi ${person.name.split(' ')[0]},\n\nI'm exploring the ${opportunity.role} opportunity at ${opportunity.company} and would love to understand the team beyond the job description.\n\n${person.question}\n\nI know your time is valuable, so even a brief perspective would mean a lot.\n\nThank you.`;
-  }
-  function openComposer() {
-    if (!selected) return;
-    setDraftIdentity({ id: `${opportunity.id}:${selected.id}`, name: selected.name, company: opportunity.company });
-    setSubject(`A question about ${opportunity.role.toLowerCase()} at ${opportunity.company}`);
-    setTone('Thoughtful'); setDraftText(makeDraft(selected, 'Thoughtful')); setComposerOpen(true);
-  }
-  function changeTone(style: 'Thoughtful' | 'Concise') {
-    setTone(style);
-    if (selected && draftIdentity.id === `${opportunity.id}:${selected.id}`) setDraftText(makeDraft(selected, style));
-  }
-  function saveDraft() {
-    const draft = { ...draftIdentity, text: draftText, subject };
-    setDrafts(items => [...items.filter(item => item.id !== draft.id), draft]); setNotice('Draft saved in this browser.'); setComposerOpen(false);
-  }
-  async function copyDraft() {
-    try { await navigator.clipboard.writeText(`${subject}\n\n${draftText}`); setNotice('Message copied. Ready for your email app.'); }
-    catch { setNotice('Clipboard unavailable. Select and copy the message text.'); }
-  }
+  async function copyDraft() { await navigator.clipboard.writeText(draftText(contact, opportunity)); setCopied(true); }
 
-  return <div className="hu-workspace" data-sidebar-collapsed={sidebarCollapsed || undefined}>
-    <aside className="hu-sidebar"><Brand />
-      <nav aria-label="Workspace sections">
-        <Button fullWidth variant={view === 'people' ? 'secondary' : 'ghost'} onPress={() => { setView('people'); setFilter('All people'); }}><Search size={18} />Find people</Button>
-        <Button fullWidth variant={view === 'saved' ? 'secondary' : 'ghost'} onPress={() => { setView('saved'); setFilter('All people'); }}><Bookmark size={18} />Saved people{saved.length > 0 && <Chip size="sm" variant="soft">{saved.length}</Chip>}</Button>
-        <Button fullWidth variant={view === 'drafts' ? 'secondary' : 'ghost'} onPress={() => setView('drafts')}><FileText size={18} />Drafts{drafts.length > 0 && <Chip size="sm" variant="soft">{drafts.length}</Chip>}</Button>
-      </nav>
-      <div className="hu-side-heading"><span>Opportunities</span><Button isIconOnly size="sm" variant="ghost" aria-label="Add opportunity" onPress={() => setNewOpen(true)}><Plus size={16} /></Button></div>
-      <div className="hu-opportunities">{opportunities.map(item => <Button key={item.id} fullWidth variant={item.id === activeId ? 'secondary' : 'ghost'} onPress={() => selectOpportunity(item)}><Building2 size={18} /><span><strong>{item.company}</strong><small>{item.role}</small></span></Button>)}</div>
-      <div className="hu-sidebar-bottom"><Avatar><Avatar.Fallback><Users size={18} /></Avatar.Fallback></Avatar><span>Your workspace<small>Private beta</small></span><ThemeSwitch /></div>
-    </aside>
-    <div className="hu-content">
-      <header className="hu-toolbar"><div><Button isIconOnly variant="ghost" aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} onPress={() => setSidebarCollapsed(value => !value)}>{sidebarCollapsed ? <PanelLeftOpen size={18}/> : <PanelLeftClose size={18}/>}</Button><Link href="/">Reachard</Link><ChevronRight size={15}/><span>{view === 'drafts' ? 'Drafts' : 'Find people'}</span></div><div><span className="hu-mobile-theme"><ThemeSwitch /></span><Button variant="secondary" onPress={() => setNewOpen(true)}><Plus size={17} />New opportunity</Button></div></header>
-      <main className="hu-main">
-        <div className="hu-page-heading"><div><h1>{view === 'drafts' ? 'Your drafts' : view === 'saved' ? 'Your shortlist' : 'Who’s your next conversation?'}</h1><p>{view === 'drafts' ? 'Thoughtful introductions, ready when you are.' : view === 'saved' ? 'People you want to come back to.' : 'Find the people who can bring an opportunity into focus.'}</p></div><div className="flex flex-wrap items-center gap-2"><Chip variant="soft" size="sm">Example workspace</Chip><Button size="sm" variant="secondary" onPress={markReady} aria-label={opportunity.status === 'Ready' ? 'Move back to research' : 'Mark opportunity ready'}>{opportunity.status || 'Researching'}<Check size={14}/></Button></div></div>
-        {view !== 'drafts' ? <>
-          <Card className="hu-search-card"><Card.Content><form onSubmit={search} className="hu-search-form"><TextField isRequired fullWidth><Label>Company</Label><Input value={companyQuery} onChange={e => setCompanyQuery(e.target.value)} placeholder="Search a company" required /></TextField><TextField fullWidth><Label>Role or interest <span className="hu-optional">Optional</span></Label><Input value={roleQuery} onChange={e => setRoleQuery(e.target.value)} placeholder="e.g. Product Designer" /></TextField><Button type="submit" variant="primary" size="lg"><Search size={18}/>Find people</Button></form></Card.Content></Card>
-          <div className="hu-results-layout">
-            <div className="hu-people-column">
-              <div className="hu-results-heading"><h2>{view === 'saved' ? 'Saved people' : 'Recommended people'}</h2><span>{filteredPeople.length} results</span></div>
-              <Tabs selectedKey={filter} onSelectionChange={key => setFilter(String(key))}>
-                <Tabs.ListContainer><Tabs.List aria-label="Filter people">{['All people','Team','Recruiters'].map(value => <Tabs.Tab key={value} id={value}>{value}<Tabs.Indicator /></Tabs.Tab>)}</Tabs.List></Tabs.ListContainer>
-                {['All people','Team','Recruiters'].map(value => <Tabs.Panel key={value} id={value}>
-                  <div className="hu-person-list">{filteredPeople.map(person => <Card key={person.id} className="hu-person-card" data-selected={selected?.id === person.id || undefined}>
-                    <Card.Content className="hu-person-content"><Button variant="ghost" className="hu-person-select" onClick={() => setSelectedId(person.id)} aria-pressed={selected?.id === person.id}><Avatar size="lg"><Avatar.Image src={`/images/workspace/${person.photo}.png`} alt="" /><Avatar.Fallback>{person.name.charAt(0)}</Avatar.Fallback></Avatar><span><strong>{person.name}</strong><small>{person.role}</small></span></Button><Button isIconOnly variant="ghost" aria-label={`${saved.includes(person.id) ? 'Unsave' : 'Save'} ${person.name}`} onPress={() => toggleSave(person)}><Bookmark size={18} fill={saved.includes(person.id) ? 'currentColor' : 'none'}/></Button></Card.Content>
-                    <Card.Footer className="hu-person-footer"><Chip variant="soft" color={selected?.id === person.id ? 'accent' : 'default'} size="sm">{person.signal}</Chip><span>{opportunity.company}</span>{selected?.id === person.id && <Check size={16} />}</Card.Footer>
-                  </Card>)}</div>
-                  {!filteredPeople.length && <Card><Card.Content><div className="hu-empty"><Search size={30}/><h3>{view === 'saved' ? 'Your shortlist starts here.' : 'A new place to begin.'}</h3><p>{view === 'saved' ? 'Save a person to keep them close.' : 'This company has no example contacts. Try Stripe to explore the preview.'}</p><Button variant="secondary" onPress={() => selectOpportunity(startingOpportunities[0])}>Explore Stripe example<ArrowUpRight size={16}/></Button></div></Card.Content></Card>}
-                </Tabs.Panel>)}
-              </Tabs>
-              <p className="hu-example-note">Example people for exploring the experience. Live search isn’t connected.</p>
-            </div>
-            {selected ? <Card className="hu-profile-card"><Card.Header><div className="hu-profile-top"><Avatar size="lg" className="hu-profile-avatar"><Avatar.Image src={`/images/workspace/${selected.photo}.png`} alt={selected.name}/><Avatar.Fallback>{selected.name.charAt(0)}</Avatar.Fallback></Avatar><Chip size="sm" variant="soft">Your next connection</Chip></div><Card.Title>{selected.name}</Card.Title><Card.Description>{selected.role} at {opportunity.company}</Card.Description></Card.Header><Card.Content><div className="hu-context-block"><span><Sparkles size={16}/>Why this person</span><p>{selected.reason}</p></div><div className="hu-question-block"><span>A good first question</span><p>“{selected.question}”</p></div></Card.Content><Card.Footer className="hu-profile-footer"><Button fullWidth size="lg" variant="primary" onPress={openComposer}><Mail size={18}/>Draft an introduction</Button><small>You decide what to say and when to send.</small></Card.Footer></Card> : <Card><Card.Content><div className="hu-empty"><Users size={32}/><p>Choose someone to see the context behind your next conversation.</p></div></Card.Content></Card>}
-          </div>
-        </> : <div className="hu-drafts">{drafts.length ? drafts.map(draft => <Card key={draft.id}><Card.Header><Card.Title>{draft.subject}</Card.Title><Card.Description>To {draft.name} · {draft.company}</Card.Description></Card.Header><Card.Content><p>{draft.text.slice(0,155)}…</p></Card.Content><Card.Footer><Button variant="secondary" onPress={() => { setDraftIdentity({id:draft.id,name:draft.name,company:draft.company});setDraftText(draft.text);setSubject(draft.subject);setComposerOpen(true);}}>Edit draft<ArrowUpRight size={16}/></Button></Card.Footer></Card>) : <Card><Card.Content><div className="hu-empty"><FileText size={32}/><h3>One good introduction.</h3><p>Choose a person, make the message yours, and save it here.</p><Button variant="primary" onPress={() => setView('people')}>Find people</Button></div></Card.Content></Card>}</div>}
-        <footer className="hu-footer"><span>Good connections start with context.</span><Link href="/sign-up">Create your account <ArrowUpRight size={14}/></Link></footer>
-      </main>
+  return (
+    <div className={`min-h-[100dvh] bg-[#f4f4f6] text-[#18181b] lg:grid ${sidebarCollapsed ? 'lg:grid-cols-[84px_minmax(0,1fr)]' : 'lg:grid-cols-[282px_minmax(0,1fr)]'}`}>
+      <aside className="border-b border-black/[0.08] bg-[#ebebee] lg:sticky lg:top-0 lg:h-[100dvh] lg:border-b-0 lg:border-r">
+        <div className="flex h-[76px] items-center justify-between px-5">
+          <button type="button" onClick={() => selectOpportunity(opportunity.id)} className={`flex items-center gap-3 rounded-[12px] p-1.5 transition-colors hover:bg-white/55 ${sidebarCollapsed ? 'mx-auto' : ''}`}>
+            <img src="/images/brand/reachard-logo-mark.png" alt="Reachard" className="size-9 object-contain" />
+            {!sidebarCollapsed ? <span className="text-[17px] font-semibold tracking-[-0.035em]">Reachard</span> : null}
+          </button>
+          {!sidebarCollapsed ? <Button isIconOnly variant="ghost" size="sm" onPress={() => setSidebarCollapsed(true)} className="hidden lg:inline-flex" aria-label="Collapse sidebar"><PanelLeftClose className="size-4" /></Button> : null}
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto px-4 pb-4 lg:block lg:overflow-visible lg:pb-0">
+          {!sidebarCollapsed ? <div className="mb-3 hidden items-center justify-between px-2 pt-6 lg:flex"><span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#85878d]">Opportunities</span><Button isIconOnly variant="ghost" size="sm" onPress={() => setNewOpen(true)} aria-label="Add opportunity"><Plus className="size-4" /></Button></div> : null}
+          {opportunities.map((item) => (
+            <button key={item.id} type="button" onClick={() => selectOpportunity(item.id)} title={sidebarCollapsed ? item.company : undefined} className={`flex shrink-0 items-center rounded-[14px] border text-left transition-all lg:mb-2 lg:w-full ${sidebarCollapsed ? 'h-12 justify-center border-transparent px-2' : 'min-w-[220px] gap-3 border-transparent px-3 py-3 lg:min-w-0'} ${activeOpportunityId === item.id ? 'border-white bg-white shadow-[0_8px_26px_rgb(24_24_27_/_0.07)]' : 'hover:bg-white/55'}`}>
+              <CompanyMark company={item.company} />
+              {!sidebarCollapsed ? <span className="min-w-0 flex-1"><strong className="block truncate text-[13px] font-semibold">{item.company}</strong><span className="mt-1 block truncate text-[11px] text-[#7c7e84]">{item.role}</span></span> : null}
+              {!sidebarCollapsed ? <StatusDot status={item.status} /> : null}
+            </button>
+          ))}
+        </div>
+
+        <div className="hidden lg:absolute lg:inset-x-0 lg:bottom-0 lg:block lg:p-4">
+          {sidebarCollapsed ? <Button fullWidth variant="ghost" onPress={() => setSidebarCollapsed(false)} aria-label="Expand sidebar"><PanelLeftOpen className="size-4" /></Button> : null}
+          <div className={`mt-2 flex items-center rounded-[14px] py-2 ${sidebarCollapsed ? 'justify-center' : 'gap-3 px-2'}`}><Avatar color="success"><Avatar.Fallback>SD</Avatar.Fallback></Avatar>{!sidebarCollapsed ? <span><strong className="block text-[13px] font-medium">Siyi Du</strong><span className="mt-0.5 block text-[11px] text-[#85878d]">Berkeley · 2027</span></span> : null}</div>
+        </div>
+      </aside>
+
+      <div className="min-w-0">
+        <header className="sticky top-0 z-20 flex h-[76px] items-center justify-between border-b border-black/[0.07] bg-[#f4f4f6]/88 px-5 backdrop-blur-2xl sm:px-8">
+          <div className="flex min-w-0 items-center gap-2 text-[13px]"><span className="text-[#85878d]">Workspace</span><span className="text-[#bbbcc1]">/</span><span className="truncate font-medium">{opportunity.company}</span></div>
+          <Button variant="secondary" onPress={() => setNewOpen(true)}><Plus className="size-4" />New opportunity</Button>
+        </header>
+
+        {notice ? <div className="fixed right-5 top-[92px] z-40 flex max-w-[360px] items-center gap-3 rounded-[14px] border border-black/[0.08] bg-white px-4 py-3 text-[13px] text-[#356047] shadow-[0_18px_50px_rgb(24_24_27_/_0.13)]"><CheckCircle2 className="size-4 shrink-0 text-[#16845b]" /><span className="flex-1">{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Dismiss"><X className="size-4" /></button></div> : null}
+
+        <main className="mx-auto w-full max-w-[1240px] px-5 py-9 sm:px-8 lg:py-12">
+          <section className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0"><div className="mb-4 flex items-center gap-3"><CompanyMark company={opportunity.company} large /><span className="text-[13px] font-medium text-[#73757b]">{opportunity.company} · {opportunity.location}</span></div><h1 className="text-[clamp(34px,4vw,52px)] font-semibold leading-[0.98] tracking-[-0.052em]">{opportunity.role}</h1></div>
+            <Button variant="secondary" onPress={markReady} className="self-start sm:self-auto"><span className={`size-2 rounded-full ${opportunity.status === 'Ready' ? 'bg-[#16845b]' : opportunity.status === 'Researching' ? 'bg-[#d18a36]' : 'bg-[#a1a1aa]'}`} />{opportunity.status}</Button>
+          </section>
+
+          <Card className="mt-8 p-0" variant="secondary"><Card.Content className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7"><div className="max-w-[720px]"><p className="reachard-eyebrow">Best next move</p><h2 className="mt-2 text-[20px] font-semibold tracking-[-0.03em]">Confirm the role mandate before you apply.</h2><p className="mt-2 text-[14px] leading-6 text-[#6c6e74]">Start with {contact.name}. One specific question should tell you whether this opportunity deserves more time.</p></div><Button variant="primary" size="lg" onPress={() => { setDraftOpen(true); setCopied(false); }}><Sparkles className="size-4" />Draft message</Button></Card.Content></Card>
+
+          <section className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
+            <Card className="p-0" variant="default"><Card.Header className="border-b border-black/[0.07] px-6 py-5"><Card.Title className="text-[17px]">Recommended people</Card.Title><Card.Description className="mt-1">Choose the route that answers your biggest unknown.</Card.Description></Card.Header><Card.Content className="p-2">
+              {contacts.map((item) => <button key={item.id} type="button" onClick={() => setSelectedContactId(item.id)} className={`flex w-full items-center gap-4 rounded-[16px] px-4 py-4 text-left transition-colors ${selectedContactId === item.id ? 'bg-[#eef5f1]' : 'hover:bg-[#f5f5f6]'}`}><Avatar size="lg"><Avatar.Image src={item.avatar} alt={item.name} /><Avatar.Fallback>{item.name.slice(0, 1)}</Avatar.Fallback></Avatar><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><strong className="truncate text-[14px] font-semibold">{item.name}</strong>{selectedContactId === item.id ? <Chip size="sm" color="success" variant="soft">Selected</Chip> : null}</span><span className="mt-1 block truncate text-[12px] text-[#777980]">{item.role} · {item.route}</span></span><span className="text-[13px] font-semibold text-[#16845b]">{item.confidence}</span></button>)}
+            </Card.Content></Card>
+
+            <Card className="p-0" variant="default"><Card.Content className="flex h-full flex-col p-6"><div className="flex items-center gap-4"><Avatar size="lg"><Avatar.Image src={contact.avatar} alt={contact.name} /><Avatar.Fallback>{contact.name.slice(0, 1)}</Avatar.Fallback></Avatar><div className="min-w-0"><h2 className="truncate text-[17px] font-semibold">{contact.name}</h2><p className="mt-1 truncate text-[12px] text-[#777980]">{contact.role}</p></div></div><dl className="mt-7 space-y-6"><div><dt className="reachard-eyebrow">Why this person</dt><dd className="mt-2 text-[14px] leading-6 text-[#606269]">{contact.reason}</dd></div><div className="border-t border-black/[0.07] pt-6"><dt className="reachard-eyebrow">What to ask</dt><dd className="mt-2 text-[14px] font-medium leading-6">“{contact.ask}”</dd></div></dl><Button variant="secondary" className="mt-auto pt-6" onPress={() => { setDraftOpen(true); setCopied(false); }}><FileText className="size-4" />Open draft</Button></Card.Content></Card>
+          </section>
+          <div className="mt-5 flex items-center justify-between text-[11px] text-[#8c8e94]"><span>Static local preview</span><span>No data is sent</span></div>
+        </main>
+      </div>
+
+      {draftOpen ? <DraftDrawer contact={contact} opportunity={opportunity} copied={copied} onCopy={() => void copyDraft()} onClose={() => setDraftOpen(false)} onSave={() => { setDraftOpen(false); setNotice('Draft saved in this preview.'); }} /> : null}
+      {newOpen ? <NewOpportunityDialog company={company} role={role} onCompany={setCompany} onRole={setRole} onSubmit={addOpportunity} onClose={() => setNewOpen(false)} /> : null}
     </div>
-    <Modal isOpen={newOpen} onOpenChange={setNewOpen}><Modal.Backdrop><Modal.Container size="md"><Modal.Dialog className="rd-modal"><Modal.Header><Modal.Heading>A new possibility.</Modal.Heading><Modal.CloseTrigger aria-label="Close new opportunity" /></Modal.Header><Modal.Body className="space-y-4"><p className="rd-modal-description">A company you are curious about. A role you can see yourself in.</p><form className="space-y-4" id="new-opportunity-form" onSubmit={addOpportunity}><TextField isRequired><Label>Company</Label><Input name="company" placeholder="e.g. Figma" required autoFocus /></TextField><TextField><Label>Role or interest · optional</Label><Input name="role" placeholder="e.g. Product Designer" /></TextField></form></Modal.Body><Modal.Footer><Button variant="ghost" onPress={() => setNewOpen(false)}>Cancel</Button><Button variant="primary" type="submit" form="new-opportunity-form">Add opportunity<Plus size={14} /></Button></Modal.Footer></Modal.Dialog></Modal.Container></Modal.Backdrop></Modal>
-    <Modal isOpen={composerOpen} onOpenChange={setComposerOpen}><Modal.Backdrop><Modal.Container size="lg"><Modal.Dialog className="rd-modal"><Modal.Header><div><p className="rd-overline" style={{ marginBottom: 8 }}>ONE THOUGHTFUL INTRODUCTION</p><Modal.Heading>Start the conversation.</Modal.Heading></div><Modal.CloseTrigger aria-label="Close draft" /></Modal.Header><Modal.Body className="space-y-4"><div className="rd-composer-to"><span>To</span><strong>{draftIdentity.name}</strong><span>· {draftIdentity.company}</span></div><PreferenceOptions label="Message tone" value={tone} onChange={value => changeTone(value as 'Thoughtful' | 'Concise')} options={[["Thoughtful", "Thoughtful"], ["Concise", "Concise"]]} isDisabled={!selected || draftIdentity.id !== `${opportunity.id}:${selected.id}`} /><TextField><Label>Subject</Label><Input value={subject} onChange={e => setSubject(e.target.value)} /></TextField><TextField><Label>Your message</Label><TextArea rows={8} value={draftText} onChange={e => setDraftText(e.target.value)} /></TextField><p className="rd-modal-description" style={{ margin: 0 }}>An example starting point. Make it yours before sending.</p></Modal.Body><Modal.Footer><Button variant="secondary" onPress={() => void copyDraft()}><Copy size={14} />Copy message</Button><Button variant="primary" onPress={saveDraft}><Check size={14} />Save draft</Button></Modal.Footer></Modal.Dialog></Modal.Container></Modal.Backdrop></Modal>
-    <Toast.Provider placement="bottom" />
-  </div>;
+  );
 }
+
+function DraftDrawer({ contact, opportunity, copied, onCopy, onClose, onSave }: { contact: Contact; opportunity: Opportunity; copied: boolean; onCopy: () => void; onClose: () => void; onSave: () => void }) {
+  return <div className="fixed inset-0 z-50 flex justify-end bg-black/20 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section role="dialog" aria-modal="true" aria-label="Outreach draft" className="flex h-full w-full max-w-[560px] flex-col border-l border-black/[0.08] bg-[#f4f4f6] shadow-[-24px_0_80px_rgb(24_24_27_/_0.16)]"><header className="flex h-[76px] items-center justify-between border-b border-black/[0.08] px-6"><div><p className="reachard-eyebrow">Draft message</p><h2 className="mt-1 text-[15px] font-semibold">{contact.name} · {opportunity.company}</h2></div><Button isIconOnly variant="ghost" onPress={onClose} aria-label="Close"><X className="size-4" /></Button></header><div className="min-h-0 flex-1 overflow-y-auto p-6"><Card className="p-0"><Card.Header className="border-b border-black/[0.07] px-5 py-4"><p className="reachard-eyebrow">Subject</p><Card.Title className="mt-1 text-[15px]">A question about design at {opportunity.company}</Card.Title></Card.Header><Card.Content className="p-5"><pre className="whitespace-pre-wrap font-sans text-[14px] leading-7 text-[#55575d]">{draftText(contact, opportunity)}</pre></Card.Content></Card><div className="mt-4 flex items-center gap-2 rounded-[14px] bg-[#eaf3ee] px-4 py-3 text-[12px] text-[#416350]"><Check className="size-4" />One clear question · no referral ask</div></div><footer className="border-t border-black/[0.08] bg-white p-5"><div className="flex gap-3"><Button fullWidth variant="secondary" size="lg" onPress={onCopy}><Copy className="size-4" />{copied ? 'Copied' : 'Copy'}</Button><Button fullWidth variant="primary" size="lg" onPress={onSave}><Check className="size-4" />Save draft</Button></div></footer></section></div>;
+}
+
+function NewOpportunityDialog({ company, role, onCompany, onRole, onSubmit, onClose }: { company: string; role: string; onCompany: (value: string) => void; onRole: (value: string) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onClose: () => void }) {
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-5 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><Card className="w-full max-w-[460px] p-0"><form onSubmit={onSubmit}><Card.Header className="flex-row items-center justify-between border-b border-black/[0.07] px-6 py-5"><Card.Title className="text-[19px]">New opportunity</Card.Title><Button isIconOnly variant="ghost" onPress={onClose} aria-label="Close"><X className="size-4" /></Button></Card.Header><Card.Content className="space-y-5 p-6"><TextField fullWidth><Label>Company</Label><Input autoFocus value={company} onChange={(event) => onCompany(event.target.value)} placeholder="e.g. Stripe" /></TextField><TextField fullWidth><Label>Role</Label><Input value={role} onChange={(event) => onRole(event.target.value)} placeholder="e.g. Product Designer" /></TextField></Card.Content><Card.Footer className="justify-end gap-3 border-t border-black/[0.07] px-6 py-5"><Button variant="ghost" onPress={onClose}>Cancel</Button><Button type="submit" variant="primary">Add opportunity<ArrowRight className="size-4" /></Button></Card.Footer></form></Card></div>;
+}
+
+function StatusDot({ status }: { status: Opportunity['status'] }) { return <span className={`size-2 rounded-full ${status === 'Ready' ? 'bg-[#16845b]' : status === 'Researching' ? 'bg-[#d18a36]' : 'bg-[#a1a1aa]'}`} />; }
+function CompanyMark({ company, large = false }: { company: string; large?: boolean }) { const palette = company.length % 3 === 0 ? 'bg-[#ebe8f4] text-[#665686]' : company.length % 2 === 0 ? 'bg-[#e6f0eb] text-[#32674d]' : 'bg-[#f3eadf] text-[#855d31]'; return <span className={`flex shrink-0 items-center justify-center rounded-[11px] font-semibold ${palette} ${large ? 'size-11 text-[15px]' : 'size-9 text-[13px]'}`}>{company.slice(0, 1).toUpperCase()}</span>; }
+function draftText(contact: Contact, opportunity: Opportunity) { return `Hi ${contact.name.split(' ')[0]},\n\nI’m exploring the ${opportunity.role} opportunity at ${opportunity.company}. My recent work has focused on AI-assisted product workflows, so I’m interested in how the team balances systems thinking with interaction craft.\n\n${contact.ask}\n\nThanks,\nSiyi`; }

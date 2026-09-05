@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 const manifest = JSON.parse(await readFile(new URL("../extension/manifest.json", import.meta.url), "utf8"));
 const runtimeFiles = await Promise.all([
   "content.js",
+  "sidepanel.js",
+  "sidepanel-context.js",
   "service_worker.js",
   "web_bridge.js"
 ].map((name) => readFile(new URL(`../extension/${name}`, import.meta.url), "utf8")));
@@ -24,40 +26,31 @@ assert.ok(!`${manifestText}\n${runtimeText}`.includes("reachard.studio"), "retir
 assert.ok(manifest.host_permissions.includes("https://reachard.co/*"));
 assert.ok(manifest.host_permissions.includes("https://contacts.reachard.co/*"));
 assert.equal(manifest.options_page, undefined, "extension account settings must stay on the website");
-assert.ok(runtimeText.includes('class="fc-job-card"'), "home must render a job/context card");
-assert.ok(runtimeText.includes('class="fc-primary-wide fc-search-button"'), "search action must be separate from the job card");
-assert.ok(!runtimeText.includes('data-tab='), "extension must stay on one page without tabs");
-assert.ok(!runtimeText.includes('class="fc-topbar"'), "brand must not be wrapped in a separate header");
-assert.ok(runtimeText.includes('class="fc-search-sheet"'), "contact search must open in a bottom sheet");
-assert.match(
-  contentStyles,
-  /\.fc-search-sheet-backdrop\s*\{[^}]*\binset:\s*0;/s,
-  "search backdrop must dim the whole panel, including the header"
-);
-assert.ok(!runtimeText.includes("Ready to search"), "redundant readiness status must not return");
-assert.ok(runtimeText.includes("Log In to Reachard"), "signed-out primary action must be explicit");
-assert.ok(
-  runtimeText.includes('const DEFAULT_LANGUAGE = "en"'),
-  "extension must remain English-only"
-);
-assert.match(
-  contentStyles,
-  /\.fc-customize-inline\s*\{[^}]*\bborder:\s*1px solid #dce2ea;[^}]*\bborder-radius:\s*12px;[^}]*\bmargin-top:\s*0;/s,
-  "email preferences must remain a rounded card"
-);
-assert.match(
-  contentStyles,
-  /\.fc-search-button\s*\{[^}]*\bmargin:\s*0 0 12px;/s,
-  "home cards and primary action must use consistent vertical spacing"
-);
-assert.ok(
-  runtimeText.includes('input[type="radio"][data-customize-field]'),
-  "email preference controls must update immediately when selected"
-);
-assert.ok(
-  contentStyles.includes(".fc-segment input:checked + span"),
-  "checked email preferences must expose a visible selected state"
-);
+const uiSource = await readFile(new URL("../extension-ui/index.jsx", import.meta.url), "utf8");
+assert.deepEqual(manifest.content_scripts[0].js, ['content.js']);
+assert.ok(manifest.permissions.includes('sidePanel'));
+assert.equal(manifest.side_panel.default_path, 'sidepanel.html');
+assert.equal(manifest.web_accessible_resources, undefined);
+assert.ok(!runtimeFiles[0].includes('createElement(\'iframe\')'));
+assert.ok(!runtimeFiles[0].includes('createElement(\'aside\')'));
+assert.ok(!contentStyles.includes('data-reachard-docked'));
+assert.ok(runtimeFiles[0].includes('OPEN_REACHARD_SIDE_PANEL'));
+assert.ok(runtimeText.includes('chrome.sidePanel.open'));
+assert.ok(runtimeText.includes('chrome.sidePanel.close'));
+assert.ok(!runtimeText.includes('GET_REACHARD_EMBEDDED_CONTEXT'));
+assert.ok(!uiSource.includes('ep-toolbar'), "native browser header must not be duplicated inside the panel");
+assert.ok(uiSource.includes("attachShadow"), "extension styles must be isolated from visited websites");
+assert.ok(uiSource.includes("UNSTABLE_portalContainer={portal}"), "menus must stay inside the isolated UI");
+assert.ok(uiSource.includes("isNonModal"), "menus must not hide their Shadow DOM host from accessibility");
+assert.ok(uiSource.includes("Log In to Reachard"), "signed-out primary action must be explicit");
+assert.ok(!/\bzh:\s*\{/.test(runtimeText), "extension must remain English-only");
+assert.ok(runtimeText.includes("window.ReachardUI.render(panel, state"), "UI must render the actual extension state");
+for (const action of ["search: runSearch", "reveal: revealEmail", "draft: draftEmail", "save: saveCustomizeFromPanel"]) {
+  assert.ok(runtimeText.includes(action), "UI must connect to existing operation: " + action);
+}
+assert.ok(runtimeText.includes("if (!await saveCustomizeFromPanel())"), "drafts must use the current selected preferences");
+assert.ok(!uiSource.includes("fixture-maya"), "fixture contacts must never ship in the extension UI");
+assert.ok(!contentStyles.includes("#fc-linkedin-panel.fc-panel"), "webpages must not retain the old full-height overlay");
 assert.ok(runtimeText.includes("CONTEXT_REFRESHED_ERROR"), "stale website bridge must fail gracefully");
 assert.ok(
   runtimeText.includes('window.removeEventListener("message", handleMessage)'),

@@ -196,6 +196,22 @@ export async function getCreditBalance(userId) {
   return Number(rows[0]?.balance || 0);
 }
 
+export async function getMembershipForUser(userId) {
+  ensureConfigured();
+  const [membership] = await sql`
+    select teams.subscription_status as status,
+      (select max((credit_ledger.metadata->>'periodEnd')::bigint)
+        from credit_ledger
+        where credit_ledger.user_id = ${userId}
+          and credit_ledger.action in ('subscription.initial_grant', 'subscription.monthly_grant')
+          and credit_ledger.metadata->>'subscriptionId' = teams.stripe_subscription_id) as period_end
+    from teams inner join team_members on team_members.team_id = teams.id
+    where team_members.user_id = ${userId} and team_members.role = 'owner'
+    order by teams.created_at desc limit 1
+  `;
+  return { status: membership?.status || 'inactive', periodEnd: Number(membership?.period_end || 0) };
+}
+
 export async function claimApiRequest({ userId, action, idempotencyKey }) {
   ensureConfigured();
 

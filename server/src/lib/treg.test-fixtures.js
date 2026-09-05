@@ -9,11 +9,7 @@ const originalEnv = Object.fromEntries(
     "TREG_BASE_URL",
     "TREG_SEARCH_ENDPOINT",
     "TREG_SEARCH_SIZE",
-    "TREG_EMAIL_ENDPOINT",
-    "TREG_EMAIL_ROUTE_MAX_COST",
-    "TREG_EMAIL_ROUTE_PREFER",
-    "TREG_EMAIL_ROUTE_EXCLUDE",
-    "TREG_EMAIL_ROUTE_WATERFALL"
+    "TREG_EMAIL_ENDPOINT"
   ].map((key) => [key, process.env[key]])
 );
 

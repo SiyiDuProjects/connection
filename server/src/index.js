@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { hasMembershipAccess, isBetaUnlimitedUsage } from './lib/membership-policy.js';
 import { searchContacts, revealEmail } from "./lib/contacts-provider.js";
 import { rankContacts } from "./lib/ranking.js";
 import { createDraft, createMailtoUrl, getDraftInternalCost } from "./lib/email.js";
@@ -15,6 +16,7 @@ import {
   failApiRequest,
   getAccountSummary,
   getCreditBalance,
+  getMembershipForUser,
   getOnboardingForUser,
   getUserFromApiToken,
   getUserSettings,
@@ -221,7 +223,7 @@ app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), re
           ...(providerRequest.internalCost ? { internalCost: providerRequest.internalCost } : {})
         })
       ]);
-      return fail(res, 404, "No work email was found. No Contact Kit was used.", {
+      return fail(res, 404, "No work email was found. Your included allowance was not used.", {
         credits: { remaining: await getCreditBalance(req.user.id) }
       });
     }
@@ -322,6 +324,12 @@ async function requireAuth(req, res, next) {
 function requireCredits(action, amount) {
   return async (req, res, next) => {
     try {
+      if (!isBetaUnlimitedUsage() && !hasMembershipAccess(await getMembershipForUser(req.user.id))) {
+        await failApiRequest({ userId: req.user.id, action, idempotencyKey: req.idempotencyKey, error: 'membership_required' });
+        return fail(res, 402, "An active Reachard membership is required.", {
+          action: { label: "View membership plans", url: `${getWebRedirectBaseUrl()}/pricing` }
+        });
+      }
       const balance = await getCreditBalance(req.user.id);
       if (balance < amount) {
         await failApiRequest({
@@ -330,7 +338,7 @@ function requireCredits(action, amount) {
           idempotencyKey: req.idempotencyKey,
           error: "insufficient_credits"
         });
-        return fail(res, 402, "No Contact Kits left", {
+        return fail(res, 402, "Your included email allowance has been used.", {
           action: { label: "Open pricing", url: `${getWebRedirectBaseUrl()}/pricing` },
           credits: { remaining: balance, required: amount }
         });
@@ -385,7 +393,7 @@ async function chargeAndRecord(req, action, response, internalCost) {
   });
 
   if (!result?.ok) {
-    throw publicError("No Contact Kits left", 402, {
+    throw publicError("Your included email allowance has been used.", 402, {
       action: { label: "Open pricing", url: `${getWebRedirectBaseUrl()}/pricing` },
       credits: { remaining: result?.balance ?? 0, required: charge.amount }
     });
@@ -440,15 +448,6 @@ function creditCost(name, fallback) {
     throw new Error(`${name} must be a non-negative number.`);
   }
   return parsed;
-}
-
-function isBetaUnlimitedUsage() {
-  const configured = String(process.env.BETA_UNLIMITED_USAGE || "").trim().toLowerCase();
-  if (["0", "false", "no", "off"].includes(configured)) return false;
-  if (["1", "true", "yes", "on"].includes(configured)) return true;
-
-  // Private-beta default. Set BETA_UNLIMITED_USAGE=false to restore configured costs.
-  return true;
 }
 
 function positiveIntegerEnv(name, fallback) {

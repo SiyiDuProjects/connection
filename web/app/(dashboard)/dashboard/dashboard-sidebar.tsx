@@ -1,152 +1,74 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import type React from 'react';
-import { Copy, Sparkles } from 'lucide-react';
-import { Avatar, Button, Card, buttonVariants } from '@heroui/react';
-import { useI18n } from '@/components/language-provider';
+import { Avatar, Button } from '@heroui/react';
+import { Sidebar } from '@heroui-pro/react';
+import { CreditCard, Gift, Home, LogOut, Settings2, UserRound } from 'lucide-react';
 
-type SidebarAccount = {
-  user?: {
-    name: string | null;
-    email: string;
-  };
-  settings?: {
-    senderName?: string | null;
-    school?: string | null;
-    region?: string | null;
-  } | null;
-  credits?: {
-    remaining: number;
-  };
+export type SidebarAccount = {
+  user?: { id?: number; name: string | null; email: string };
+  settings?: { senderName?: string | null } | null;
+  credits?: { remaining: number; unlimited?: boolean };
+  subscription?: { planName?: string };
 };
 
-export function DashboardSidebar({
-  account,
-  inviteCopying,
-  inviteStatus,
-  onCopyInviteLink
-}: {
+const navigation = [
+  { href: '/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/dashboard/profile', label: 'My profile', icon: UserRound },
+  { href: '/dashboard/refer-a-friend', label: 'Refer a Friend', icon: Gift },
+  { href: '/dashboard/general', label: 'Settings', icon: Settings2 }
+];
+
+export function DashboardSidebar({ account, pathname, onSignOut, signingOut }: {
   account?: SidebarAccount;
-  inviteCopying: boolean;
-  inviteStatus: string;
-  onCopyInviteLink: () => void;
+  pathname: string;
+  onSignOut?: () => void;
+  signingOut?: boolean;
 }) {
-  const pathname = usePathname();
-  const { language, t } = useI18n();
-  const settings = account?.settings;
-  const name = settings?.senderName || account?.user?.name || displayName(account?.user, t('sidebar.reachardUser'));
-  const email = account?.user?.email || '';
-
-  return (
-    <aside className="flex min-h-0 flex-col gap-3">
-      <section className="bg-transparent px-2 pb-5 pt-3">
-        <div>
-          <Avatar size="lg"><Avatar.Fallback>{initialsFromName(name)}</Avatar.Fallback></Avatar>
-          <h2 className="mt-5 truncate text-[25px] font-semibold leading-tight text-[#1d1d1f]">{name}</h2>
-          {email ? (
-            <p className="mt-1 truncate text-[17px] font-medium leading-snug text-[#6e6e73]">{email}</p>
-          ) : null}
-        </div>
-
-        <nav className="mt-11 flex flex-col gap-5">
-          <SidebarNavLink href="/dashboard" active={pathname === '/dashboard'}>
-            {t('dashboard.profile')}
-          </SidebarNavLink>
-          <SidebarNavLink href="/dashboard" active={pathname === '/dashboard'}>
-            {t('sidebar.personalInformation')}
-          </SidebarNavLink>
-          <SidebarNavLink href="/dashboard/recent-outreach" active={pathname === '/dashboard/recent-outreach'}>
-            {t('sidebar.recentOutreach')}
-          </SidebarNavLink>
-          <SidebarNavLink href="/dashboard/security" active={pathname === '/dashboard/security'}>
-            {t('sidebar.settings')}
-          </SidebarNavLink>
-        </nav>
-      </section>
-
-      <Card>
-        <div className="min-w-0">
-          <p className="section-title">{t('dashboard.credits')}</p>
-          <p className="page-title mt-1">
-            {formatNumber(account?.credits?.remaining, language)}
-          </p>
-          <p className="secondary mt-1">
-            {t('sidebar.creditsHelp')}
-          </p>
-        </div>
-        <Link
-          href="/pricing"
-          className={buttonVariants({ variant: 'tertiary', fullWidth: true, className: 'mt-3' })}
-        >
-          {t('sidebar.managePlan')}
-        </Link>
-      </Card>
-
-      <Card>
-        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-          {t('sidebar.inviteFriends')}
-        </div>
-        <h2 className="section-title mt-3">
-          {t('sidebar.inviteReward')}
-        </h2>
-        <Button
-          type="button"
-          onClick={onCopyInviteLink}
-          isDisabled={inviteCopying}
-          fullWidth variant="secondary" className="mt-4"
-        >
-          <Copy className="h-4 w-4" aria-hidden="true" />
-          {inviteCopying ? t('common.copying') : t('dashboard.copyInviteLink')}
-        </Button>
-        {inviteStatus ? (
-          <p className="secondary mt-2">{inviteStatus}</p>
-        ) : null}
-      </Card>
-
-    </aside>
-  );
-}
-
-function SidebarNavLink({
-  href,
-  active,
-  children
-}: {
-  href: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`text-[21px] font-semibold leading-tight tracking-[-0.01em] transition-colors ${
-        active
-          ? 'text-[#0071e3]'
-          : 'text-[#1d1d1f] hover:text-[#0071e3]'
-      }`}
-    >
-      {children}
-    </Link>
-  );
-}
-
-function displayName(user: SidebarAccount['user'] | undefined, fallback: string) {
-  if (!user) return fallback;
-  return user.name || user.email.split('@')[0];
-}
-
-function initialsFromName(value: string) {
-  return value
-    .split(/[ @.]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-}
-
-function formatNumber(value: number | undefined, language: 'en' | 'zh') {
-  return Number.isFinite(Number(value)) ? Number(value).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US') : '...';
+  const name = account?.settings?.senderName || account?.user?.name || 'Reachard';
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('');
+  function contents(prefix: string) {
+    return (
+      <>
+        <Sidebar.Header>
+          <div className="flex min-w-0 items-center gap-3 px-1 py-2">
+            <Avatar className="size-9"><Avatar.Image src="/images/brand/reachard-logo-mark.png" alt="Reachard" /><Avatar.Fallback>{initials}</Avatar.Fallback></Avatar>
+            <div className="min-w-0"><p className="truncate text-sm font-medium">{name}</p><p className="text-xs text-muted">{account?.user ? 'Your workspace' : 'Your outreach workspace'}</p></div>
+          </div>
+        </Sidebar.Header>
+        <Sidebar.Content>
+          <Sidebar.Group>
+            <Sidebar.Menu aria-label="Dashboard navigation">
+              {navigation.map(({ href, label, icon: Icon }) => (
+                <Sidebar.MenuItem key={href} id={`${prefix}${href}`} href={href} textValue={label}
+                  isCurrent={pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`))}>
+                  <Sidebar.MenuIcon><Icon className="size-4" /></Sidebar.MenuIcon>
+                  <Sidebar.MenuLabel>{label}</Sidebar.MenuLabel>
+                </Sidebar.MenuItem>
+              ))}
+            </Sidebar.Menu>
+          </Sidebar.Group>
+        </Sidebar.Content>
+        <Sidebar.Footer>
+          <div className="rounded-xl border border-separator bg-surface/60 px-3 py-3">
+            {account?.subscription?.planName ? <p className="mb-2 text-sm font-medium">{account.subscription.planName} plan</p> : null}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">Credits available</span>
+              <span className="font-medium tabular-nums">{account?.credits?.unlimited ? 'Unlimited' : account?.credits?.remaining?.toLocaleString('en-US') ?? '—'}</span>
+            </div>
+            <Link href="/pricing" className="mt-3 flex items-center gap-2 text-sm font-medium hover:underline"><CreditCard className="size-4" />Manage plan</Link>
+          </div>
+          {account?.user ? <div className="mt-2 flex items-center gap-2.5 px-1 py-2">
+            <Avatar size="sm"><Avatar.Fallback>{initials}</Avatar.Fallback></Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{name}</p>
+              <p className="truncate text-xs text-muted">{account?.user?.email || 'Reachard account'}</p>
+            </div>
+            {onSignOut ? <Button isIconOnly size="sm" variant="ghost" aria-label="Log out" isDisabled={signingOut} onPress={onSignOut}><LogOut className="size-4" /></Button> : null}
+          </div> : <Link href="/sign-in" className="px-2 py-3 text-sm font-medium">Sign in to Reachard</Link>}
+        </Sidebar.Footer>
+      </>
+    );
+  }
+  return <><Sidebar>{contents('desktop-')}</Sidebar><Sidebar.Mobile className="default reachard-dashboard">{contents('mobile-')}</Sidebar.Mobile></>;
 }
