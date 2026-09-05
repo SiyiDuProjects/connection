@@ -14,6 +14,5 @@ export function ThemeSwitch() {
   return <Button isIconOnly variant="ghost" aria-label={dark ? 'Use light appearance' : 'Use dark appearance'} onPress={toggle}>{dark ? <Sun size={17} /> : <Moon size={17} />}</Button>;
 }
 export function MarketingHeader() {
-  const chromeStoreUrl = String(process.env.NEXT_PUBLIC_CHROME_STORE_URL || '').trim();
-  return <header className="rd-header"><Brand /><nav aria-label="Main navigation"><Link href="/#how-it-works">How it works</Link><Link href="/pricing">Pricing</Link><Link href="/dashboard">Dashboard</Link><Link href="/workspace-preview">The workspace <ArrowUpRight size={13} /></Link></nav><div className="rd-header-actions"><ThemeSwitch /><Link className="rd-login-link" href="/sign-in">Log in</Link><Link className={buttonVariants({ variant: 'primary' })} href={chromeStoreUrl || '/sign-up'} target={chromeStoreUrl ? '_blank' : undefined} rel={chromeStoreUrl ? 'noreferrer' : undefined}>{chromeStoreUrl ? 'Add to Chrome' : 'Get started'} <ArrowUpRight size={14} /></Link></div></header>;
+  return <header className="rd-header"><Brand /><nav aria-label="Main navigation"><Link href="/#how-it-works">How it works</Link><Link href="/pricing">Pricing</Link></nav><div className="rd-header-actions"><ThemeSwitch /><Link className={buttonVariants({ variant: 'secondary' })} href="/sign-up">Get started <ArrowUpRight size={14} /></Link></div></header>;
 }
