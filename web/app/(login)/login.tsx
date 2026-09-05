@@ -1,11 +1,11 @@
 'use client';
-import { Button, Card, Input, InputGroup, Label, TextField, buttonVariants } from '@heroui/react';
+import { Button, Card, FieldError, Form, Input, InputGroup, Label, TextField, buttonVariants } from '@heroui/react';
 import { ArrowLeft, ArrowRight, ArrowUpRight, Eye, EyeOff, Loader2, Mail, UserRound, X } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useActionState, useState, type FormEvent } from 'react';
-import { checkAccountStatus, signIn, signUp } from './actions';
-import { ActionState } from '@/lib/auth/middleware';
+import { checkAccountStatus, signIn, signUp } from './public-auth-actions';
+import type { ActionState } from '@/lib/auth/middleware';
 import { Brand, ThemeSwitch } from '@/components/reachard/design';
 
 export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
@@ -31,7 +31,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
     setEmailError('');
     try {
       const result = await checkAccountStatus(email);
-      if ('error' in result && result.error) { setEmailError(result.error); return; }
+      if (!('email' in result)) { setEmailError(result.error); return; }
       setEmail(result.email || email);
       setSignup(!result.exists);
       setEmailStep(false);
@@ -55,18 +55,17 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
           <Card.Description>{started ? signup ? 'Your next conversation starts here.' : 'Log in to your Reachard workspace.' : <>Find the people behind<br/>your next opportunity.</>}</Card.Description>
         </Card.Header>
         <Card.Content>
-          {started ? <form action={action} onSubmit={checkEmail} className="hu-auth-fields">
+          {started ? <Form action={action} onSubmit={checkEmail} className="hu-auth-fields">
             {['redirect', 'priceId', 'inviteId', 'ref'].map(key => <input key={key} type="hidden" name={key} value={searchParams.get(key) || ''}/>)}
-            <TextField isRequired fullWidth><Label>Email address</Label><Input name="email" type="email" value={email} onChange={event => { setEmail(event.target.value); if (mode === 'signin') setEmailStep(true); }} placeholder="you@example.com" autoComplete="email" autoFocus required maxLength={255}/></TextField>
-            {!emailStep && <TextField isRequired fullWidth><Label>{signup ? 'Create a password' : 'Password'}</Label><InputGroup fullWidth><InputGroup.Input name="password" type={showPassword ? 'text' : 'password'} placeholder={signup ? 'At least 8 characters' : 'Your password'} autoComplete={signup ? 'new-password' : 'current-password'} minLength={8} maxLength={100} required/><InputGroup.Suffix><Button isIconOnly size="sm" type="button" variant="ghost" aria-label={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword(value => !value)}>{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</Button></InputGroup.Suffix></InputGroup></TextField>}
+            <TextField isRequired fullWidth name="email" type="email" value={email} onChange={value => { setEmail(value); if (mode === 'signin') setEmailStep(true); }} maxLength={255}><Label>Email address</Label><Input placeholder="you@example.com" autoComplete="email" autoFocus/><FieldError/></TextField>
+            {!emailStep && <TextField isRequired fullWidth name="password" type={showPassword ? 'text' : 'password'} minLength={8} maxLength={100}><Label>{signup ? 'Create a password' : 'Password'}</Label><InputGroup fullWidth><InputGroup.Input placeholder={signup ? 'At least 8 characters' : 'Your password'} autoComplete={signup ? 'new-password' : 'current-password'}/><InputGroup.Suffix><Button isIconOnly size="sm" type="button" variant="ghost" aria-label={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword(value => !value)}>{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</Button></InputGroup.Suffix></InputGroup><FieldError/></TextField>}
             {(emailError || state?.error) && <p role="alert" className="rd-form-error">{emailError || state.error}</p>}
             <Button type="submit" size="lg" fullWidth variant="primary" isDisabled={busy}>{busy ? <Loader2 className="animate-spin" size={18}/> : null}{busy ? 'One moment…' : emailStep ? 'Continue' : signup ? 'Create account' : 'Log in'}{!busy && <ArrowRight size={18}/>}</Button>
-          </form> : <Button fullWidth size="lg" variant="primary" onPress={() => setStarted(true)}>Get started<ArrowRight size={18}/></Button>}
+          </Form> : <Button fullWidth size="lg" variant="primary" onPress={() => setStarted(true)}>Get started<ArrowRight size={18}/></Button>}
           {!started && <p className="hu-auth-email-note">Continue with your email address</p>}
         </Card.Content>
         <Card.Footer className="hu-auth-card-footer">
           <p>{signup ? 'Already have an account?' : 'New to Reachard?'} <Link href={switchUrl}>{signup ? 'Log in' : 'Create an account'}</Link></p>
-          <Link href="/workspace-preview" className={buttonVariants({ variant: 'tertiary', fullWidth: true, size: 'lg' })}>Explore the workspace first <ArrowUpRight size={15}/></Link>
         </Card.Footer>
       </Card>
       <p className="hu-auth-legal">{signup ? 'By creating an account, you agree to our' : 'Your account. Your connections.'}<br/><Link href="/terms">Terms of Service</Link> and <Link href="/privacy">Privacy Policy</Link>.</p>

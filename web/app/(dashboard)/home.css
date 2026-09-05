@@ -1,5 +1,10 @@
 /* Homepage only. Granola-inspired composition; Reachard's own imagery and UI. */
 .rh-home { --rh-serif: 'EB Garamond', Georgia, serif; overflow: clip; }
+.rh-demo-pointer { position: absolute; left: 0; top: 0; z-index: 5; width: 26px; height: 32px; pointer-events: none; transition: transform .07s linear, opacity .18s; will-change: transform; }
+.rh-demo-pointer svg { position: relative; transform-origin: 1.5px 1.5px; transition: transform .12s; filter: drop-shadow(0 2px 3px #14274345); }
+.rh-pointer-ripple { position: absolute; left: 1.5px; top: 1.5px; width: 30px; height: 30px; border: 2px solid #007aff; background: #007aff20; border-radius: 50%; }
+.rh-demo-search,.rh-demo-write,.rh-person-target { transition: scale .15s, box-shadow .15s; }
+.rh-demo-search[data-pressed='true'],.rh-demo-write[data-pressed='true'],.rh-person-target[data-pressed='true'] { scale: .98; box-shadow: 0 0 0 3px #007aff24; border-radius: 7px; }
 .rh-home .rd-header { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); max-width: 1440px; margin: auto; padding-inline: 48px; height: 88px; }
 .rh-home .rd-header > .rd-brand { justify-self: start; }
 .rh-home .rd-header > nav { justify-self: center; }
@@ -57,3 +62,11 @@
 @media(max-width:520px) { .rh-home .rd-header { padding-inline: 20px; height: 72px; }.rh-home .rd-header-actions { gap: 4px; }.rh-home .rd-header-actions > .button { font-size: 11px; padding-inline: 12px; }.rh-home .rd-header-actions > .button--ghost { padding-inline: 8px; }.rh-hero { padding: 28px 20px 36px; gap: 30px; }.rh-eyebrow { font-size: 9px; gap: 6px; }.rh-copy h1 { font-size: clamp(43px, 13.7vw, 71px); letter-spacing: -.05em; }.rh-description { font-size: 14px; line-height: 1.7; }.rh-actions { gap: 8px; margin-top: 24px; }.rh-actions > .button { min-height: 44px; padding-inline: 15px; font-size: 12px; }.rh-compatibility { font-size: 9px; margin-top: 18px; }.rh-collage { height: 648px; }.rh-extension { width: 83%; right: 0; top: 5%; height: 89%; border-radius: 12px; }.rh-job-window { left: -2%; top: 15%; height: 65%; width: 87%; }.rh-art-blue { right: -1%; width: 81%; height: 90%; }.rh-art-coast { left: -2%; width: 76%; height: 60%; }.rh-extension-header { padding-inline: 16px; height: 48px; }.rh-extension-header > span:first-child { font-size: 19px; }.rh-demo-scene { padding: 20px 16px; }.rh-demo-scene h3 { font-size: 21px; }.rh-live-caption { right: 3%; bottom: 1%; height: 40px; font-size: 10px; padding-right: 12px; }.rh-extension-bottom { padding-inline: 16px; }.rh-draft-scene { padding-top: 17px; }.rh-draft-scene .rh-demo-back { margin-bottom: 12px; }.rh-email-text { font-size: 10px; min-height: 188px; line-height: 1.6; }.rh-demo figcaption { font-size: 8px; gap: 3px; margin-top: 12px; }.rh-down { font-size: 10px; }.rh-how { padding: 46px 24px 60px; }.rh-home .rh-how h2 { font-size: 45px; }.rh-how-heading > p { font-size: 12px; }.rh-steps { grid-template-columns: 1fr; gap: 25px; margin-top: 34px; }.rh-steps article { padding-top: 20px; }.rh-steps h3 { margin-top: 16px; }.rh-steps p { max-width: none; }.rh-closing { margin-inline: 12px; padding: 44px 22px 60px; min-height: 340px; }.rh-closing p { line-height: 1.7; max-width: 270px; margin-inline: auto; }.rh-home .rh-closing h2 { font-size: 43px; }.rh-home .rh-footer { padding: 32px 24px 24px; }.rh-footer nav { width: auto; margin-left: auto; gap: 14px; }.rh-footer small { padding-top: 18px; }.rh-footer .rd-brand span { font-size: 21px; }.rh-footer .rd-brand svg { width: 22px; } }
 @media(max-width:360px) { .rh-collage { height: 680px; }.rh-extension { width: 89%; }.rh-eyebrow { font-size: 8px; }.rh-eyebrow > span { font-size: 8px; }.rh-demo figcaption { flex-wrap: wrap; }.rh-actions > .button { padding-inline: 13px; font-size: 11px; } }
 @media(prefers-reduced-motion:reduce) { .rh-home *, .rh-home *::before, .rh-home *::after { animation: none !important; transition: none !important; }.rh-home { scroll-behavior: auto; } }
+
+/* Keep the illustrative people step aligned with the extension's open list. */
+.rh-contact-main { background: transparent; border: 0; border-bottom: 1px solid #d8deed; border-radius: 0; padding: 12px 0 16px; }
+.rh-match { background: transparent; border-radius: 0; padding: 0; margin: 12px 0; }
+.rh-match p { color: var(--rh-panel-text); margin: 0 0 8px; }
+.rh-match > span { color: #71809a; font-weight: 400; }
+.rh-demo-write { border-radius: 7px; background: #e9edf5; padding: 10px; }
+.rh-contact-secondary { padding-inline: 0; }

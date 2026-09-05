@@ -142,10 +142,14 @@ export const emailVerificationTokens = pgTable('email_verification_tokens', {
     .notNull()
     .references(() => users.id),
   tokenHash: text('token_hash').notNull().unique(),
+  codeHash: text('code_hash'),
+  attempts: integer('attempts').notNull().default(0),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   usedAt: timestamp('used_at'),
-});
+}, (table) => ({
+  userCreatedIdx: index('email_verification_tokens_user_created_idx').on(table.userId, table.createdAt),
+}));
 
 export const userSettings = pgTable(
   'user_settings',

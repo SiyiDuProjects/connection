@@ -23,12 +23,11 @@ import {
 import { comparePasswords, hashPassword, setSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import {
-  cancelSubscriptionAtPeriodEnd,
-  createCheckoutSession
-} from '@/lib/payments/stripe';
 import { getUser, getUserWithTeam } from '@/lib/db/queries';
 import { revokeExtensionTokens } from '@/lib/extension-tokens';
+import { issueEmailVerification, verifyEmailCode, VerificationRateLimitError } from '@/lib/auth/email-verification';
+import { requireEmailDelivery } from '@/lib/email/resend';
+import { safeAuthRedirect } from '@/lib/auth/verification-code';
 import {
   validatedAction,
   validatedActionWithUser
@@ -110,11 +109,15 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
     foundUser.passwordHash
   );
 
-  if (!isPasswordValid) {
+  if (!isPasswordValid || foundUser.deletedAt) {
     return {
       error: 'Invalid email or password. Please try again.',
       email
     };
+  }
+
+  if (!foundUser.emailVerifiedAt) {
+    await continueToVerification(foundUser, formData);
   }
 
   await Promise.all([
@@ -128,6 +131,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
       redirect('/dashboard');
     }
     const priceId = formData.get('priceId') as string;
+    const { createCheckoutSession } = await import('@/lib/payments/stripe');
     return createCheckoutSession({ team: foundTeam, priceId });
   }
   if (isInternalRedirect(redirectTo)) {
@@ -138,8 +142,8 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 });
 
 const signUpSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
+  email: z.string().email().max(255),
+  password: z.string().min(8).max(100),
   inviteId: z.string().optional(),
   ref: z.string().trim().optional()
 });
@@ -167,6 +171,10 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   const parsedInviteId = inviteId ? Number.parseInt(inviteId, 10) : null;
   if (inviteId && (!Number.isSafeInteger(parsedInviteId) || Number(parsedInviteId) <= 0)) {
     return { error: 'Invalid or expired invitation.', email, ref };
+  }
+
+  try { requireEmailDelivery(); } catch {
+    return { error: 'Email verification is temporarily unavailable. Please try again later.', email, ref };
   }
 
   let createdUser: User;
@@ -215,7 +223,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
         .values({
           email,
           passwordHash,
-          emailVerifiedAt: new Date(),
+          emailVerifiedAt: null,
           role: userRole
         } satisfies NewUser)
         .returning();
@@ -266,15 +274,27 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     return { error: 'Failed to create account. Please try again.', email, ref };
   }
 
-  await setSession(createdUser);
-
-  const redirectTo = formData.get('redirect') as string | null;
-  if (isInternalRedirect(redirectTo)) {
-    redirect(redirectTo);
-  }
-
-  redirect('/dashboard');
+  return continueToVerification(createdUser, formData);
 });
+
+async function continueToVerification(user: User, formData: FormData): Promise<never> {
+  const params = new URLSearchParams({ email: user.email });
+  for (const key of ['redirect', 'priceId']) {
+    const value = formData.get(key);
+    if (typeof value === 'string' && value) params.set(key, value);
+  }
+  try {
+    await issueEmailVerification(user.id, user.email);
+    params.set('sent', '1');
+  } catch (error) {
+    if (error instanceof VerificationRateLimitError) {
+      params.set('retryAfter', String(error.retryAfter));
+    } else {
+      params.set('error', 'delivery');
+    }
+  }
+  redirect(`/verify-email?${params}`);
+}
 
 const resendVerificationSchema = z.object({
   email: z.string().email().min(3).max(255)
@@ -290,15 +310,44 @@ export const resendVerification = validatedAction(
       .where(eq(users.email, email))
       .limit(1);
 
-    return {
-      success: 'Email verification is currently disabled.',
-      email
-    };
+    if (foundUser && !foundUser.emailVerifiedAt && !foundUser.deletedAt) {
+      try {
+        await issueEmailVerification(foundUser.id, email);
+      } catch (error) {
+        if (error instanceof VerificationRateLimitError) {
+          return { error: `Please wait ${error.retryAfter} seconds before requesting another code.`, email, retryAfter: error.retryAfter };
+        }
+        return { error: 'We could not send your code. Please wait a minute and try again.', email, retryAfter: 60 };
+      }
+    }
+    return { success: 'If this email has an unverified account, a new code is on its way. Check your inbox and spam folder.', email, retryAfter: 60 };
+  }
+);
+
+export const confirmVerification = validatedAction(
+  z.object({ email: z.string().email().max(255), code: z.string().regex(/^\d{6}$/, 'Enter all six digits.') }),
+  async ({ email, code }, formData) => {
+    let user: User | null;
+    try { user = await verifyEmailCode(email.toLowerCase(), code); } catch {
+      return { error: 'We could not verify your email. Please try again.', email };
+    }
+    if (!user) return { error: 'This code is invalid, expired, or has too many attempts. Try again or request a new code.', email };
+    await setSession(user);
+    if (formData.get('redirect') === 'checkout') {
+      const [membership] = await db.select({ team: teams, role: teamMembers.role }).from(teamMembers)
+        .innerJoin(teams, eq(teams.id, teamMembers.teamId)).where(eq(teamMembers.userId, user.id)).limit(1);
+      const priceId = formData.get('priceId');
+      if (membership?.role === 'owner' && typeof priceId === 'string' && priceId) {
+        const { createCheckoutSession } = await import('@/lib/payments/stripe');
+        return createCheckoutSession({ team: membership.team, priceId });
+      }
+    }
+    redirect(safeAuthRedirect(formData.get('redirect')));
   }
 );
 
 function isInternalRedirect(value: string | null): value is string {
-  return Boolean(value && value.startsWith('/') && !value.startsWith('//'));
+  return Boolean(value && value.startsWith('/') && safeAuthRedirect(value) === value);
 }
 
 export async function signOut() {
@@ -386,6 +435,7 @@ export const deleteAccount = validatedActionWithUser(
     const userWithTeam = await getUserWithTeam(user.id);
 
     if (userWithTeam?.teamRole === 'owner' && userWithTeam.stripeSubscriptionId) {
+      const { cancelSubscriptionAtPeriodEnd } = await import('@/lib/payments/stripe');
       await cancelSubscriptionAtPeriodEnd(userWithTeam.stripeSubscriptionId);
     }
 
@@ -429,7 +479,7 @@ export const deleteAccount = validatedActionWithUser(
 
 const updateAccountSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
-  email: z.string().email('Invalid email address')
+  email: z.string().email('Invalid email address').max(255)
 });
 
 export const updateAccount = validatedActionWithUser(
@@ -440,21 +490,35 @@ export const updateAccount = validatedActionWithUser(
     const userWithTeam = await getUserWithTeam(user.id);
     const emailChanged = email !== user.email;
 
-    await Promise.all([
-      db
+    if (emailChanged) {
+      try { requireEmailDelivery(); } catch {
+        return { error: 'Email verification is temporarily unavailable. Your email has not been changed.' };
+      }
+    }
+
+    await db.transaction(async (tx) => {
+      await tx
         .update(users)
         .set({
           name,
           email,
-          emailVerifiedAt: emailChanged ? new Date() : user.emailVerifiedAt,
+          emailVerifiedAt: emailChanged ? null : user.emailVerifiedAt,
           updatedAt: new Date()
         })
-        .where(eq(users.id, user.id)),
-      logActivity(userWithTeam?.teamId, user.id, ActivityType.UPDATE_ACCOUNT)
-    ]);
+        .where(eq(users.id, user.id));
+      if (emailChanged) {
+        await tx.update(emailVerificationTokens).set({ usedAt: new Date() })
+          .where(eq(emailVerificationTokens.userId, user.id));
+      }
+    });
+    await logActivity(userWithTeam?.teamId, user.id, ActivityType.UPDATE_ACCOUNT);
 
     if (emailChanged) {
-      await setSession({ ...user, email, emailVerifiedAt: new Date() });
+      await revokeExtensionTokens(user.id);
+      (await cookies()).delete('session');
+      const destination = new FormData();
+      destination.set('redirect', '/dashboard/general');
+      return continueToVerification({ ...user, email, emailVerifiedAt: null }, destination);
     }
 
     return { name, success: 'Account updated successfully.' };

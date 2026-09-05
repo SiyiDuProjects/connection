@@ -3,7 +3,7 @@
 @import "tw-animate-css";
 @import "./reachard.css";
 @import "./hero-workspace.css";
-@import "./hero-auth.css";
+@import "./auth.css";
 
 @custom-variant dark (&:is(.dark *));
 
