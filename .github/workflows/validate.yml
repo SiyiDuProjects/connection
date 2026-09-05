@@ -57,6 +57,7 @@ jobs:
       POSTGRES_URL: postgresql://user:password@localhost:5432/reachard
       STRIPE_SECRET_KEY: sk_test_validation
       STRIPE_WEBHOOK_SECRET: whsec_validation
+      HEROUI_AUTH_TOKEN: ${{ secrets.HEROUI_AUTH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
