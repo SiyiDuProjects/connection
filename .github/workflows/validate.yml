@@ -72,6 +72,7 @@ jobs:
       - name: Install Pro components through CollectUI
         run: npx -y hpsetup@4.7.1 react --auto
       - run: node scripts/check-pro-install.mjs
+      - run: node scripts/check-ui-boundaries.mjs
       - run: pnpm test:billing
       - run: pnpm test:email
       - run: node --test scripts/dashboard.test.mjs

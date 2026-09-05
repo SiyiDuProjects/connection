@@ -8,7 +8,7 @@ export default function TermsPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 pb-20 pt-28 text-foreground">
       <article className="legal-copy">
-        <p className="text-sm font-semibold text-muted-foreground">Effective August 30, 2026</p>
+        <p className="text-sm font-semibold text-muted">Effective August 30, 2026</p>
         <h1>Reachard Terms of Service</h1>
         <p>
           Reachard is a job-search research and writing assistant. By using Reachard, you agree to use it lawfully and responsibly and to review all contact information and outreach before acting on it.

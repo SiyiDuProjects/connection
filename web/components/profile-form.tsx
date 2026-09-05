@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Alert, Button, Card, Description, FieldError, Fieldset, Form, Input, InputGroup, Label, ListBox, Select, TextArea, TextField } from '@heroui/react';
+import { Alert, Button, Description, FieldError, Fieldset, Form, Input, InputGroup, Label, ListBox, Select, Separator, TextArea, TextField } from '@heroui/react';
+import { SettingsRow } from '@/components/settings-row';
 import { DropZone } from '@heroui-pro/react';
 import { extractResumeText, getResumeTextErrorKey, RESUME_FILE_ACCEPT } from '@/lib/resume-text';
 import { translate as t } from '@/lib/i18n';
@@ -31,7 +32,7 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
   const [failed, setFailed] = useState(false);
   const [resolving, setResolving] = useState('');
   const [matches, setMatches] = useState<{ school: Match[]; region: Match[] }>({ school: [], region: [] });
-  const disabled = preview || saving || importing;
+  const disabled = saving || importing;
 
   function update<K extends keyof ProfileValues>(key: K, value: ProfileValues[K]) {
     setStatus('');
@@ -44,6 +45,7 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
   }
 
   async function resolve(kind: 'school' | 'region') {
+    if (preview) return;
     const query = values[kind].trim();
     if (query.length < 2) return;
     setResolving(kind); setStatus('');
@@ -78,7 +80,7 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
   }
 
   async function save() {
-    if (disabled) return;
+    if (preview || disabled) return;
     if (!values.name.trim() || !values.school.trim() || (!values.senderProfile.trim() && !values.resumeContext.trim())) {
       setFailed(true); setStatus('Add your name, school or affiliation, and either a short background or a resume.'); return;
     }
@@ -94,35 +96,36 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
     finally { setSaving(false); }
   }
 
-  return <Form className="w-full gap-6" onSubmit={event => { event.preventDefault(); void save(); }}>
-    <Card className="w-full p-6 sm:p-8">
-      <Card.Content className="gap-8">
+  return <Form className="flex w-full flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
+    <Separator />
+        <SettingsRow label="Personal information" description="Your name, school or affiliation, and region help make your outreach relevant.">
         <Fieldset disabled={disabled} className="w-full">
-          <Fieldset.Legend>About you</Fieldset.Legend>
-          <Description>The details that make your outreach personal.</Description>
+          <Fieldset.Legend className="sr-only">Personal information</Fieldset.Legend>
           <Fieldset.Group className="gap-5">
             <TextField fullWidth isRequired name="name" maxLength={100} value={values.name} onChange={value => update('name', value)}>
-              <Label>Full name</Label><Input autoComplete="name" placeholder="Your name" /><FieldError />
+              <Label className="sr-only">Full name</Label><Input autoComplete="name" placeholder="Your name" /><FieldError />
             </TextField>
-            <div className="grid gap-5 sm:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-2">
               {(['school', 'region'] as const).map(kind => <div className="min-w-0" key={kind}>
                 <TextField fullWidth isRequired={kind === 'school'} name={kind} maxLength={160} value={values[kind]} onChange={value => update(kind, value)}>
-                  <Label>{kind === 'school' ? 'School or affiliation' : 'Region'}</Label>
+                  <Label className="sr-only">{kind === 'school' ? 'School or affiliation' : 'Region'}</Label>
                   <InputGroup fullWidth className="min-w-0">
                     <InputGroup.Input className="min-w-0 flex-1" placeholder={kind === 'school' ? 'School or organization' : 'City or region'} />
-                    <InputGroup.Suffix className="shrink-0"><Button type="button" size="sm" variant="ghost" isPending={resolving === kind} isDisabled={disabled || values[kind].trim().length < 2} onPress={() => void resolve(kind)}>Search</Button></InputGroup.Suffix>
+                    <InputGroup.Suffix className="shrink-0"><Button type="button" size="sm" variant="ghost" isPending={resolving === kind} isDisabled={preview || disabled || values[kind].trim().length < 2} onPress={() => void resolve(kind)}>Search</Button></InputGroup.Suffix>
                   </InputGroup><FieldError />
                 </TextField>
-                {matches[kind].length > 0 && <ListBox aria-label={`${kind} matches`} className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-separator" onAction={key => selectMatch(kind, String(key))}>
+                {matches[kind].length > 0 && <ListBox aria-label={`${kind} matches`} className="mt-2 max-h-48 overflow-y-auto" onAction={key => selectMatch(kind, String(key))}>
                   {matches[kind].map(item => <ListBox.Item id={item.id} key={item.id} textValue={item.label}><Label>{item.label}</Label>{item.subtitle && <Description>{item.subtitle}</Description>}</ListBox.Item>)}
                 </ListBox>}
               </div>)}
             </div>
           </Fieldset.Group>
         </Fieldset>
+        </SettingsRow>
+        <Separator />
+        <SettingsRow label="Background and resume" description="Add a resume or a few sentences about yourself. Either is enough to get started.">
         <Fieldset disabled={disabled} className="w-full">
-          <Fieldset.Legend>Your background</Fieldset.Legend>
-          <Description>Add a resume or a few sentences about yourself. Either is enough to get started.</Description>
+          <Fieldset.Legend className="sr-only">Background and resume</Fieldset.Legend>
           <Fieldset.Group className="gap-5">
             <DropZone className="w-full">
               <DropZone.Area isDisabled={disabled} onDrop={async event => {
@@ -145,24 +148,24 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
             </TextField>
           </Fieldset.Group>
         </Fieldset>
-        {!onboarding && <Fieldset disabled={disabled} className="w-full">
-          <Fieldset.Legend>Outreach preferences</Fieldset.Legend>
-          <Description>The starting point for your email drafts.</Description>
+        </SettingsRow>
+        {!onboarding && <><Separator /><SettingsRow label="Outreach preferences" description="Set the tone, length and goal of your drafts, with any extra guidance below.">
+        <Fieldset disabled={disabled} className="w-full">
+          <Fieldset.Legend className="sr-only">Outreach preferences</Fieldset.Legend>
           <Fieldset.Group className="gap-5">
-            <div className="grid gap-5 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               <PreferenceSelect label="Tone" value={values.emailTone || 'warm'} options={['warm', 'concise', 'confident', 'formal']} onChange={value => update('emailTone', value as ProfileValues['emailTone'])} />
               <PreferenceSelect label="Length" value={values.outreachLength} options={['short', 'concise', 'detailed']} onChange={value => update('outreachLength', value as ProfileValues['outreachLength'])} />
               <PreferenceSelect label="Goal" value={values.outreachGoal} options={['advice', 'referral', 'intro']} onChange={value => update('outreachGoal', value as ProfileValues['outreachGoal'])} />
             </div>
             <TextField fullWidth name="outreachStyleNotes" maxLength={500} value={values.outreachStyleNotes} onChange={value => update('outreachStyleNotes', value)}><Label>Style notes</Label><TextArea rows={3} placeholder="Anything else your drafts should sound like…" /><FieldError /></TextField>
           </Fieldset.Group>
-        </Fieldset>}
-      </Card.Content>
-      <Card.Footer className="flex-col items-stretch gap-4 pt-6">
+        </Fieldset></SettingsRow></>}
+      <Separator />
+      <footer className="flex flex-col gap-4 pt-2">
         {status && <Alert status={failed ? 'danger' : 'success'}><Alert.Indicator /><Alert.Content><Alert.Description>{status}</Alert.Description></Alert.Content></Alert>}
-        <div className="flex justify-end"><Button type="submit" variant="primary" isPending={saving} isDisabled={disabled}>{onboarding ? 'Continue to dashboard' : 'Save changes'}</Button></div>
-      </Card.Footer>
-    </Card>
+        <div className="flex justify-end"><Button type="submit" variant="primary" isPending={saving} isDisabled={preview || disabled}>{onboarding ? 'Continue to dashboard' : 'Save changes'}</Button></div>
+      </footer>
   </Form>;
 }
 

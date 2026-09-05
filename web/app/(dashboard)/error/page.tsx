@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import { Card } from '@heroui/react';
 import { buttonVariants } from '@heroui/styles';
@@ -9,7 +11,7 @@ export default function ErrorPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           We could not finish that request.
         </h1>
-        <p className="mt-4 text-base leading-7 text-muted-foreground">
+        <p className="mt-4 text-base leading-7 text-muted">
           No additional action is needed right now. Check your billing status, then retry from the pricing page.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">

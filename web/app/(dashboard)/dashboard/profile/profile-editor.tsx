@@ -18,8 +18,8 @@ export default function ProfileEditor({ preview = false }: { preview?: boolean }
   if (!preview && !data) return <div className="flex justify-center p-12"><Spinner aria-label="Loading profile" /></div>;
   const settings = data?.settings;
   const initial = Object.fromEntries(Object.entries({ ...empty, ...settings, name: data?.user.name || '' }).map(([key, value]) => [key, value ?? empty[key as keyof ProfileValues]])) as ProfileValues;
-  return <div className="dashboard-page-content"><section className="mx-auto w-full max-w-3xl space-y-6">
+  return <section className="mx-auto w-full max-w-5xl space-y-4 px-5 pb-10 pt-4">
     <div><p className="text-sm text-muted">Your background and preferences for more personal outreach.</p></div>
     <ProfileForm initial={initial} preview={preview} onSaved={() => { void mutate(); }} />
-  </section></div>;
+  </section>;
 }

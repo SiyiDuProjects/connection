@@ -1,5 +1,5 @@
 'use client';
-import { Button, Card, FieldError, Form, Input, InputGroup, Label, TextField, buttonVariants } from '@heroui/react';
+import { Alert, Button, Card, FieldError, Form, Input, InputGroup, Label, TextField, buttonVariants } from '@heroui/react';
 import { ArrowLeft, ArrowRight, ArrowUpRight, Eye, EyeOff, Loader2, Mail, UserRound, X } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -51,7 +51,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
         <Link href="/" className={buttonVariants({ variant: 'tertiary', isIconOnly: true, size: 'sm', className: 'absolute right-5 top-5' })} aria-label="Close and return home"><X size={20}/></Link>
         <Card.Header className="hu-auth-card-header">
           <div className="hu-auth-icon">{started ? <Mail size={25} strokeWidth={1.7}/> : <UserRound size={27} strokeWidth={1.7}/>}</div>
-          <Card.Title>{signup ? started ? 'Create your account' : 'Create an account' : emailStep ? 'Continue to Reachard' : 'Welcome back'}</Card.Title>
+          <Card.Title className="text-2xl font-semibold leading-tight tracking-tight">{signup ? started ? 'Create your account' : 'Create an account' : emailStep ? 'Continue to Reachard' : 'Welcome back'}</Card.Title>
           <Card.Description>{started ? signup ? 'Your next conversation starts here.' : 'Log in to your Reachard workspace.' : <>Find the people behind<br/>your next opportunity.</>}</Card.Description>
         </Card.Header>
         <Card.Content>
@@ -59,7 +59,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
             {['redirect', 'priceId', 'inviteId', 'ref'].map(key => <input key={key} type="hidden" name={key} value={searchParams.get(key) || ''}/>)}
             <TextField isRequired fullWidth name="email" type="email" value={email} onChange={value => { setEmail(value); if (mode === 'signin') setEmailStep(true); }} maxLength={255}><Label>Email address</Label><Input placeholder="you@example.com" autoComplete="email" autoFocus/><FieldError/></TextField>
             {!emailStep && <TextField isRequired fullWidth name="password" type={showPassword ? 'text' : 'password'} minLength={8} maxLength={100}><Label>{signup ? 'Create a password' : 'Password'}</Label><InputGroup fullWidth><InputGroup.Input placeholder={signup ? 'At least 8 characters' : 'Your password'} autoComplete={signup ? 'new-password' : 'current-password'}/><InputGroup.Suffix><Button isIconOnly size="sm" type="button" variant="ghost" aria-label={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword(value => !value)}>{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</Button></InputGroup.Suffix></InputGroup><FieldError/></TextField>}
-            {(emailError || state?.error) && <p role="alert" className="rd-form-error">{emailError || state.error}</p>}
+            {(emailError || state?.error) && <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Description>{emailError || state.error}</Alert.Description></Alert.Content></Alert>}
             <Button type="submit" size="lg" fullWidth variant="primary" isDisabled={busy}>{busy ? <Loader2 className="animate-spin" size={18}/> : null}{busy ? 'One moment…' : emailStep ? 'Continue' : signup ? 'Create account' : 'Log in'}{!busy && <ArrowRight size={18}/>}</Button>
           </Form> : <Button fullWidth size="lg" variant="primary" onPress={() => setStarted(true)}>Get started<ArrowRight size={18}/></Button>}
           {!started && <p className="hu-auth-email-note">Continue with your email address</p>}

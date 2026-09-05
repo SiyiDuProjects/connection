@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
-import { Button, Card, Input } from '@heroui/react';
+import { Alert, Button, Card, Input } from '@heroui/react';
 import { Check, Copy, Gift } from 'lucide-react';
 
 type FriendInvite = { link: string; code: string; acceptedCount: number };
@@ -48,10 +48,10 @@ export default function ReferAFriend({ preview = false }: { preview?: boolean })
         <h2 className="text-2xl font-semibold tracking-tight">Good things are worth sharing.</h2>
         <p className="max-w-xl text-sm leading-6 text-muted">Invite a friend to Reachard. When they subscribe, you get one month free.</p>
       </div>
-      <Card className="rounded-2xl">
+      <Card>
         <Card.Header><Card.Title>Your referral link</Card.Title><Card.Description>Share it with a friend who could use a way in.</Card.Description></Card.Header>
         <Card.Content className="space-y-4">
-          {error ? <div role="alert" className="space-y-3"><p className="text-sm text-danger">{error.message}</p><Button size="sm" variant="secondary" isDisabled={isValidating} onPress={() => void mutate()}>Try again</Button></div> : <>
+          {error ? <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Description>{error.message}</Alert.Description><Button size="sm" variant="secondary" className="mt-2" isDisabled={isValidating} onPress={() => void mutate()}>Try again</Button></Alert.Content></Alert> : <>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Input aria-label="Your referral link" className="min-w-0 flex-1"
                 readOnly disabled={!data?.link} value={data?.link || ''}

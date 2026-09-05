@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
+import { Appearance } from '@/components/appearance';
 
 export const metadata: Metadata = {
   title: 'Reachard',
@@ -27,6 +28,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-[100dvh] bg-background">
+        <Appearance />
         {children}
       </body>
     </html>

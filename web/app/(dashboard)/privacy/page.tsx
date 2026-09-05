@@ -8,7 +8,7 @@ export default function PrivacyPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 pb-20 pt-28 text-foreground">
       <article className="legal-copy">
-        <p className="text-sm font-semibold text-muted-foreground">Effective August 30, 2026</p>
+        <p className="text-sm font-semibold text-muted">Effective August 30, 2026</p>
         <h1>Reachard Privacy Policy</h1>
         <p>
           Reachard helps job seekers identify relevant company contacts and prepare personalized outreach. This policy explains what the Reachard website and browser extension process and why.

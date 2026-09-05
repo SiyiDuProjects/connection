@@ -38,7 +38,7 @@ export function ResendVerificationForm({ email: initialEmail, error, redirectTo 
       <Card className="hu-auth-card">
         <Card.Header className="hu-auth-card-header">
           <div className="hu-auth-icon"><MailCheck size={27} strokeWidth={1.7}/></div>
-          <Card.Title>Verify your email</Card.Title>
+          <Card.Title className="text-2xl font-semibold leading-tight tracking-tight">Verify your email</Card.Title>
           <Card.Description>Enter the six-digit code from your email.</Card.Description>
         </Card.Header>
         <Card.Content className="flex flex-col gap-5">

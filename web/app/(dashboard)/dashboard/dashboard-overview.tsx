@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { ArrowsRotateLeft } from '@gravity-ui/icons';
-import { Button, Chip, SearchField, Tabs } from '@heroui/react';
-import { DataGrid, type DataGridColumn, type DataGridSortDescriptor } from '@heroui-pro/react';
+import { Alert, Button, Chip, SearchField, Spinner, Tabs, Tooltip } from '@heroui/react';
+import { DataGrid, EmptyState, type DataGridColumn, type DataGridSortDescriptor } from '@heroui-pro/react';
 import { actionNames, type DashboardAccount, type DashboardUsage } from '@/lib/dashboard';
 
 export async function fetchDashboardAccount(url: string): Promise<DashboardAccount> {
@@ -43,10 +43,10 @@ export function DashboardOverviewContent({ account, preview, error, loading, ref
   ], []);
   return <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 pb-10 pt-4">
     {preview ? <p className="text-xs text-muted">Reachard preview · <Link href="/sign-in" className="text-accent underline">Sign in</Link> to load your account.</p> : null}
-    {error ? <p role="alert" className="rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</p> : null}
+    {error ? <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Description>{error}</Alert.Description></Alert.Content></Alert> : null}
     <div className="flex items-start justify-between gap-3">
       <div><h2 className="text-base font-semibold">Recent activity</h2><p className="mt-1 text-sm text-muted">Your latest 10 searches, email reveals and drafts.</p></div>
-      <Button isIconOnly size="sm" variant="tertiary" aria-label="Refresh activity" isDisabled={preview || refreshing} onPress={onRefresh}><ArrowsRotateLeft className="size-4" /></Button>
+      <Tooltip><Button isIconOnly size="sm" variant="tertiary" aria-label="Refresh activity" isDisabled={preview || refreshing} onPress={onRefresh}><ArrowsRotateLeft className="size-4" /></Button><Tooltip.Content>Refresh activity</Tooltip.Content></Tooltip>
     </div>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <Tabs selectedKey={filter} onSelectionChange={key => setFilter(String(key))}><Tabs.ListContainer><Tabs.List aria-label="Activity filter">
@@ -54,6 +54,6 @@ export function DashboardOverviewContent({ account, preview, error, loading, ref
       </Tabs.List></Tabs.ListContainer></Tabs>
       <SearchField aria-label="Search activity" className="w-full sm:w-60" value={search} onChange={setSearch}><SearchField.Group><SearchField.SearchIcon /><SearchField.Input placeholder="Company, role or activity…" /><SearchField.ClearButton /></SearchField.Group></SearchField>
     </div>
-    {rows.length ? <DataGrid aria-label="Outreach history" columns={columns} contentClassName="min-w-[640px]" data={rows} getRowId={row => String(row.id)} sortDescriptor={sort} onSortChange={setSort} /> : <div className="rounded-2xl bg-surface px-5 py-10 text-center"><p className="text-sm font-medium">{loading ? 'Loading activity…' : error ? 'Activity unavailable' : search || filter !== 'all' ? 'No matching activity' : 'No outreach yet'}</p><p className="mt-2 text-xs text-muted">{preview ? 'Sign in to see your own activity.' : search || filter !== 'all' ? 'Try another search or switch to All.' : 'Use Reachard to find people and prepare your first message.'}</p></div>}
+    {loading ? <div className="flex justify-center py-10"><Spinner aria-label="Loading activity" /></div> : rows.length ? <DataGrid aria-label="Outreach history" columns={columns} contentClassName="min-w-[640px]" data={rows} getRowId={row => String(row.id)} sortDescriptor={sort} onSortChange={setSort} /> : !error ? <EmptyState><EmptyState.Header><EmptyState.Title>{search || filter !== 'all' ? 'No matching activity' : 'No outreach yet'}</EmptyState.Title><EmptyState.Description>{preview ? 'Sign in to see your own activity.' : search || filter !== 'all' ? 'Try another search or switch to All.' : 'Use Reachard to find people and prepare your first message.'}</EmptyState.Description></EmptyState.Header></EmptyState> : null}
   </div>;
 }

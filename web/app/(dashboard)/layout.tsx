@@ -9,7 +9,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isHome = pathname === '/';
   const isMarketing = isHome || pathname === '/pricing';
-  const isOnboarding = pathname.startsWith('/onboarding');
   const isWorkspacePreview = pathname === '/workspace-preview';
 
   return (
@@ -17,14 +16,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {isWorkspacePreview || isMarketing ? null : (
         <AppHeader
           hideOnDashboard
-          variant={isMarketing ? 'hero' : 'default'}
-          className={
-            isMarketing
-              ? 'absolute inset-x-0 top-0 z-40 bg-transparent'
-              : isOnboarding
-                ? 'absolute inset-x-0 top-0 z-40 bg-white'
-                : 'absolute inset-x-0 top-0 z-40'
-          }
+          className="absolute inset-x-0 top-0 z-40"
         />
       )}
       {children}

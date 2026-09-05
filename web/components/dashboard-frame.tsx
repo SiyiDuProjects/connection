@@ -18,7 +18,7 @@ export function DashboardFrame({ title, sidebar, actions, children, onNavigate }
   const navigate = useCallback((href: string) => router.push(href), [router]);
   return (
     <AppLayout
-      className="default reachard-dashboard"
+      className="reachard-dashboard"
       navigate={onNavigate || navigate}
       sidebar={sidebar}
       sidebarCollapsible="offcanvas"

@@ -70,5 +70,5 @@ export function DashboardSidebar({ account, pathname, onSignOut, signingOut }: {
       </>
     );
   }
-  return <><Sidebar>{contents('desktop-')}</Sidebar><Sidebar.Mobile className="default reachard-dashboard">{contents('mobile-')}</Sidebar.Mobile></>;
+  return <><Sidebar>{contents('desktop-')}</Sidebar><Sidebar.Mobile className="reachard-dashboard">{contents('mobile-')}</Sidebar.Mobile></>;
 }

@@ -89,14 +89,14 @@ export function ConnectExtensionClient({
     <div className="mx-auto max-w-xl px-4 py-16 sm:px-6 lg:px-8">
       <Card className="p-6">
         <Icon className={`h-8 w-8 ${state === 'sending' ? 'animate-spin' : ''}`} />
-        <h1 className="mt-5 text-2xl font-semibold text-gray-950">
+        <h1 className="mt-5 text-2xl font-semibold text-foreground">
           {state === 'connected'
             ? t('connect.signedIn')
             : state === 'failed'
               ? t('connect.failed')
               : t('connect.signingIn')}
         </h1>
-        <p className="mt-3 text-sm leading-6 text-gray-600">{message}</p>
+        <p className="mt-3 text-sm leading-6 text-muted">{message}</p>
         {state !== 'sending' ? (
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/dashboard" className={buttonVariants({ variant: 'primary' })}>{t('connect.openDashboard')}</Link>

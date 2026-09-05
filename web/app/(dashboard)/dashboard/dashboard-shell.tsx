@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { useState } from 'react';
+import { Alert } from '@heroui/react';
 import { usePathname, useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { fetchDashboardAccount } from './dashboard-overview';
@@ -44,7 +45,7 @@ export function DashboardShell({ account, children }: { account: SidebarAccount;
     <DashboardFrame title={titles[pathname] || 'Workspace'}
       sidebar={<DashboardSidebar account={liveAccount || account} pathname={pathname} signingOut={signingOut} onSignOut={() => void handleSignOut()} />}
       actions={<ExtensionInstallLink label="Add to Chrome" size="sm" />}>
-      {error ? <p role="alert" className="mx-5 mt-4 rounded-lg bg-danger/10 px-4 py-3 text-sm text-danger">{error}</p> : null}
+      {error ? <Alert status="danger" className="mx-5 mt-4"><Alert.Indicator /><Alert.Content><Alert.Description>{error}</Alert.Description></Alert.Content></Alert> : null}
       {children}
     </DashboardFrame>
   </>;

@@ -4,7 +4,7 @@ Reachard is a SaaS application for finding company contacts from LinkedIn job pa
 
 ## Features
 
-- Marketing landing page (`/`) with animated Terminal element
+- Marketing landing page (`/`) with an automatically looping extension demonstration
 - Pricing page (`/pricing`) which connects to Stripe Checkout
 - Dashboard pages with CRUD operations on users/teams
 - Basic RBAC with Owner and Member roles
@@ -21,7 +21,7 @@ Reachard is a SaaS application for finding company contacts from LinkedIn job pa
 - **Database**: [Postgres](https://www.postgresql.org/)
 - **ORM**: [Drizzle](https://orm.drizzle.team/)
 - **Payments**: [Stripe](https://stripe.com/)
-- **UI Library**: [shadcn/ui](https://ui.shadcn.com/)
+- **UI Library**: HeroUI v3 and HeroUI Pro (see docs/cloud-build.md)
 
 ## Getting Started
 
