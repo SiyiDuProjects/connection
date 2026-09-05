@@ -1,0 +1,174 @@
+'use client';
+
+import { useState } from 'react';
+import { Alert, Button, Card, Description, FieldError, Fieldset, Form, Input, InputGroup, Label, ListBox, Select, TextArea, TextField } from '@heroui/react';
+import { DropZone } from '@heroui-pro/react';
+import { extractResumeText, getResumeTextErrorKey, RESUME_FILE_ACCEPT } from '@/lib/resume-text';
+import { translate as t } from '@/lib/i18n';
+
+export type ProfileValues = {
+  name: string; school: string; region: string; senderProfile: string;
+  resumeContext: string; resumeFileName: string; resumeUploadedAt: string;
+  emailTone?: 'warm' | 'concise' | 'confident' | 'formal';
+  outreachLength: 'short' | 'concise' | 'detailed';
+  outreachGoal: 'advice' | 'referral' | 'intro'; outreachStyleNotes: string;
+  defaultSearchPreferences: {
+    school?: { label: string; linkedinId: string };
+    region?: { label: string; linkedinGeoId: string };
+  };
+};
+type Match = { id: string; label: string; subtitle: string };
+
+// Native HeroUI Fieldset/Form examples and Pro DropZone anatomy. Business state
+// is shared by onboarding and My profile so neither retains a separate old UI.
+export function ProfileForm({ initial, onboarding = false, preview = false, onSaved }: {
+  initial: ProfileValues; onboarding?: boolean; preview?: boolean; onSaved?: () => void;
+}) {
+  const [values, setValues] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [status, setStatus] = useState('');
+  const [failed, setFailed] = useState(false);
+  const [resolving, setResolving] = useState('');
+  const [matches, setMatches] = useState<{ school: Match[]; region: Match[] }>({ school: [], region: [] });
+  const disabled = preview || saving || importing;
+
+  function update<K extends keyof ProfileValues>(key: K, value: ProfileValues[K]) {
+    setStatus('');
+    setValues(current => ({ ...current, [key]: value,
+      ...((key === 'school' || key === 'region') ? {
+        defaultSearchPreferences: { ...current.defaultSearchPreferences, [key]: undefined },
+      } : {}),
+    }));
+    if (key === 'school' || key === 'region') setMatches(current => ({ ...current, [key]: [] }));
+  }
+
+  async function resolve(kind: 'school' | 'region') {
+    const query = values[kind].trim();
+    if (query.length < 2) return;
+    setResolving(kind); setStatus('');
+    try {
+      const response = await fetch(`/api/metadata/${kind === 'school' ? 'schools' : 'locations'}?q=${encodeURIComponent(query)}`);
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Search is unavailable. You can enter the name yourself.');
+      setMatches(current => ({ ...current, [kind]: Array.isArray(result.items) ? result.items : [] }));
+      if (!result.items?.length) { setFailed(false); setStatus('No matches found. You can keep the name you entered.'); }
+    } catch (error) { setFailed(true); setStatus(error instanceof Error ? error.message : 'Search is unavailable. Please try again.'); }
+    finally { setResolving(''); }
+  }
+
+  function selectMatch(kind: 'school' | 'region', id: string) {
+    const item = matches[kind].find(item => item.id === id);
+    if (!item) return;
+    setValues(current => ({ ...current, [kind]: item.label, defaultSearchPreferences: {
+      ...current.defaultSearchPreferences,
+      ...(kind === 'school' ? { school: { label: item.label, linkedinId: item.id } } : { region: { label: item.label, linkedinGeoId: item.id } }),
+    } }));
+    setMatches(current => ({ ...current, [kind]: [] }));
+  }
+
+  async function importResume(file?: File) {
+    if (!file || disabled) return;
+    setImporting(true); setStatus('');
+    try {
+      const text = await extractResumeText(file);
+      setValues(current => ({ ...current, resumeContext: text.slice(0, 40000), resumeFileName: file.name, resumeUploadedAt: new Date().toISOString() }));
+    } catch (error) { setFailed(true); setStatus(t(getResumeTextErrorKey(error))); }
+    finally { setImporting(false); }
+  }
+
+  async function save() {
+    if (disabled) return;
+    if (!values.name.trim() || !values.school.trim() || (!values.senderProfile.trim() && !values.resumeContext.trim())) {
+      setFailed(true); setStatus('Add your name, school or affiliation, and either a short background or a resume.'); return;
+    }
+    setSaving(true); setStatus('');
+    try {
+      const response = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...values, senderName: values.name, resumeUploadedAt: values.resumeUploadedAt || null }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save your profile. Please try again.');
+      setFailed(false); setStatus('Your profile has been saved.'); onSaved?.();
+    } catch (error) { setFailed(true); setStatus(error instanceof Error ? error.message : 'Could not save your profile. Please try again.'); }
+    finally { setSaving(false); }
+  }
+
+  return <Form className="w-full gap-6" onSubmit={event => { event.preventDefault(); void save(); }}>
+    <Card className="w-full p-6 sm:p-8">
+      <Card.Content className="gap-8">
+        <Fieldset disabled={disabled} className="w-full">
+          <Fieldset.Legend>About you</Fieldset.Legend>
+          <Description>The details that make your outreach personal.</Description>
+          <Fieldset.Group className="gap-5">
+            <TextField fullWidth isRequired name="name" maxLength={100} value={values.name} onChange={value => update('name', value)}>
+              <Label>Full name</Label><Input autoComplete="name" placeholder="Your name" /><FieldError />
+            </TextField>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {(['school', 'region'] as const).map(kind => <div className="min-w-0" key={kind}>
+                <TextField fullWidth isRequired={kind === 'school'} name={kind} maxLength={160} value={values[kind]} onChange={value => update(kind, value)}>
+                  <Label>{kind === 'school' ? 'School or affiliation' : 'Region'}</Label>
+                  <InputGroup fullWidth>
+                    <InputGroup.Input placeholder={kind === 'school' ? 'School or organization' : 'City or region'} />
+                    <InputGroup.Suffix><Button type="button" size="sm" variant="ghost" isPending={resolving === kind} isDisabled={disabled || values[kind].trim().length < 2} onPress={() => void resolve(kind)}>Search</Button></InputGroup.Suffix>
+                  </InputGroup><FieldError />
+                </TextField>
+                {matches[kind].length > 0 && <ListBox aria-label={`${kind} matches`} className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-separator" onAction={key => selectMatch(kind, String(key))}>
+                  {matches[kind].map(item => <ListBox.Item id={item.id} key={item.id} textValue={item.label}><Label>{item.label}</Label>{item.subtitle && <Description>{item.subtitle}</Description>}</ListBox.Item>)}
+                </ListBox>}
+              </div>)}
+            </div>
+          </Fieldset.Group>
+        </Fieldset>
+        <Fieldset disabled={disabled} className="w-full">
+          <Fieldset.Legend>Your background</Fieldset.Legend>
+          <Description>Add a resume or a few sentences about yourself. Either is enough to get started.</Description>
+          <Fieldset.Group className="gap-5">
+            <DropZone className="w-full">
+              <DropZone.Area isDisabled={disabled} onDrop={async event => {
+                const file = event.items.find(item => item.kind === 'file');
+                if (file?.kind === 'file') await importResume(await file.getFile());
+              }}>
+                <DropZone.Icon /><DropZone.Label>{importing ? 'Reading your resume…' : 'Drop your resume here'}</DropZone.Label>
+                <DropZone.Description>PDF, DOCX or text. Your resume is used to personalize drafts.</DropZone.Description>
+                <DropZone.Trigger isDisabled={disabled}>{values.resumeFileName ? 'Replace resume' : 'Choose a file'}</DropZone.Trigger>
+              </DropZone.Area>
+              <DropZone.Input accept={RESUME_FILE_ACCEPT} onSelect={files => void importResume(files[0])} />
+              {values.resumeContext && <DropZone.FileList><DropZone.FileItem status="complete">
+                <DropZone.FileFormatIcon format={values.resumeFileName.split('.').pop()?.toUpperCase() || 'FILE'} color="blue" />
+                <DropZone.FileInfo><DropZone.FileName>{values.resumeFileName || 'Saved resume'}</DropZone.FileName><DropZone.FileMeta>Used to personalize your drafts</DropZone.FileMeta></DropZone.FileInfo>
+                <DropZone.FileRemoveTrigger aria-label="Remove resume" isDisabled={disabled} onPress={() => setValues(current => ({ ...current, resumeContext: '', resumeFileName: '', resumeUploadedAt: '' }))} />
+              </DropZone.FileItem></DropZone.FileList>}
+            </DropZone>
+            <TextField fullWidth name="senderProfile" isRequired={!values.resumeContext.trim()} maxLength={2000} value={values.senderProfile} onChange={value => update('senderProfile', value)}>
+              <Label>A little about you</Label><TextArea rows={4} placeholder="What are you studying or working on, and what would you like to do next?" /><FieldError />
+            </TextField>
+          </Fieldset.Group>
+        </Fieldset>
+        {!onboarding && <Fieldset disabled={disabled} className="w-full">
+          <Fieldset.Legend>Outreach preferences</Fieldset.Legend>
+          <Description>The starting point for your email drafts.</Description>
+          <Fieldset.Group className="gap-5">
+            <div className="grid gap-5 sm:grid-cols-3">
+              <PreferenceSelect label="Tone" value={values.emailTone || 'warm'} options={['warm', 'concise', 'confident', 'formal']} onChange={value => update('emailTone', value as ProfileValues['emailTone'])} />
+              <PreferenceSelect label="Length" value={values.outreachLength} options={['short', 'concise', 'detailed']} onChange={value => update('outreachLength', value as ProfileValues['outreachLength'])} />
+              <PreferenceSelect label="Goal" value={values.outreachGoal} options={['advice', 'referral', 'intro']} onChange={value => update('outreachGoal', value as ProfileValues['outreachGoal'])} />
+            </div>
+            <TextField fullWidth name="outreachStyleNotes" maxLength={500} value={values.outreachStyleNotes} onChange={value => update('outreachStyleNotes', value)}><Label>Style notes</Label><TextArea rows={3} placeholder="Anything else your drafts should sound like…" /><FieldError /></TextField>
+          </Fieldset.Group>
+        </Fieldset>}
+      </Card.Content>
+      <Card.Footer className="flex-col items-stretch gap-4 pt-6">
+        {status && <Alert status={failed ? 'danger' : 'success'}><Alert.Indicator /><Alert.Content><Alert.Description>{status}</Alert.Description></Alert.Content></Alert>}
+        <div className="flex justify-end"><Button type="submit" variant="primary" isPending={saving} isDisabled={disabled}>{onboarding ? 'Continue to dashboard' : 'Save changes'}</Button></div>
+      </Card.Footer>
+    </Card>
+  </Form>;
+}
+
+function PreferenceSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
+  return <Select fullWidth value={value} onChange={key => { if (key != null) onChange(String(key)); }}>
+    <Label>{label}</Label><Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+    <Select.Popover><ListBox>{options.map(option => <ListBox.Item key={option} id={option} textValue={option}>{option.charAt(0).toUpperCase() + option.slice(1)}<ListBox.ItemIndicator /></ListBox.Item>)}</ListBox></Select.Popover>
+  </Select>;
+}

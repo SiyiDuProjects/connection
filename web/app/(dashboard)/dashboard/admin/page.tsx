@@ -2,10 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button, Card, Form, Input, Label, TextArea, TextField, FieldError } from '@heroui/react';
 import { translate as t } from '@/lib/i18n';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -95,10 +92,10 @@ export default function AdminPage() {
     return (
       <section className="flex-1 p-4 lg:p-8">
         <h1 className="page-title mb-6">{t('nav.admin')}</h1>
-        <Card>
-          <CardContent>
+        <Card className="p-6">
+          <Card.Content>
             <p className="secondary">{data.error}</p>
-          </CardContent>
+          </Card.Content>
         </Card>
       </section>
     );
@@ -117,11 +114,11 @@ export default function AdminPage() {
         <MetricCard label="Provider cost · all time" value={formatUsd(data?.summary.totalInternalCostUsd)} />
       </div>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Internal provider cost · last 30 days</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card className="mb-8 p-6">
+        <Card.Header>
+          <Card.Title>Internal provider cost · last 30 days</Card.Title>
+        </Card.Header>
+        <Card.Content>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -151,23 +148,23 @@ export default function AdminPage() {
               </tbody>
             </table>
           </div>
-        </CardContent>
+        </Card.Content>
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px] mb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('admin.users')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form className="flex gap-2 mb-4" onSubmit={searchUsers}>
+        <Card className="p-6">
+          <Card.Header>
+            <Card.Title>{t('admin.users')}</Card.Title>
+          </Card.Header>
+          <Card.Content>
+            <Form className="flex gap-2 mb-4" onSubmit={searchUsers}>
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t('admin.searchEmail')}
               />
-              <Button type="submit" variant="outline" className="button-text">{t('admin.search')}</Button>
-            </form>
+              <Button type="submit" variant="secondary" className="button-text">{t('admin.search')}</Button>
+            </Form>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -204,15 +201,15 @@ export default function AdminPage() {
                 </tbody>
               </table>
             </div>
-          </CardContent>
+          </Card.Content>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('admin.grantCredits')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form className="space-y-4" onSubmit={grantCredits}>
+        <Card className="p-6">
+          <Card.Header>
+            <Card.Title>{t('admin.grantCredits')}</Card.Title>
+          </Card.Header>
+          <Card.Content>
+            <Form className="space-y-4" onSubmit={grantCredits}>
               <div>
                 <Label htmlFor="email">{t('admin.userEmail')}</Label>
                 <Input id="email" name="email" type="email" required />
@@ -223,25 +220,25 @@ export default function AdminPage() {
               </div>
               <div>
                 <Label htmlFor="note">{t('admin.note')}</Label>
-                <textarea
+                <TextArea
                   id="note"
                   name="note"
-                  className="value min-h-24 w-full rounded-[8px] border-0 bg-[#f5f5f7] px-4 py-3 outline-none focus-visible:ring-ring/35 focus-visible:ring-[3px]"
+                  className="min-h-24 w-full"
                   placeholder={t('admin.notePlaceholder')}
                 />
               </div>
               <Button type="submit" className="button-text">{t('admin.grantCredits')}</Button>
               <p className="secondary">{status}</p>
-            </form>
-          </CardContent>
+            </Form>
+          </Card.Content>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('admin.recentUsage')}</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card className="p-6">
+        <Card.Header>
+          <Card.Title>{t('admin.recentUsage')}</Card.Title>
+        </Card.Header>
+        <Card.Content>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -266,7 +263,7 @@ export default function AdminPage() {
               </tbody>
             </table>
           </div>
-        </CardContent>
+        </Card.Content>
       </Card>
     </section>
   );
@@ -274,13 +271,13 @@ export default function AdminPage() {
 
 function MetricCard({ label, value }: { label: string; value?: number | string }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{label}</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <Card className="p-6">
+      <Card.Header>
+        <Card.Title>{label}</Card.Title>
+      </Card.Header>
+      <Card.Content>
         <p className="page-title">{value ?? '...'}</p>
-      </CardContent>
+      </Card.Content>
     </Card>
   );
 }

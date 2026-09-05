@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { Bolt, ChevronDown } from 'lucide-react';
 import { buttonVariants } from '@heroui/styles';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, Button, Dropdown, Label } from '@heroui/react';
 import { signOut } from '@/app/(login)/actions';
 import {
   ExtensionSessionBridge,
@@ -63,7 +63,7 @@ export function AppHeader({
   if (hideOnDashboard && pathname.startsWith('/dashboard')) return null;
 
   return (
-    <header className={cn('h-16 bg-white', variant === 'hero' && 'bg-transparent text-[#18181b]', className)}>
+    <header className={cn('default h-16 bg-background', variant === 'hero' && 'bg-transparent text-[#18181b]', className)}>
       <div
         className={cn(
           'mx-auto flex h-full max-w-[948px] items-center justify-between gap-3 px-4 sm:gap-5 sm:px-6',
@@ -161,49 +161,19 @@ function AccountMenu({ user, variant }: { user: HeaderUser; variant: HeaderVaria
     router.push('/');
   }
 
-  return (
-    <div className="group relative">
-      <button
-        type="button"
-        className={cn(
-          'inline-flex h-11 cursor-pointer items-center gap-3 rounded-full px-2 outline-none transition-opacity duration-150 ease-out',
-          variant === 'hero' ? 'text-[#66686d] hover:text-[#18181b]' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
-        )}
-        aria-haspopup="menu"
-        aria-label={t('header.accountMenu')}
-      >
-        <ChevronDown className="h-5 w-5 stroke-[2.4]" aria-hidden="true" />
-        <Avatar className="size-10 rounded-full">
-          <AvatarFallback className="rounded-full bg-[#007aff] text-[17px] font-semibold text-white">
-            {initials(user)}
-          </AvatarFallback>
-        </Avatar>
-      </button>
-      <div className="absolute right-0 top-full z-50 hidden min-w-[236px] pt-3 group-focus-within:block group-hover:block">
-        <div className="overflow-hidden rounded-[12px] border border-[#d2d2d7] bg-white text-left shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
-          <Link
-            href="/dashboard"
-            className="block border-b border-[#e5e5ea] px-7 py-4 text-[17px] font-semibold text-[#6e6e73] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
-          >
-            {t('header.viewAccount')}
-          </Link>
-          <Link
-            href="/dashboard/security"
-            className="block border-b border-[#e5e5ea] px-7 py-4 text-[17px] font-semibold text-[#6e6e73] transition-colors hover:bg-[#f5f5f7] hover:text-[#1d1d1f]"
-          >
-            {t('header.settings')}
-          </Link>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="block w-full px-7 py-4 text-left text-[17px] font-semibold text-[#d70015] transition-colors hover:bg-[#fff2f2]"
-          >
-            {t('header.logOut')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  return <Dropdown>
+    <Button variant="ghost" aria-label={t('header.accountMenu')}>
+      <Avatar size="sm" color="accent"><Avatar.Fallback>{initials(user)}</Avatar.Fallback></Avatar>
+      <ChevronDown className="size-4" aria-hidden="true" />
+    </Button>
+    <Dropdown.Popover className="default">
+      <Dropdown.Menu aria-label="Account">
+        <Dropdown.Item id="dashboard" href="/dashboard" textValue={t('header.viewAccount')}><Label>{t('header.viewAccount')}</Label></Dropdown.Item>
+        <Dropdown.Item id="settings" href="/dashboard/general" textValue={t('header.settings')}><Label>{t('header.settings')}</Label></Dropdown.Item>
+        <Dropdown.Item id="sign-out" variant="danger" textValue={t('header.logOut')} onAction={() => void handleSignOut()}><Label>{t('header.logOut')}</Label></Dropdown.Item>
+      </Dropdown.Menu>
+    </Dropdown.Popover>
+  </Dropdown>;
 }
 
 function displayName(user?: HeaderUser) {

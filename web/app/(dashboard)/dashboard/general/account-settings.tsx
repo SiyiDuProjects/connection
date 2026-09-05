@@ -1,119 +1,28 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
+import { Alert, Button, Card, FieldError, Form, Input, Label, Spinner, TextField } from '@heroui/react';
 import { updateAccount } from '@/app/(login)/actions';
 import type { PublicUser } from '@/lib/auth/public-user';
 import useSWR from 'swr';
-import { Suspense } from 'react';
 import { translate as t } from '@/lib/i18n';
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
-type ActionState = {
-  name?: string;
-  error?: string;
-  success?: string;
-};
-
-type AccountFormProps = {
-  state: ActionState;
-  nameValue?: string;
-  emailValue?: string;
-};
-
-function AccountForm({
-  state,
-  nameValue = '',
-  emailValue = ''
-}: AccountFormProps) {
-  return (
-    <>
-      <div>
-        <Label htmlFor="name" className="mb-2">
-          {t('general.name')}
-        </Label>
-        <Input
-          id="name"
-          name="name"
-          placeholder={t('general.namePlaceholder')}
-          defaultValue={state.name || nameValue}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="email" className="mb-2">
-          {t('general.email')}
-        </Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          placeholder={t('general.emailPlaceholder')}
-          defaultValue={emailValue}
-          required
-        />
-      </div>
-    </>
-  );
-}
-
-function AccountFormWithData({ state }: { state: ActionState }) {
-  const { data: user } = useSWR<PublicUser>('/api/user', fetcher);
-  return (
-    <AccountForm
-      state={state}
-      nameValue={user?.name ?? ''}
-      emailValue={user?.email ?? ''}
-    />
-  );
-}
+type ActionState = { name?: string; error?: string; success?: string };
+const fetcher = async (url: string) => { const response = await fetch(url); if (!response.ok) throw new Error('Could not load your account.'); return response.json(); };
 
 export default function AccountSettings({ preview = false }: { preview?: boolean }) {
-  const [state, formAction, isPending] = useActionState<ActionState, FormData>(
-    updateAccount,
-    {}
-  );
-
-  return (
-    <section aria-label="Account information">
-
-      <fieldset disabled={preview}><Card>
-        <CardHeader>
-          <CardTitle>{t('general.accountInfo')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" action={formAction}>
-            <Suspense fallback={<AccountForm state={state} />}>
-              {preview ? <AccountForm state={state} /> : <AccountFormWithData state={state} />}
-            </Suspense>
-            {state.error && (
-              <p className="text-sm font-medium leading-[1.5] tracking-[-0.01em] text-red-500">{state.error}</p>
-            )}
-            {state.success && (
-              <p className="text-sm font-medium leading-[1.5] tracking-[-0.01em] text-green-500">{state.success}</p>
-            )}
-            <Button
-              type="submit"
-              className="button-text bg-gray-950 text-white hover:bg-gray-800"
-              disabled={isPending}
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t('general.saving')}
-                </>
-              ) : (
-                t('general.saveChanges')
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card></fieldset>
-    </section>
-  );
+  const [state, formAction, isPending] = useActionState<ActionState, FormData>(updateAccount, {});
+  const { data: user, error } = useSWR<PublicUser>(preview ? null : '/api/user', fetcher);
+  return <Card className="p-6" aria-label="Account information">
+    <Card.Header><Card.Title>{t('general.accountInfo')}</Card.Title></Card.Header>
+    <Card.Content>
+      {error ? <Alert status="danger"><Alert.Content><Alert.Description>Could not load your account. Please refresh and try again.</Alert.Description></Alert.Content></Alert> : !preview && !user ? <Spinner aria-label="Loading account" /> :
+      <Form action={formAction} className="flex flex-col gap-5" key={user?.id || 'preview'}>
+        <TextField fullWidth name="name" isRequired isDisabled={preview || isPending} defaultValue={state.name ?? user?.name ?? ''} maxLength={100}><Label>{t('general.name')}</Label><Input autoComplete="name" /><FieldError /></TextField>
+        <TextField fullWidth name="email" type="email" isRequired isDisabled={preview || isPending} defaultValue={user?.email ?? ''}><Label>{t('general.email')}</Label><Input autoComplete="email" /><FieldError /></TextField>
+        {(state.error || state.success) && <Alert status={state.error ? 'danger' : 'success'}><Alert.Indicator /><Alert.Content><Alert.Description>{state.error || state.success}</Alert.Description></Alert.Content></Alert>}
+        <Button type="submit" variant="primary" isPending={isPending} isDisabled={preview || isPending}>{t('general.saveChanges')}</Button>
+      </Form>}
+    </Card.Content>
+  </Card>;
 }

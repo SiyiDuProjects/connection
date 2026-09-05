@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
-import { Button, Card } from '@heroui/react';
+import { Button, Card, Input } from '@heroui/react';
 import { Check, Copy, Gift } from 'lucide-react';
 
 type FriendInvite = { link: string; code: string; acceptedCount: number };
@@ -53,7 +53,7 @@ export default function ReferAFriend({ preview = false }: { preview?: boolean })
         <Card.Content className="space-y-4">
           {error ? <div role="alert" className="space-y-3"><p className="text-sm text-danger">{error.message}</p><Button size="sm" variant="secondary" isDisabled={isValidating} onPress={() => void mutate()}>Try again</Button></div> : <>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <input aria-label="Your referral link" className="min-w-0 flex-1 rounded-xl border border-separator bg-background px-3 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:text-muted"
+              <Input aria-label="Your referral link" className="min-w-0 flex-1"
                 readOnly disabled={!data?.link} value={data?.link || ''}
                 placeholder={isLoading ? 'Loading your link…' : preview ? 'Sign in to get your referral link' : 'Referral link unavailable'}
                 onFocus={event => event.currentTarget.select()} />
