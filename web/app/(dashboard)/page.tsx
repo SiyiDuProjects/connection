@@ -41,7 +41,7 @@ export default function HomePage() {
           <p>{chromeStoreUrl ? 'Add Reachard to Chrome. Bring your next opportunity a little closer.' : 'Join the private beta. Extension access is shared with beta participants.'}</p>
         </div>
       </section>
-      <footer className="rd-footer rh-footer"><Brand /><nav aria-label="Footer"><Link href="/pricing">Pricing</Link><Link href="/sign-in">Log in</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><small>© 2026 Reachard<span>Made for your next move.</span></small></footer>
+      <footer className="rd-footer rh-footer"><Brand /><nav aria-label="Footer"><Link href="/pricing">Pricing</Link><Link href="/sign-in">Log in</Link><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><small>© 2026 Reachard<span>Made for your next move.</span></small></footer>
     </main>
   );
 }
