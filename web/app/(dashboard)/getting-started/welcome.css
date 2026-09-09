@@ -45,3 +45,5 @@
 .rw-visual .rh-match > span { color: #71809a; font-weight: 400; }
 .rw-visual .rh-demo-write { border-radius: 7px; background: #e9edf5; padding: 10px; }
 .rw-visual .rh-contact-secondary { padding-inline: 0; }
+.rw-visual .rh-extension { top: 3%; height: 94%; }
+.rw-visual .rh-email-text { min-height: 0; font-size: 11px; line-height: 1.5; }
