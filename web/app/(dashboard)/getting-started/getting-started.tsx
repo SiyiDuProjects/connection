@@ -9,7 +9,7 @@ import { BRAND_MARK_PATH, BRAND_NAME } from '@/lib/brand';
 import { CHROME_STORE_URL as storeUrl } from '@/lib/extension-store';
 import { useExtensionStatus } from '@/components/use-extension-status';
 import { useCurrentUser } from '@/lib/auth/use-current-user';
-import { ExtensionDemo } from '@/components/reachard/extension-demo';
+import { WelcomeDemo } from './welcome-demo';
 import '../home.css';
 import './welcome.css';
 
@@ -78,9 +78,10 @@ export function GettingStarted() {
       <aside className="rw-visual" aria-label="See how Reachard works">
         {step === 1 ? <figure className="rw-pin-figure"><img src="/images/welcome/pin-extension.png" width="1448" height="1086" alt="Illustration: open Chrome's puzzle-piece Extensions menu, then click the pin beside Reachard." /><figcaption>Pin once. Open Reachard from any job page.</figcaption></figure>
           : step === 2 ? <figure className="rw-account-figure"><div className="rw-account-crop"><img src="/images/welcome/account.png" width="1265" height="711" alt="Preview of the Reachard email sign-in and account creation form." /></div><figcaption>Sign in on the website. Your extension connects automatically.</figcaption></figure>
-          : <ExtensionDemo />}
+          : <WelcomeDemo />}
       </aside>
     </div>
     <footer className="rw-footer">Your next conversation starts with one person.</footer>
   </main>;
 }
+
