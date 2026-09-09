@@ -13,7 +13,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <section className="flex flex-col min-h-screen">
-      {isWorkspacePreview || isMarketing ? null : (
+      {isWorkspacePreview || isMarketing || pathname === '/getting-started' ? null : (
         <AppHeader
           hideOnDashboard
           className="absolute inset-x-0 top-0 z-40"

@@ -2,7 +2,8 @@
 
 import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { Alert } from '@heroui/react';
+import { Alert, buttonVariants } from '@heroui/react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { fetchDashboardAccount } from './dashboard-overview';
@@ -44,7 +45,7 @@ export function DashboardShell({ account, children }: { account: SidebarAccount;
     <ExtensionSessionBridge user={account.user} />
     <DashboardFrame title={titles[pathname] || 'Workspace'}
       sidebar={<DashboardSidebar account={liveAccount || account} pathname={pathname} signingOut={signingOut} onSignOut={() => void handleSignOut()} />}
-      actions={<ExtensionInstallLink label="Add to Chrome" size="sm" />}>
+      actions={<><Link href="/getting-started" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>Quick start</Link><ExtensionInstallLink label="Add to Chrome" size="sm" /></>}>
       {error ? <Alert status="danger" className="mx-5 mt-4"><Alert.Indicator /><Alert.Content><Alert.Description>{error}</Alert.Description></Alert.Content></Alert> : null}
       {children}
     </DashboardFrame>

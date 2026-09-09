@@ -15,7 +15,6 @@ const steps = [
 ];
 
 export default function HomePage() {
-  const chromeStoreUrl = String(process.env.NEXT_PUBLIC_CHROME_STORE_URL || '').trim();
   return (
     <main className="rd-site rh-home">
       <MarketingHeader />
@@ -37,8 +36,8 @@ export default function HomePage() {
       <section id="install" className="rh-closing" aria-labelledby="install-title">
         <img src="/images/home/hero-background.png" alt="" loading="lazy" width="1659" height="948" />
         <div><span className="rh-section-label">Your next chapter</span><h2 id="install-title">Opportunity starts<br />with <em>a conversation.</em></h2>
-          <div className="rh-actions">{chromeStoreUrl && <ExtensionInstallLink variant="primary" />}<Link href="/sign-up" className={buttonVariants({ variant: chromeStoreUrl ? 'secondary' : 'primary', size: 'lg' })}>Get started <ArrowUpRight size={16} /></Link></div>
-          <p>{chromeStoreUrl ? 'Add Reachard to Chrome. Bring your next opportunity a little closer.' : 'Join the private beta. Extension access is shared with beta participants.'}</p>
+          <div className="rh-actions"><ExtensionInstallLink variant="primary" /><Link href="/sign-up" className={buttonVariants({ variant: 'secondary', size: 'lg' })}>Get started <ArrowUpRight size={16} /></Link></div>
+          <p>Add Reachard to Chrome. Bring your next opportunity a little closer.</p>
         </div>
       </section>
       <footer className="rd-footer rh-footer"><Brand /><nav aria-label="Footer"><Link href="/pricing">Pricing</Link><Link href="/sign-in">Log in</Link><Link href="/support">Support</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav><small>© 2026 Reachard<span>Made for your next move.</span></small></footer>

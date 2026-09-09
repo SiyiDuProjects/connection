@@ -88,7 +88,6 @@ const messages = {
   'common.copying': 'Copying',
   'header.logIn': 'Log in',
   'header.addToChrome': 'Add to Chrome',
-  'header.joinPrivateBeta': 'Join private beta',
   'header.credits': '{count} credits',
   'header.accountMenu': 'Account menu',
   'header.viewAccount': 'View Account',
