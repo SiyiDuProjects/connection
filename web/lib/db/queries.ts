@@ -19,7 +19,8 @@ export async function getUser() {
     return null;
   }
 
-  const sessionData = await verifyToken(sessionCookie.value);
+  let sessionData;
+  try { sessionData = await verifyToken(sessionCookie.value); } catch { return null; }
   if (
     !sessionData ||
     !sessionData.user ||
@@ -38,7 +39,8 @@ export async function getUser() {
     .where(and(eq(users.id, sessionData.user.id), isNull(users.deletedAt)))
     .limit(1);
 
-  if (user.length === 0 || !user[0].emailVerifiedAt) {
+  if (user.length === 0 || !user[0].emailVerifiedAt
+    || (sessionData.user.sessionVersion ?? 0) !== user[0].sessionVersion) {
     return null;
   }
 

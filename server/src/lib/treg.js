@@ -1,8 +1,11 @@
 import crypto from "node:crypto";
+import { contactPhotoUrl } from "./contact-photo.js";
 
 import { cleanDomain, normalizeCompanyName, inferFunction, FUNCTIONS } from "./contact-taxonomy.js";
 import { scoreCandidate } from "./contact-intelligence.js";
+import { jobCountries, personMatchesCountries } from "./contact-country.js";
 import { fetchWithTimeout, writeLog } from "./http.js";
+import { withProviderBudget, providerBudgetEnabled } from './spend-budget.js';
 
 const DEFAULT_BASE_URL = "https://treg.to";
 const DEFAULT_SEARCH_ENDPOINT = "icypeas.people.search";
@@ -14,12 +17,14 @@ const REVEAL_MISS_TTL_MS = 24 * 60 * 60 * 1_000;
 
 export async function searchTregContacts(job = {}, request = {}) {
   requireTregToken();
+  const countries = jobCountries(job);
 
   const query = compactObject({
     currentCompanyWebsite: !job.companyName && job.companyDomain
       ? includeFilter(cleanDomain(job.companyDomain))
       : undefined,
-    currentCompanyName: includeFilter(job.companyName)
+    currentCompanyName: includeFilter(job.companyName),
+    profileLocation: { include: countries }
   });
 
   const pageSize = boundedInteger(process.env.TREG_SEARCH_SIZE, 25, 1, 200);
@@ -28,7 +33,7 @@ export async function searchTregContacts(job = {}, request = {}) {
   const contacts = new Map();
   const seenTokens = new Set();
   const usage = [];
-  const diagnostics = { pages: 0, received: 0, invalid: 0, companyMismatch: 0, duplicates: 0 };
+  const diagnostics = { pages: 0, received: 0, invalid: 0, companyMismatch: 0, countryMismatch: 0, duplicates: 0 };
   let pagination = { size: pageSize };
   for (let page = 0; page < maxPages; page += 1) {
     const pageRequest = {};
@@ -66,6 +71,7 @@ export async function searchTregContacts(job = {}, request = {}) {
       const person = normalizeTregPerson(raw, job);
       if (!person.name || !person.linkedinUrl) { diagnostics.invalid += 1; continue; }
       if (!matchesTargetCompany(person, job)) { diagnostics.companyMismatch += 1; continue; }
+      if (!personMatchesCountries(raw, person.location, countries)) { diagnostics.countryMismatch += 1; continue; }
       const key = person.linkedinUrl.toLowerCase();
       if (contacts.has(key)) { diagnostics.duplicates += 1; continue; }
       contacts.set(key, person);
@@ -124,24 +130,37 @@ async function tregPost(endpoint, body, options) {
     if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
   }
   const startedAt = Date.now();
-  const response = await fetchWithTimeout(url.toString(), {
-    method: "POST",
-    headers: tregHeaders(options),
-    ...(body ? { body: JSON.stringify(body) } : {})
-  }, {
-    provider: `treg:${endpoint}`,
-    timeoutMs: options.timeoutMs
+  // This header is enforced by treg before it spends, including overflow
+  // routing. It closes the gap between local reservation and upstream prices.
+  const maximumMicroUsd = endpoint === DEFAULT_SEARCH_ENDPOINT
+    ? boundedInteger(body?.pagination?.size, 25, 1, 200) * 500
+    : endpoint === DEFAULT_EMAIL_ENDPOINT ? 50_000 : null;
+  if (providerBudgetEnabled() && (!maximumMicroUsd || tregBaseUrl() !== DEFAULT_BASE_URL)) {
+    throw new Error('This Treg endpoint has no configured provider budget ceiling.');
+  }
+  const { response, data, actualMicroUsd } = await withProviderBudget({
+    provider: 'treg', action: endpoint, customerId: options.customerId, maximumMicroUsd,
+  }, async () => {
+    const response = await fetchWithTimeout(url.toString(), {
+      method: "POST",
+      headers: { ...tregHeaders(options), ...(maximumMicroUsd ? { 'X-Treg-Route-Max-Cost': String(maximumMicroUsd / 1_000_000) } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {})
+    }, { provider: `treg:${endpoint}`, timeoutMs: options.timeoutMs });
+    const data = await response.json().catch(() => ({}));
+    const replayed = response.headers.get('x-treg-idempotent-replay') === 'true';
+    // A replay header repeats the ORIGINAL cost, but the retry costs zero.
+    // Missing receipt fields must not be treated as a free successful call.
+    const actualMicroUsd = replayed || !response.ok ? 0 : numericHeader(response.headers.get('x-treg-cost-micro'));
+    return { value: { response, data, actualMicroUsd }, costMicroUsd: actualMicroUsd };
   });
-
-  const data = await response.json().catch(() => ({}));
   if (!response.ok) throw tregError(response, data);
 
   const usage = {
     source: "treg",
     provider: response.headers.get("x-treg-served-by") || data?._treg?.served_by || endpoint,
     endpoint,
-    billing: "actual",
-    costMicroUsd: numericHeader(response.headers.get("x-treg-cost-micro")) ?? data?._treg?.charged_micro ?? 0,
+    billing: actualMicroUsd == null ? 'unknown' : 'actual',
+    costMicroUsd: actualMicroUsd,
     durationMs: Date.now() - startedAt,
     callId: response.headers.get("x-treg-call-id") || undefined,
     replayed: response.headers.get("x-treg-idempotent-replay") === "true"
@@ -243,6 +262,7 @@ function normalizeTregPerson(person = {}, job = {}) {
     location: normalizeLocation(person),
     education,
     linkedinUrl,
+    ...(contactPhotoUrl(person) ? { photoUrl: contactPhotoUrl(person) } : {}),
     email: "",
     emailStatus: "",
     metadata: {
@@ -449,7 +469,7 @@ function boundedInteger(value, fallback, min, max) {
 function numericHeader(value) {
   if (value === null || value === undefined || value === "") return undefined;
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function compactObject(value) {

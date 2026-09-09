@@ -18,7 +18,7 @@ export async function comparePasswords(
 }
 
 type SessionData = {
-  user: { id: number };
+  user: { id: number; sessionVersion?: number };
   expires: string;
 };
 
@@ -34,26 +34,33 @@ export async function verifyToken(input: string) {
   const { payload } = await jwtVerify(input, key, {
     algorithms: ['HS256'],
   });
+  const user = payload.user as SessionData['user'] | undefined;
+  if (!Number.isSafeInteger(user?.id) || Number(user?.id) <= 0
+    || (user?.sessionVersion !== undefined && (!Number.isSafeInteger(user.sessionVersion) || user.sessionVersion < 0))
+    || typeof payload.expires !== 'string' || !Number.isFinite(Date.parse(payload.expires)) || Date.parse(payload.expires) <= Date.now()) {
+    throw new Error('Invalid session.');
+  }
   return payload as SessionData;
 }
 
 export async function getSession() {
   const session = (await cookies()).get('session')?.value;
   if (!session) return null;
-  return await verifyToken(session);
+  try { return await verifyToken(session); } catch { return null; }
 }
 
 export async function setSession(user: NewUser) {
   const expiresInOneDay = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const session: SessionData = {
-    user: { id: user.id! },
+    user: { id: user.id!, sessionVersion: user.sessionVersion ?? 0 },
     expires: expiresInOneDay.toISOString(),
   };
   const encryptedSession = await signToken(session);
   (await cookies()).set('session', encryptedSession, {
     expires: expiresInOneDay,
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
+    path: '/',
   });
 }

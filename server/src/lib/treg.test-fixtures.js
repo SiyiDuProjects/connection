@@ -9,7 +9,7 @@ const originalEnv = Object.fromEntries(
     "TREG_BASE_URL",
     "TREG_SEARCH_ENDPOINT",
     "TREG_SEARCH_SIZE",
-    "TREG_EMAIL_ENDPOINT"
+    "TREG_EMAIL_ENDPOINT", "PROVIDER_DAILY_BUDGET_USD"
   ].map((key) => [key, process.env[key]])
 );
 
@@ -17,6 +17,7 @@ const calls = [];
 let responseQueue = [];
 
 try {
+  delete process.env.PROVIDER_DAILY_BUDGET_USD;
   process.env.TREG_TOKEN = "fixture-token-never-send";
   process.env.TREG_BASE_URL = "https://treg.to";
   process.env.TREG_SEARCH_SIZE = "12";
@@ -41,6 +42,7 @@ try {
         id: "person_fixture_1",
         firstname: "Alex",
         lastname: "Example",
+        photo_url: "https://media.licdn.com/dms/image/fixture/photo.jpg",
         lastJobTitle: "Technical Recruiter",
         lastCompanyName: "Example Labs",
         lastCompanyWebsite: "https://www.example.com/about",
@@ -79,13 +81,14 @@ try {
     idempotencyKey: "request-fixture-search"
   });
 
-  assert.equal(contacts.length, 2, "all current-company colleagues remain eligible");
+  assert.equal(contacts.length, 1, "only current-company colleagues in the job country remain eligible");
   assert.equal(contacts.some((contact) => contact.name === "Unknown Employer"), false, "missing current company must not be inferred from the search target");
   assert.deepEqual(contacts[0], {
     id: "person_fixture_1",
     provider: "treg",
     providerId: "person_fixture_1",
     name: "Alex Example",
+    photoUrl: "https://media.licdn.com/dms/image/fixture/photo.jpg",
     title: "Technical Recruiter",
     companyName: "Example Labs",
     companyDomain: "example.com",
@@ -99,10 +102,7 @@ try {
       alumniMatched: true
     }
   });
-  assert.equal(contacts[1].title, "Finance Associate");
-  assert.equal(contacts[1].location, "Toronto, Ontario");
-  assert.equal(contacts[1].education, "");
-  assert.equal(contacts[1].metadata.alumniMatched, false, "missing education must not be inferred as the preferred school");
+  assert.equal(contacts.some(contact => contact.name === "Casey Colleague"), false, "Canadian contact is excluded for a US job");
 
   const searchCall = calls[0];
   assert.equal(searchCall.url, "https://treg.to/call/icypeas.people.search");
@@ -115,7 +115,8 @@ try {
   assert.equal(searchCall.body.query.currentCompanyWebsite, undefined);
   assert.equal(searchCall.body.query.school, undefined, "school is a ranking signal, not a provider filter");
   assert.equal(searchCall.body.query.currentJobTitle, undefined, "title is a ranking signal, not a provider filter");
-  assert.equal(searchCall.body.query.location, undefined, "location is a ranking signal, not a provider filter");
+  assert.equal(searchCall.body.query.location, undefined, "workplace-or-profile location must not replace profile country");
+  assert.deepEqual(searchCall.body.query.profileLocation, { include: ['US'] });
   assert.equal(JSON.stringify(searchCall.body).includes(process.env.TREG_TOKEN), false);
 
   responseQueue.push({
@@ -147,7 +148,7 @@ try {
   assert.equal(revealUrl.searchParams.get("run_waterfall_email"), "false");
   assert.equal(revealUrl.searchParams.get("run_waterfall_phone"), "false");
   assert.deepEqual(revealCall.body, {});
-  assert.equal(revealCall.init.headers["X-Treg-Route-Max-Cost"], undefined);
+  assert.equal(revealCall.init.headers["X-Treg-Route-Max-Cost"], '0.05');
   assert.equal(revealCall.init.headers["X-Treg-Meta"], "customer=user_fixture_42,action=reveal");
   assert.equal(revealRequest.internalCost.provider, "apollo.people.enrich");
   assert.equal(revealRequest.internalCost.costMicroUsd, 26000);
@@ -172,6 +173,20 @@ try {
   assert.equal(missUrl.searchParams.get("domain"), "fixture.test");
   assert.equal(missRequest.internalCost.costMicroUsd, 26000, "Apollo can charge even when no verified email is returned");
 
+  responseQueue.push({body:{person:{email:'replay@example.com',email_status:'verified'}},headers:{'X-Treg-Cost-Micro':'26000','X-Treg-Idempotent-Replay':'true'}});
+  const replayRequest={};
+  await revealTregEmail({name:'Replay Fixture',companyDomain:'fixture.test'},replayRequest);
+  assert.equal(replayRequest.internalCost.costMicroUsd,0,'replay original cost is not an incremental charge');
+  responseQueue.push({body:{person:{email:null}}});
+  const unknownRequest={};
+  await revealTregEmail({name:'Unknown Fixture',companyDomain:'fixture.test'},unknownRequest);
+  assert.equal(unknownRequest.internalCost.billing,'unknown');
+  assert.equal(unknownRequest.internalCost.costMicroUsd,undefined);
+  const count=calls.length;
+  process.env.PROVIDER_DAILY_BUDGET_USD='10';
+  process.env.TREG_EMAIL_ENDPOINT='unknown.unpriced.endpoint';
+  await assert.rejects(()=>revealTregEmail({name:'Blocked Fixture',companyDomain:'fixture.test'},{}));
+  assert.equal(calls.length,count,'unpriced endpoints must not call upstream');
   console.log("Treg fixture tests passed.");
 } finally {
   globalThis.fetch = originalFetch;

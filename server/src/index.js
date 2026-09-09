@@ -1,8 +1,11 @@
+import { BRAND_NAME } from './lib/brand.js';
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { hasMembershipAccess, isBetaUnlimitedUsage } from './lib/membership-policy.js';
+import { createRateLimiter, createProviderUsageGuard } from './lib/usage-guard.js';
+import { checkProviderBudget, closeProviderBudget } from './lib/spend-budget.js';
 import { searchContacts, revealEmail } from "./lib/contacts-provider.js";
 import { rankContacts } from "./lib/ranking.js";
 import { createDraft, createMailtoUrl, getDraftInternalCost } from "./lib/email.js";
@@ -30,7 +33,20 @@ const port = positiveIntegerEnv("PORT", 8787);
 let shuttingDown = false;
 const apiLimiter = createRateLimiter({
   windowMs: positiveIntegerEnv("RATE_LIMIT_WINDOW_MS", 60_000),
-  max: positiveIntegerEnv("RATE_LIMIT_MAX", 60)
+  max: positiveIntegerEnv("RATE_LIMIT_MAX", 60),
+  key: (req) => req.user.id
+});
+const anonymousLimiter = createRateLimiter({
+  windowMs: positiveIntegerEnv("RATE_LIMIT_WINDOW_MS", 60_000),
+  max: positiveIntegerEnv("RATE_LIMIT_UNAUTHENTICATED_MAX", 60),
+  key: (req) => req.socket.remoteAddress || "unknown"
+});
+const providerUsage = createProviderUsageGuard({
+  userConcurrency: positiveIntegerEnv("PROVIDER_USER_CONCURRENCY", 2),
+  globalConcurrency: positiveIntegerEnv("PROVIDER_GLOBAL_CONCURRENCY", 8),
+  failureThreshold: positiveIntegerEnv("PROVIDER_FAILURE_THRESHOLD", 5),
+  cooldownMs: positiveIntegerEnv("PROVIDER_CIRCUIT_COOLDOWN_MS", 30_000),
+  onCircuitChange: (details) => writeLog("warn", "provider.circuit_changed", details)
 });
 
 app.use(helmet());
@@ -82,8 +98,8 @@ app.use(cors({
     return callback(error);
   }
 }));
-app.use("/api", apiLimiter);
 app.use("/api", requireAuth);
+app.use("/api", apiLimiter);
 
 app.get("/live", (_req, res) => {
   if (shuttingDown) return fail(res, 503, "Server is shutting down.");
@@ -92,6 +108,9 @@ app.get("/live", (_req, res) => {
 
 app.get("/health", async (_req, res) => {
   const issues = requiredConfigurationIssues();
+  let spendBudget = { enabled: false };
+  try { spendBudget = await checkProviderBudget(); }
+  catch { issues.push('provider_budget_unavailable'); }
   if (isAccountDbConfigured()) {
     try {
       await checkAccountDb();
@@ -106,7 +125,8 @@ app.get("/health", async (_req, res) => {
     issues,
     provider: providerStatus(),
     usagePolicy: {
-      betaUnlimited: isBetaUnlimitedUsage()
+      betaUnlimited: isBetaUnlimitedUsage(),
+      spendBudget
     },
     auth: {
       accountDbConfigured: isAccountDbConfigured()
@@ -154,7 +174,7 @@ app.get("/api/account", async (req, res, next) => {
 app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), requireCredits("contacts.search", creditCost("CONTACT_SEARCH_CREDITS", 0)), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
-    if (!onboarding.complete) return fail(res, 428, "Complete your profile before using Reachard.", onboardingAction(onboarding));
+    if (!onboarding.complete) return fail(res, 428, `Complete your profile before using ${BRAND_NAME}.`, onboardingAction(onboarding));
     const settings = await getUserSettings(req.user.id);
     const context = normalizeContext(req.body?.pageContext || req.body, settings);
     if (!context.companyName && !context.companyDomain) {
@@ -168,7 +188,9 @@ app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), re
       customerId: req.user.id,
       idempotencyKey: req.idempotencyKey
     };
-    const contacts = await searchContacts(context, providerRequest).catch(async (error) => {
+    const contacts = await providerUsage.run("contacts.search", req.user.id,
+      () => searchContacts(context, providerRequest)).catch(async (error) => {
+      if (error.usageGuard) throw error;
       writeLog("warn", "contacts.provider_failed", {
         requestId: req.requestId,
         provider: providerStatus().contactProvider,
@@ -194,7 +216,7 @@ app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), re
 app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), requireCredits("contacts.reveal", creditCost("CONTACT_REVEAL_CREDITS", 1)), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
-    if (!onboarding.complete) return fail(res, 428, "Complete your profile before using Reachard.", onboardingAction(onboarding));
+    if (!onboarding.complete) return fail(res, 428, `Complete your profile before using ${BRAND_NAME}.`, onboardingAction(onboarding));
     const contact = normalizeRevealContact(req.body?.contact);
     if (!contact) return fail(res, 400, "Choose a valid contact before revealing an email.");
 
@@ -202,7 +224,9 @@ app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), re
       customerId: req.user.id,
       idempotencyKey: req.idempotencyKey
     };
-    const email = await revealEmail(contact, providerRequest).catch((error) => {
+    const email = await providerUsage.run("contacts.reveal", req.user.id,
+      () => revealEmail(contact, providerRequest)).catch((error) => {
+      if (error.usageGuard) throw error;
       writeLog("warn", "contacts.reveal_provider_failed", {
         requestId: req.requestId,
         provider: revealProviderName(),
@@ -242,7 +266,7 @@ app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), re
 app.post("/api/email/draft", prepareIdempotentRequest("email.draft"), requireCredits("email.draft", creditCost("EMAIL_DRAFT_CREDITS", 0)), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
-    if (!onboarding.complete) return fail(res, 428, "Complete your profile before using Reachard.", onboardingAction(onboarding));
+    if (!onboarding.complete) return fail(res, 428, `Complete your profile before using ${BRAND_NAME}.`, onboardingAction(onboarding));
     const contact = req.body?.contact;
     const settings = await getUserSettings(req.user.id);
     const context = normalizeContext(req.body?.pageContext || req.body?.job || {}, settings);
@@ -253,7 +277,8 @@ app.post("/api/email/draft", prepareIdempotentRequest("email.draft"), requireCre
       });
     }
 
-    const draft = await createDraft(contact, context, settings);
+    const draft = await providerUsage.run("email.draft", req.user.id,
+      () => createDraft(contact, context, settings, { customerId: req.user.id }));
     const completed = await chargeAndRecord(req, "email.draft", {
       ...draft,
       mailtoUrl: createMailtoUrl(contact.email, draft)
@@ -268,7 +293,7 @@ app.post("/api/email/draft", prepareIdempotentRequest("email.draft"), requireCre
 app.use(errorHandler);
 
 const server = app.listen(port, () => {
-  console.log(`Reachard server listening on http://localhost:${port}`);
+  console.log(`${BRAND_NAME} server listening on http://localhost:${port}`);
 });
 const idempotencyCleanupTimer = setInterval(() => {
   void pruneApiIdempotencyKeys().catch((error) => {
@@ -283,40 +308,19 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
   });
 }
 
-function createRateLimiter({ windowMs, max }) {
-  const buckets = new Map();
-
-  return (req, res, next) => {
-    const key = req.ip || req.socket.remoteAddress || "unknown";
-    const now = Date.now();
-    const bucket = buckets.get(key);
-
-    if (!bucket || now - bucket.startedAt > windowMs) {
-      buckets.set(key, { count: 1, startedAt: now });
-      return next();
-    }
-
-    bucket.count += 1;
-    if (bucket.count > max) {
-      return fail(res, 429, "Too many requests. Try again shortly.");
-    }
-
-    return next();
-  };
-}
-
 async function requireAuth(req, res, next) {
   try {
     const token = getBearerToken(req);
     if (!token) {
-      return fail(res, 401, "Sign in to use this API.", {
+      return anonymousLimiter(req, res, () => fail(res, 401, "Sign in to use this API.", {
         action: { label: "Connect extension", url: `${getWebRedirectBaseUrl()}/connect-extension` }
-      });
+      }));
     }
 
     req.user = await getUserFromApiToken(token);
     next();
   } catch (error) {
+    if (Number(error.status) === 401) return anonymousLimiter(req, res, () => next(error));
     next(error);
   }
 }
@@ -326,7 +330,7 @@ function requireCredits(action, amount) {
     try {
       if (!isBetaUnlimitedUsage() && !hasMembershipAccess(await getMembershipForUser(req.user.id))) {
         await failApiRequest({ userId: req.user.id, action, idempotencyKey: req.idempotencyKey, error: 'membership_required' });
-        return fail(res, 402, "An active Reachard membership is required.", {
+        return fail(res, 402, `An active ${BRAND_NAME} membership is required.`, {
           action: { label: "View membership plans", url: `${getWebRedirectBaseUrl()}/pricing` }
         });
       }
@@ -636,7 +640,7 @@ async function shutdown(signal) {
 
   server.close(async (error) => {
     try {
-      await closeAccountDb();
+      await Promise.allSettled([closeAccountDb(), closeProviderBudget()]);
     } finally {
       clearTimeout(forceTimer);
       if (error) {

@@ -1,3 +1,5 @@
+import { withProviderBudget, providerBudgetEnabled } from './spend-budget.js';
+
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com";
 const draftInternalCosts = new WeakMap();
 
@@ -5,7 +7,7 @@ export function getDraftInternalCost(draft) {
   return draft && typeof draft === "object" ? draftInternalCosts.get(draft) || null : null;
 }
 
-export async function createDraft(contact, job, settings = {}) {
+export async function createDraft(contact, job, settings = {}, request = {}) {
   const fallback = createTemplateDraft(contact, job, settings);
 
   if (!process.env.OPENAI_API_KEY) {
@@ -19,7 +21,7 @@ export async function createDraft(contact, job, settings = {}) {
   }
 
   try {
-    const result = await createAiDraft(contact, job, settings);
+    const result = await createAiDraft(contact, job, settings, request);
     const draft = {
       ...result.draft,
       ai: {
@@ -111,7 +113,24 @@ function contactRoleLabel(value) {
   return "";
 }
 
-async function createAiDraft(contact, job, settings) {
+async function createAiDraft(contact, job, settings, request) {
+  const payload = JSON.stringify({
+    model: openAiModel(), instructions: aiInstructions(), input: buildAiInput(contact, job, settings),
+    max_output_tokens: 4096,
+    text: { format: { type: 'json_schema', name: 'personalized_reachout_email', strict: true, schema: draftSchema() } },
+    store: false,
+  });
+  const bytes = Buffer.byteLength(payload, 'utf8');
+  if (bytes > 96_000) throw new Error('Draft context is too large for the configured generation limit.');
+  const rates = openAiPricing(openAiModel(), 0);
+  if (providerBudgetEnabled() && (openAiModel() !== 'gpt-5.6-luna'
+    || openAiResponsesUrl() !== `${DEFAULT_OPENAI_BASE_URL}/v1/responses`
+    || rates.input < 0.20 || rates.cachedInput < 0.02 || rates.output < 1.20)) {
+    throw new Error('This AI model has no configured provider budget ceiling.');
+  }
+  // Text token count cannot exceed its UTF-8 byte count. Include the entire
+  // serialized schema/prompt plus framing headroom; cached tokens cost no more.
+  const maximumMicroUsd = Math.ceil((bytes + 8192) * Math.max(rates.input, rates.cachedInput) + 4096 * rates.output);
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(),
@@ -119,30 +138,17 @@ async function createAiDraft(contact, job, settings) {
   );
 
   try {
-    const response = await fetch(openAiResponsesUrl(), {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: openAiModel(),
-        instructions: aiInstructions(),
-        input: buildAiInput(contact, job, settings),
-        text: {
-          format: {
-            type: "json_schema",
-            name: "personalized_reachout_email",
-            strict: true,
-            schema: draftSchema()
-          }
-        },
-        store: false
-      })
+    const { response, data } = await withProviderBudget({
+      provider: 'openai', action: 'email.draft', customerId: request.customerId, maximumMicroUsd,
+    }, async () => {
+      const response = await fetch(openAiResponsesUrl(), {
+        method: 'POST', signal: controller.signal,
+        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: payload,
+      });
+      const data = await response.json().catch(() => ({}));
+      return { value: { response, data }, costMicroUsd: response.ok ? openAiInternalCost(data).costMicroUsd : null };
     });
-
-    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(data.error?.message || `OpenAI request failed with ${response.status}`);
       error.status = response.status;
@@ -339,6 +345,10 @@ function openAiModel() {
 
 function openAiInternalCost(response = {}) {
   const usage = response.usage || {};
+  if (!Number.isSafeInteger(usage.input_tokens) || usage.input_tokens < 0
+    || !Number.isSafeInteger(usage.output_tokens) || usage.output_tokens < 0) {
+    return { source: 'openai', provider: 'openai', model: openAiModel(), billing: 'unknown', costMicroUsd: null };
+  }
   const inputTokens = nonNegativeInteger(usage.input_tokens);
   const cachedInputTokens = Math.min(
     inputTokens,
@@ -359,7 +369,7 @@ function openAiInternalCost(response = {}) {
     provider: "openai",
     model: openAiModel(),
     billing: "estimated",
-    costMicroUsd: Math.round(costUsd * 1_000_000),
+    costMicroUsd: Math.ceil(costUsd * 1_000_000),
     inputTokens,
     cachedInputTokens,
     outputTokens,

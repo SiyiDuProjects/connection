@@ -28,6 +28,8 @@ jobs:
           npm run test:hunter
           npm run test:rapidapi
           npm run test:treg
+          npm run test:usage-guard
+          npm run test:spend-budget
           npm run test:email
           npm run test:intelligence
           npm run test:intelligence:large
@@ -75,5 +77,6 @@ jobs:
       - run: node scripts/check-ui-boundaries.mjs
       - run: pnpm test:billing
       - run: pnpm test:email
+      - run: node --test --test-concurrency=1 scripts/auth-session.test.mjs scripts/password-reset.test.mjs scripts/account-security.test.cjs
       - run: node --test scripts/dashboard.test.mjs
       - run: pnpm build

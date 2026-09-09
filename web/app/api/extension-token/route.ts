@@ -44,7 +44,8 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Production Chrome extension allowlist is not configured.' }, { status: 503 });
   }
 
-  const token = await createExtensionToken(user.id);
+  const token = await createExtensionToken(user.id, user.sessionVersion);
+  if (!token) return Response.json({ error: 'Please sign in again.' }, { status: 401 });
   return Response.json({ ...token, extensionId });
 }
 

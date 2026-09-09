@@ -41,6 +41,9 @@ export function publicError(message, status = 500, extra = {}) {
 
 export function errorHandler(error, req, res, _next) {
   const status = Number(error.status || 500);
+  if (Number.isSafeInteger(error.retryAfter) && error.retryAfter > 0) {
+    res.setHeader('Retry-After', String(error.retryAfter));
+  }
   const publicMessage = error.publicMessage || (
     status >= 500 ? "Server error. Try again shortly." : error.message
   );

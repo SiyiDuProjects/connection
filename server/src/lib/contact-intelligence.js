@@ -1,3 +1,4 @@
+import { contactPhotoUrl } from "./contact-photo.js";
 import {
   FUNCTIONS,
   SENIORITIES,
@@ -108,6 +109,7 @@ export function normalizeContactForScoring(contact = {}, job = {}) {
     location,
     education,
     linkedinUrl,
+    ...(contactPhotoUrl(contact) ? { photoUrl: contactPhotoUrl(contact) } : {}),
     email: firstString(contact.email),
     emailStatus: firstString(contact.emailStatus, contact.email_status, contact.professional_email_status),
     metadata: contact.metadata && typeof contact.metadata === "object" ? contact.metadata : {},

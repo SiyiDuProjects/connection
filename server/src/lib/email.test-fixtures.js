@@ -9,11 +9,12 @@ const envNames = [
   "OPENAI_MODEL",
   "OPENAI_INPUT_USD_PER_MILLION",
   "OPENAI_CACHED_INPUT_USD_PER_MILLION",
-  "OPENAI_OUTPUT_USD_PER_MILLION"
+  "OPENAI_OUTPUT_USD_PER_MILLION", "PROVIDER_DAILY_BUDGET_USD"
 ];
 const originalEnv = Object.fromEntries(envNames.map((key) => [key, process.env[key]]));
 
 try {
+  delete process.env.PROVIDER_DAILY_BUDGET_USD;
   process.env.OPENAI_API_KEY = "fixture-key-never-send";
   process.env.OPENAI_BASE_URL = "https://api.openai.com";
   process.env.OPENAI_MODEL = "gpt-5.6-luna";
@@ -65,6 +66,7 @@ try {
   assert.equal(request.url, "https://api.openai.com/v1/responses");
   assert.equal(request.body.model, "gpt-5.6-luna");
   assert.equal(request.body.store, false);
+  assert.equal(request.body.max_output_tokens, 4096);
   const aiInput = JSON.parse(request.body.input);
   assert.equal(aiInput.sender.resumeContext, "Built a distributed systems capstone.");
   assert.equal(aiInput.sender.emailSignature, "Jamie");
@@ -90,6 +92,19 @@ try {
   assert.equal(JSON.stringify(draft).includes("internalCost"), false);
   assert.equal(JSON.stringify(draft).includes("costMicroUsd"), false);
 
+  let extraCalls=0;
+  globalThis.fetch=async()=>{extraCalls++;return new Response(JSON.stringify({output_text:JSON.stringify({subject:'Fixture',body:'Fixture'})}));};
+  const unknown=await createDraft({name:'Fixture'},{companyName:'Fixture'});
+  assert.equal(getDraftInternalCost(unknown).costMicroUsd,null,'missing usage is unknown, not free');
+  assert.equal(extraCalls,1);
+  const oversized=await createDraft({name:'Fixture'},{companyName:'Fixture'},{senderProfile:'a'.repeat(100_000)});
+  assert.equal(oversized.ai.used,false);
+  assert.equal(extraCalls,1,'oversized contexts must not reach OpenAI');
+  process.env.PROVIDER_DAILY_BUDGET_USD='10';
+  process.env.OPENAI_INPUT_USD_PER_MILLION='0.01';
+  const underpriced=await createDraft({name:'Fixture'},{companyName:'Fixture'});
+  assert.equal(underpriced.ai.used,false);
+  assert.equal(extraCalls,1,'underpriced configuration must fail before OpenAI');
   console.log("Email draft fixture tests passed.");
 } finally {
   globalThis.fetch = originalFetch;

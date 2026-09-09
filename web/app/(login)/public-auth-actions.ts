@@ -4,10 +4,10 @@ import type { ActionState } from '@/lib/auth/middleware';
 
 const unavailable = 'Account services are not connected in this local preview.';
 
-export async function checkAccountStatus(email: string) {
+export async function authenticate(previous: ActionState, data: FormData): Promise<ActionState> {
   if (!process.env.POSTGRES_URL) return { error: unavailable };
   const actions = await import('./actions');
-  return actions.checkAccountStatus(email);
+  return (await actions.authenticate(previous, data)) ?? {};
 }
 
 export async function signIn(previous: ActionState, data: FormData): Promise<ActionState> {
@@ -34,4 +34,20 @@ export async function confirmVerification(previous: ActionState, data: FormData)
   if (!process.env.POSTGRES_URL) return { error: unavailable };
   const actions = await import('./actions');
   return (await actions.confirmVerification(previous, data)) ?? {};
+}
+
+export async function requestPasswordReset(previous: ActionState, data: FormData): Promise<ActionState> {
+  if (!process.env.POSTGRES_URL) return { error: unavailable };
+  const actions = await import('./password-reset-actions');
+  try { return await actions.requestPasswordReset(previous, data); } catch {
+    return { error: 'Password recovery is temporarily unavailable. Please try again later.' };
+  }
+}
+
+export async function confirmPasswordReset(previous: ActionState, data: FormData): Promise<ActionState> {
+  if (!process.env.POSTGRES_URL) return { error: unavailable };
+  const actions = await import('./password-reset-actions');
+  try { return await actions.confirmPasswordReset(previous, data); } catch {
+    return { error: 'We could not update your password. Please try again.' };
+  }
 }

@@ -18,6 +18,8 @@ import {
   friendInvites,
   invitations,
   emailVerificationTokens,
+  extensionApiTokens,
+  passwordResetTokens,
   userSettings
 } from '@/lib/db/schema';
 import { comparePasswords, hashPassword, setSession } from '@/lib/auth/session';
@@ -27,6 +29,8 @@ import { getUser, getUserWithTeam } from '@/lib/db/queries';
 import { revokeExtensionTokens } from '@/lib/extension-tokens';
 import { issueEmailVerification, verifyEmailCode, VerificationRateLimitError } from '@/lib/auth/email-verification';
 import { requireEmailDelivery } from '@/lib/email/resend';
+import { changeAuthenticatedPassword } from '@/lib/auth/password-reset';
+import { newPasswordSchema } from '@/lib/auth/password-policy';
 import { safeAuthRedirect } from '@/lib/auth/verification-code';
 import {
   validatedAction,
@@ -52,32 +56,19 @@ async function logActivity(
 }
 
 const signInSchema = z.object({
-  email: z.string().email().min(3).max(255),
+  email: z.string().trim().email().min(3).max(255),
   password: z.string().min(8).max(100)
 });
 
-const accountStatusSchema = z.object({
-  email: z.string().email().min(3).max(255)
+// One credential submission chooses the flow on the server. An existing
+// account must always pass signIn's password/deletion/verification checks.
+export const authenticate = validatedAction(signInSchema, async (data, formData) => {
+  const email = data.email.toLowerCase();
+  formData.set('email', email);
+  const existing = await db.select({ id: users.id }).from(users)
+    .where(eq(users.email, email)).limit(1);
+  return existing.length ? signIn({}, formData) : signUp({}, formData);
 });
-
-export async function checkAccountStatus(emailInput: string) {
-  const result = accountStatusSchema.safeParse({ email: emailInput });
-  if (!result.success) {
-    return { error: result.error.errors[0].message };
-  }
-
-  const email = result.data.email.toLowerCase();
-  const existingUser = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, email))
-    .limit(1);
-
-  return {
-    email,
-    exists: existingUser.length > 0
-  };
-}
 
 export const signIn = validatedAction(signInSchema, async (data, formData) => {
   const { password } = data;
@@ -143,7 +134,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 
 const signUpSchema = z.object({
   email: z.string().email().max(255),
-  password: z.string().min(8).max(100),
+  password: newPasswordSchema,
   inviteId: z.string().optional(),
   ref: z.string().trim().optional()
 });
@@ -367,7 +358,7 @@ export async function signOut() {
 
 const updatePasswordSchema = z.object({
   currentPassword: z.string().min(8).max(100),
-  newPassword: z.string().min(8).max(100),
+  newPassword: newPasswordSchema,
   confirmPassword: z.string().min(8).max(100)
 });
 
@@ -402,13 +393,9 @@ export const updatePassword = validatedActionWithUser(
     const newPasswordHash = await hashPassword(newPassword);
     const userWithTeam = await getUserWithTeam(user.id);
 
-    await Promise.all([
-      db
-        .update(users)
-        .set({ passwordHash: newPasswordHash })
-        .where(eq(users.id, user.id)),
-      logActivity(userWithTeam?.teamId, user.id, ActivityType.UPDATE_PASSWORD)
-    ]);
+    const updated = await changeAuthenticatedPassword(user.id, user.passwordHash, newPasswordHash, user.sessionVersion);
+    if (!updated) return { error: 'Your password has changed. Please sign in again.' };
+    await Promise.all([setSession(updated), logActivity(userWithTeam?.teamId, user.id, ActivityType.UPDATE_PASSWORD)]);
 
     return {
       success: 'Password updated successfully.'
@@ -434,42 +421,18 @@ export const deleteAccount = validatedActionWithUser(
 
     const userWithTeam = await getUserWithTeam(user.id);
 
-    if (userWithTeam?.teamRole === 'owner' && userWithTeam.stripeSubscriptionId) {
-      const { cancelSubscriptionAtPeriodEnd } = await import('@/lib/payments/stripe');
-      await cancelSubscriptionAtPeriodEnd(userWithTeam.stripeSubscriptionId);
-    }
-
-    await revokeExtensionTokens(user.id);
-
-    await logActivity(
-      userWithTeam?.teamId,
-      user.id,
-      ActivityType.DELETE_ACCOUNT
-    );
-
-    await Promise.all([
-      db.delete(emailVerificationTokens).where(eq(emailVerificationTokens.userId, user.id)),
-      db.delete(userSettings).where(eq(userSettings.userId, user.id))
-    ]);
-
-    // Soft delete
-    await db
-      .update(users)
-      .set({
-        deletedAt: sql`CURRENT_TIMESTAMP`,
-        email: sql`CONCAT(email, '-', id, '-deleted')` // Ensure email uniqueness
-      })
-      .where(eq(users.id, user.id));
-
-    if (userWithTeam?.teamId) {
-      await db
-        .delete(teamMembers)
-        .where(
-          and(
-            eq(teamMembers.userId, user.id),
-            eq(teamMembers.teamId, userWithTeam.teamId)
-          )
-        );
+    try {
+      const { deleteAccountData } = await import('@/lib/delete-account-data');
+      const deleted = await deleteAccountData(user.id, userWithTeam?.teamId,
+        { sessionVersion: user.sessionVersion, passwordHash: user.passwordHash }, async () => {
+          if (userWithTeam?.teamRole === 'owner' && userWithTeam.stripeSubscriptionId) {
+            const { cancelSubscriptionAtPeriodEnd } = await import('@/lib/payments/stripe');
+            await cancelSubscriptionAtPeriodEnd(userWithTeam.stripeSubscriptionId);
+          }
+        });
+      if (!deleted) return { error: 'Your account credentials have changed. Please sign in again.' };
+    } catch {
+      return { error: 'Account deletion could not be completed. Please retry or contact support@reachard.co. If you have a subscription, its renewal may already be canceled.' };
     }
 
     (await cookies()).delete('session');
@@ -496,29 +459,39 @@ export const updateAccount = validatedActionWithUser(
       }
     }
 
-    await db.transaction(async (tx) => {
+    const updated = await db.transaction(async (tx) => {
+      const [current] = await tx.select().from(users).where(eq(users.id, user.id)).for('update');
+      if (!current || current.deletedAt || current.sessionVersion !== user.sessionVersion) return null;
+      const now = new Date();
       await tx
         .update(users)
         .set({
           name,
           email,
-          emailVerifiedAt: emailChanged ? null : user.emailVerifiedAt,
-          updatedAt: new Date()
+          emailVerifiedAt: emailChanged ? null : current.emailVerifiedAt,
+          sessionVersion: emailChanged ? current.sessionVersion + 1 : current.sessionVersion,
+          updatedAt: now
         })
         .where(eq(users.id, user.id));
       if (emailChanged) {
-        await tx.update(emailVerificationTokens).set({ usedAt: new Date() })
+        await tx.update(extensionApiTokens).set({ revokedAt: now })
+          .where(eq(extensionApiTokens.userId, user.id));
+        await tx.update(emailVerificationTokens).set({ usedAt: now })
           .where(eq(emailVerificationTokens.userId, user.id));
+        await tx.update(passwordResetTokens).set({ usedAt: now })
+          .where(eq(passwordResetTokens.userId, user.id));
       }
+      return { ...current, name, email, emailVerifiedAt: emailChanged ? null : current.emailVerifiedAt,
+        sessionVersion: emailChanged ? current.sessionVersion + 1 : current.sessionVersion };
     });
+    if (!updated) return { error: 'Your account credentials have changed. Please sign in again.' };
     await logActivity(userWithTeam?.teamId, user.id, ActivityType.UPDATE_ACCOUNT);
 
     if (emailChanged) {
-      await revokeExtensionTokens(user.id);
       (await cookies()).delete('session');
       const destination = new FormData();
       destination.set('redirect', '/dashboard/general');
-      return continueToVerification({ ...user, email, emailVerifiedAt: null }, destination);
+      return continueToVerification(updated, destination);
     }
 
     return { name, success: 'Account updated successfully.' };

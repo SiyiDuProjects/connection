@@ -44,6 +44,10 @@ jobs:
           npm run test:hunter
           npm run test:rapidapi
           npm run test:treg
+          npm run test:search-quality
+          npm run test:country
+          npm run test:usage-guard
+          npm run test:spend-budget
           npm run test:email
           npm run test:intelligence
           npm run test:intelligence:large

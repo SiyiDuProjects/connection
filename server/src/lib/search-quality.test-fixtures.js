@@ -31,7 +31,7 @@ const envKeys = ['TREG_TOKEN', 'TREG_SEARCH_SIZE', 'TREG_SEARCH_MAX_PAGES', 'TRE
 const originalEnv = Object.fromEntries(envKeys.map(key => [key, process.env[key]]));
 const calls = [];
 let queue = [];
-const lead = (id, overrides = {}) => ({ id, fullName: `Fixture ${id}`, lastJobTitle: 'Software Engineer', lastCompanyName: 'Acme', lastCompanyWebsite: 'acme.com', profileUrl: `https://linkedin.com/in/${id}`, ...overrides });
+const lead = (id, overrides = {}) => ({ id, fullName: `Fixture ${id}`, lastJobTitle: 'Software Engineer', lastCompanyName: 'Acme', lastCompanyWebsite: 'acme.com', address: 'United States', profileUrl: `https://linkedin.com/in/${id}`, ...overrides });
 try {
   process.env.TREG_TOKEN = 'fixture-only';
   process.env.TREG_SEARCH_SIZE = '25';

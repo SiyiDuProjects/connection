@@ -72,9 +72,11 @@ before(async () => {
   CREATE TABLE friend_invites (id serial PRIMARY KEY, inviter_user_id integer, token text, created_at timestamp DEFAULT now(), last_generated_at timestamp DEFAULT now());
   CREATE TABLE friend_invite_redemptions (id serial PRIMARY KEY, invite_id integer, invited_user_id integer UNIQUE, created_at timestamp DEFAULT now());
   CREATE TABLE invitations (id serial PRIMARY KEY, team_id integer, email varchar(255), role varchar(50), invited_by integer, invited_at timestamp DEFAULT now(), status varchar(20));
-  CREATE TABLE activity_logs (id serial PRIMARY KEY, team_id integer, user_id integer, action text, timestamp timestamp DEFAULT now(), ip_address varchar(45));`);
+  CREATE TABLE activity_logs (id serial PRIMARY KEY, team_id integer, user_id integer, action text, timestamp timestamp DEFAULT now(), ip_address varchar(45));
+  CREATE TABLE extension_api_tokens (id serial PRIMARY KEY, user_id integer, revoked_at timestamp);`);
   await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0003_email_verification.sql'), 'utf8'));
   await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0014_email_verification_codes.sql'), 'utf8'));
+  await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0015_password_recovery.sql'), 'utf8'));
 });
 beforeEach(() => {
   sent = []; sessions = []; failDelivery = false; currentUser = null;
@@ -93,6 +95,70 @@ after(async () => {
     if (savedEnv[key] === undefined) delete process.env[key]; else process.env[key] = savedEnv[key];
   }
   await pg.close();
+});
+
+test('unified access creates a new account, retains referral and checkout context, and requires verification', async () => {
+  const inviter = await user();
+  const invite = (await pg.query("INSERT INTO friend_invites(inviter_user_id,token) VALUES ($1,'unified-ref') RETURNING id", [inviter.id])).rows[0];
+  await assert.rejects(actions.authenticate({}, form({
+    email: '  NEW-UNIFIED@example.com ', password: 'password123',
+    redirect: 'checkout', priceId: 'price_fixture', ref: 'unified-ref'
+  })), error => {
+    const url = new URL(error.url, 'https://example.com');
+    return url.pathname === '/verify-email' && url.searchParams.get('redirect') === 'checkout'
+      && url.searchParams.get('priceId') === 'price_fixture';
+  });
+  const record = (await pg.query("SELECT * FROM users WHERE email='new-unified@example.com'")).rows[0];
+  assert.equal(record.email_verified_at, null);
+  assert.equal(record.password_hash, 'fixture:password123');
+  assert.deepEqual(sessions, []);
+  assert.equal(sent.length, 1);
+  const redemption = (await pg.query('SELECT * FROM friend_invite_redemptions WHERE invited_user_id=$1', [record.id])).rows[0];
+  assert.equal(redemption.invite_id, invite.id);
+});
+
+test('unified access logs in an existing verified account without creating or mailing another account', async () => {
+  const u = await user();
+  await pg.query('UPDATE users SET email_verified_at=now() WHERE id=$1', [u.id]);
+  const before = (await pg.query('SELECT count(*) AS count FROM users')).rows[0].count;
+  await assert.rejects(actions.authenticate({}, form({ email: ` ${u.email.toUpperCase()} `,
+    password: 'password123', redirect: '/connect-extension?source=unified' })),
+    error => error.url === '/connect-extension?source=unified');
+  assert.deepEqual(sessions, [u.id]);
+  assert.equal(sent.length, 0);
+  assert.equal((await pg.query('SELECT count(*) AS count FROM users')).rows[0].count, before);
+});
+
+test('unified access never falls back to registration for a wrong password or deleted account', async () => {
+  const u = await user();
+  const before = (await pg.query('SELECT count(*) AS count FROM users')).rows[0].count;
+  const wrong = await actions.authenticate({}, form({ email: u.email, password: 'wrong-password' }));
+  assert.match(wrong.error, /Invalid email or password/);
+  await pg.query('UPDATE users SET deleted_at=now() WHERE id=$1', [u.id]);
+  const deleted = await actions.authenticate({}, form({ email: u.email, password: 'password123' }));
+  assert.match(deleted.error, /Invalid email or password/);
+  assert.equal((await pg.query('SELECT count(*) AS count FROM users')).rows[0].count, before);
+  assert.deepEqual(sessions, []);
+  assert.equal(sent.length, 0);
+});
+
+test('unified access keeps unverified accounts behind email verification', async () => {
+  const u = await user();
+  await assert.rejects(actions.authenticate({}, form({ email: u.email, password: 'password123' })),
+    error => error.url.startsWith('/verify-email?'));
+  assert.deepEqual(sessions, []);
+  assert.equal(sent.length, 1);
+});
+
+test('unified access rejects malformed credentials and unavailable delivery before registration', async () => {
+  const invalid = await actions.authenticate({}, form({ email: 'invalid', password: 'short' }));
+  assert.ok(invalid.error);
+  delete process.env.RESEND_API_KEY;
+  const unavailable = await actions.authenticate({}, form({ email: 'unified-unavailable@example.com', password: 'password123' }));
+  assert.match(unavailable.error, /unavailable/);
+  assert.equal((await pg.query("SELECT id FROM users WHERE email='unified-unavailable@example.com'")).rows.length, 0);
+  assert.deepEqual(sessions, []);
+  assert.equal(sent.length, 0);
 });
 
 test('signup sends a code, leaves email unverified, and creates no login session', async () => {
@@ -124,7 +190,7 @@ test('unverified password login sends a code instead of creating a session', asy
 test('changing email requires verification, while missing mail config leaves the old address intact', async () => {
   const u = await user();
   await pg.query('UPDATE users SET email_verified_at=now() WHERE id=$1', [u.id]);
-  currentUser = { id: u.id, email: u.email, emailVerifiedAt: new Date() };
+  currentUser = { id: u.id, email: u.email, emailVerifiedAt: new Date(), sessionVersion: 0 };
   delete process.env.RESEND_API_KEY;
   const unavailable = await actions.updateAccount({}, form({ name: 'Test User', email: 'changed@example.com' }));
   assert.match(unavailable.error, /not been changed/);

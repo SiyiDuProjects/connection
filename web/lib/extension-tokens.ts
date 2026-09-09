@@ -3,9 +3,13 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { extensionApiTokens, users } from '@/lib/db/schema';
 
-export async function createExtensionToken(userId: number) {
+export async function createExtensionToken(userId: number, expectedSessionVersion: number) {
   const token = `fc_${randomBytes(32).toString('base64url')}`;
   const createdToken = await db.transaction(async (tx) => {
+    // Lock the same user row as password recovery. A request authenticated
+    // before a reset must not mint an extension credential after revocation.
+    const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update');
+    if (!user || user.deletedAt || !user.emailVerifiedAt || user.sessionVersion !== expectedSessionVersion) return null;
     await tx.execute(
       sql`select pg_advisory_xact_lock(${userId})`
     );
@@ -29,7 +33,7 @@ export async function createExtensionToken(userId: number) {
     if (!created) throw new Error('Could not create extension token.');
     return created;
   });
-
+  if (!createdToken) return null;
   return { token, tokenId: createdToken.id };
 }
 

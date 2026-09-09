@@ -3,6 +3,7 @@ import { searchExploriumContacts, revealExploriumEmail } from "./explorium.js";
 import { searchMockContacts, revealMockEmail } from "./mock.js";
 import { searchRapidApiContacts, revealRapidApiEmail } from "./rapidapi.js";
 import { searchTregContacts, revealTregEmail } from "./treg.js";
+import { providerBudgetEnabled } from './spend-budget.js';
 
 export function searchContacts(job, request) {
   switch (providerName()) {
@@ -40,7 +41,9 @@ export function revealEmail(contact, request) {
 
 function providerName() {
   if (String(process.env.APOLLO_MOCK || "").toLowerCase() === "true") return "mock";
-  return String(process.env.CONTACT_PROVIDER || "treg").toLowerCase();
+  const name = String(process.env.CONTACT_PROVIDER || "treg").toLowerCase();
+  if (providerBudgetEnabled() && !['treg', 'mock'].includes(name)) throw providerError();
+  return name;
 }
 
 function providerError() {

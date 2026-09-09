@@ -18,6 +18,7 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   emailVerifiedAt: timestamp('email_verified_at'),
   passwordHash: text('password_hash').notNull(),
+  sessionVersion: integer('session_version').notNull().default(0),
   role: varchar('role', { length: 20 }).notNull().default('member'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -149,6 +150,19 @@ export const emailVerificationTokens = pgTable('email_verification_tokens', {
   usedAt: timestamp('used_at'),
 }, (table) => ({
   userCreatedIdx: index('email_verification_tokens_user_created_idx').on(table.userId, table.createdAt),
+}));
+
+export const passwordResetTokens = pgTable('password_reset_tokens', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id),
+  email: varchar('email', { length: 255 }).notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  sessionVersion: integer('session_version').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  usedAt: timestamp('used_at'),
+}, (table) => ({
+  userCreatedIdx: index('password_reset_tokens_user_created_idx').on(table.userId, table.createdAt),
 }));
 
 export const userSettings = pgTable(
