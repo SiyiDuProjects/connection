@@ -25,6 +25,7 @@ let failDelivery = false;
 let number = 0;
 process.env.AUTH_SECRET = 'isolated-password-reset-fixture-secret-at-least-32-characters';
 const overrides = {
+  '@/lib/auth/rate-limit': { checkCredentialRateLimit: async () => null, reserveAccountEmailDelivery: async () => {} },
   'server-only': {}, jose,
   '@/lib/db/drizzle': { db }, './drizzle': { db },
   'next/server': { after: callback => background.push(callback) },

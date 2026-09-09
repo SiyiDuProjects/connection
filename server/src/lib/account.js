@@ -13,9 +13,14 @@ export async function checkAccountDb() {
     select
       to_regclass('public.credit_ledger')::text as credit_ledger,
       to_regclass('public.api_usage')::text as api_usage,
-      to_regclass('public.api_idempotency_keys')::text as api_idempotency_keys
+      to_regclass('public.api_idempotency_keys')::text as api_idempotency_keys,
+      to_regclass('public.free_trial_claims')::text as free_trial_claims,
+      to_regclass('public.auth_rate_limits')::text as auth_rate_limits,
+      to_regprocedure('public.ensure_free_trial(integer)')::text as ensure_free_trial,
+      to_regprocedure('public.consume_free_trial_operation(integer,text)')::text as consume_free_trial_operation
   `;
-  if (!row?.credit_ledger || !row?.api_usage || !row?.api_idempotency_keys) {
+  if (!row?.credit_ledger || !row?.api_usage || !row?.api_idempotency_keys
+    || !row?.free_trial_claims || !row?.auth_rate_limits || !row?.ensure_free_trial || !row?.consume_free_trial_operation) {
     throw new Error("Required account database migrations have not been applied.");
   }
   return true;
@@ -31,6 +36,7 @@ export async function pruneApiIdempotencyKeys() {
     delete from api_idempotency_keys
     where updated_at < now() - interval '7 days'
   `;
+  await sql`delete from auth_rate_limits where resets_at < now() - interval '1 day'`;
 }
 
 export function getBearerToken(req) {
@@ -50,6 +56,7 @@ export async function getUserFromApiToken(token) {
     where extension_api_tokens.token_hash = ${tokenHash}
       and extension_api_tokens.revoked_at is null
       and users.deleted_at is null
+      and users.email_verified_at is not null
     limit 1
   `;
 
@@ -186,6 +193,7 @@ export async function getOnboardingForUser(userId) {
 
 export async function getCreditBalance(userId) {
   ensureConfigured();
+  await ensureFreeTrial(userId);
 
   const rows = await sql`
     select coalesce(sum(amount), 0)::int as balance
@@ -198,6 +206,7 @@ export async function getCreditBalance(userId) {
 
 export async function getMembershipForUser(userId) {
   ensureConfigured();
+  const trialEligible = await ensureFreeTrial(userId);
   const [membership] = await sql`
     select teams.subscription_status as status,
       (select max((credit_ledger.metadata->>'periodEnd')::bigint)
@@ -209,7 +218,28 @@ export async function getMembershipForUser(userId) {
     where team_members.user_id = ${userId} and team_members.role = 'owner'
     order by teams.created_at desc limit 1
   `;
-  return { status: membership?.status || 'inactive', periodEnd: Number(membership?.period_end || 0) };
+  return { status: trialEligible ? 'free_trial' : membership?.status || 'inactive', periodEnd: Number(membership?.period_end || 0) };
+}
+
+export async function ensureFreeTrial(userId) {
+  ensureConfigured();
+  const [row] = await sql`select ensure_free_trial(${userId}::integer) as eligible`;
+  return row?.eligible === true;
+}
+
+export async function consumeFreeTrialOperation(userId, action) {
+  ensureConfigured();
+  const [row] = await sql`select consume_free_trial_operation(${userId}::integer, ${action}) as allowed`;
+  return row?.allowed === true;
+}
+
+export async function hasRevealedEmail(userId, email) {
+  ensureConfigured();
+  if (typeof email !== 'string' || !email.trim()) return false;
+  const rows = await sql`select 1 from api_idempotency_keys where user_id = ${userId}
+    and action = 'contacts.reveal' and status = 'succeeded'
+    and lower(response->>'email') = ${email.trim().toLowerCase()} limit 1`;
+  return rows.length > 0;
 }
 
 export async function claimApiRequest({ userId, action, idempotencyKey }) {

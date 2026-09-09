@@ -19,6 +19,7 @@ const cache = new Map();
 let sessions = [];
 let currentUser = null;
 const overrides = {
+  '@/lib/auth/rate-limit': { checkCredentialRateLimit: async () => null, reserveAccountEmailDelivery: async () => {} },
   'server-only': {},
   '@/lib/db/drizzle': { db: database },
   'next/navigation': { redirect: (url) => { throw Object.assign(new Error('redirect'), { url }); } },

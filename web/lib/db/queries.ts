@@ -12,6 +12,7 @@ import {
 } from './schema';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
+import { ensureFreeTrial } from '@/lib/free-trial';
 
 export async function getUser() {
   const sessionCookie = (await cookies()).get('session');
@@ -144,6 +145,7 @@ export async function getTeamForUser() {
 }
 
 export async function getCreditBalance(userId: number) {
+  await ensureFreeTrial(userId);
   const result = await db
     .select({ balance: sql<number>`coalesce(sum(${creditLedger.amount}), 0)` })
     .from(creditLedger)

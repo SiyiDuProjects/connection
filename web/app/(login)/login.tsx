@@ -49,7 +49,7 @@ export function Login(_props: { mode?: 'signin' | 'signup' } = {}) {
             <Link href="/forgot-password" className="-mt-2 text-right text-sm text-muted underline">Forgot password?</Link>
             {state?.error && <Alert status="danger"><Alert.Indicator/><Alert.Content><Alert.Description>{state.error}</Alert.Description></Alert.Content></Alert>}
             <Button type="submit" size="lg" fullWidth variant="primary" isDisabled={pending}>{pending ? <Loader2 className="animate-spin" size={18}/> : null}{pending ? 'One moment…' : 'Continue'}{!pending && <ArrowRight size={18}/>}</Button>
-            <p className="text-center text-xs text-muted">New here? We’ll create your account and email you a verification code.</p>
+            <p className="text-center text-xs text-muted">New here? Verify your email to try 3 free email unlocks. No card required.</p>
           </Form>
         </Card.Content>
       </Card>

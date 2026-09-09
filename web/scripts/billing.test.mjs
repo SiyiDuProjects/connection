@@ -115,6 +115,7 @@ before(async () => {
     CREATE TABLE friend_invite_redemptions (id serial PRIMARY KEY, invite_id int, invited_user_id int, created_at timestamp DEFAULT now());`);
   await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0010_friend_invite_rewards.sql'), 'utf8'));
   await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0015_password_recovery.sql'), 'utf8'));
+  await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0017_free_trial.sql'), 'utf8'));
   // Intentionally omit billing grant indexes: row locking must still prevent duplicate grants.
 });
 beforeEach(async () => {

@@ -232,6 +232,8 @@ export const creditLedger = pgTable(
   },
   (table) => ({
     userCreatedAtIdx: index('credit_ledger_user_created_at_idx').on(table.userId, table.createdAt),
+    freeTrialUnique: uniqueIndex('credit_ledger_free_trial_unique').on(table.userId)
+      .where(sql`${table.action} = 'trial.initial_grant'`),
     requestUnique: uniqueIndex('credit_ledger_user_action_request_unique')
       .on(table.userId, table.action, table.requestId)
       .where(sql`${table.requestId} is not null`),
@@ -243,6 +245,21 @@ export const creditLedger = pgTable(
       .where(sql`${table.action} = 'subscription.monthly_grant'`),
   })
 );
+
+export const freeTrialClaims = pgTable('free_trial_claims', {
+  emailFingerprint: text('email_fingerprint').primaryKey(),
+  userId: integer('user_id').notNull().unique().references(() => users.id),
+  searches: integer('searches').notNull().default(0),
+  revealAttempts: integer('reveal_attempts').notNull().default(0),
+  drafts: integer('drafts').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const authRateLimits = pgTable('auth_rate_limits', {
+  key: text('key').primaryKey(),
+  attempts: integer('attempts').notNull(),
+  resetsAt: timestamp('resets_at', { withTimezone: true }).notNull(),
+}, table => ({ expiryIdx: index('auth_rate_limits_expiry_idx').on(table.resetsAt) }));
 
 export const apiUsage = pgTable(
   'api_usage',

@@ -3,7 +3,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import { hasMembershipAccess, isBetaUnlimitedUsage } from './lib/membership-policy.js';
+import { hasActionAccess, isBetaUnlimitedUsage } from './lib/membership-policy.js';
 import { createRateLimiter, createProviderUsageGuard } from './lib/usage-guard.js';
 import { checkProviderBudget, closeProviderBudget } from './lib/spend-budget.js';
 import { searchContacts, revealEmail } from "./lib/contacts-provider.js";
@@ -20,6 +20,8 @@ import {
   getAccountSummary,
   getCreditBalance,
   getMembershipForUser,
+  consumeFreeTrialOperation,
+  hasRevealedEmail,
   getOnboardingForUser,
   getUserFromApiToken,
   getUserSettings,
@@ -188,7 +190,7 @@ app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), re
       customerId: req.user.id,
       idempotencyKey: req.idempotencyKey
     };
-    const contacts = await providerUsage.run("contacts.search", req.user.id,
+    const contacts = await runProviderOperation(req, "contacts.search",
       () => searchContacts(context, providerRequest)).catch(async (error) => {
       if (error.usageGuard) throw error;
       writeLog("warn", "contacts.provider_failed", {
@@ -224,7 +226,7 @@ app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), re
       customerId: req.user.id,
       idempotencyKey: req.idempotencyKey
     };
-    const email = await providerUsage.run("contacts.reveal", req.user.id,
+    const email = await runProviderOperation(req, "contacts.reveal",
       () => revealEmail(contact, providerRequest)).catch((error) => {
       if (error.usageGuard) throw error;
       writeLog("warn", "contacts.reveal_provider_failed", {
@@ -277,7 +279,10 @@ app.post("/api/email/draft", prepareIdempotentRequest("email.draft"), requireCre
       });
     }
 
-    const draft = await providerUsage.run("email.draft", req.user.id,
+    if (req.freeTrial && !await hasRevealedEmail(req.user.id, contact.email)) {
+      throw publicError('Unlock this contact with Reachard before drafting during your free trial.', 403);
+    }
+    const draft = await runProviderOperation(req, "email.draft",
       () => createDraft(contact, context, settings, { customerId: req.user.id }));
     const completed = await chargeAndRecord(req, "email.draft", {
       ...draft,
@@ -328,13 +333,15 @@ async function requireAuth(req, res, next) {
 function requireCredits(action, amount) {
   return async (req, res, next) => {
     try {
-      if (!isBetaUnlimitedUsage() && !hasMembershipAccess(await getMembershipForUser(req.user.id))) {
+      const balance = await getCreditBalance(req.user.id);
+      const membership = await getMembershipForUser(req.user.id);
+      req.freeTrial = !isBetaUnlimitedUsage() && membership.status === 'free_trial';
+      if (!isBetaUnlimitedUsage() && !hasActionAccess(membership, action, balance)) {
         await failApiRequest({ userId: req.user.id, action, idempotencyKey: req.idempotencyKey, error: 'membership_required' });
-        return fail(res, 402, `An active ${BRAND_NAME} membership is required.`, {
+        return fail(res, 402, req.freeTrial ? 'Your 3 free email unlocks have been used. Choose a plan to continue.' : `An active ${BRAND_NAME} membership is required.`, {
           action: { label: "View membership plans", url: `${getWebRedirectBaseUrl()}/pricing` }
         });
       }
-      const balance = await getCreditBalance(req.user.id);
       if (balance < amount) {
         await failApiRequest({
           userId: req.user.id,
@@ -354,6 +361,17 @@ function requireCredits(action, amount) {
       next(error);
     }
   };
+}
+
+async function runProviderOperation(req, action, operation) {
+  return providerUsage.run(action, req.user.id, async () => {
+    if (req.freeTrial && !await consumeFreeTrialOperation(req.user.id, action)) {
+      throw publicError('The free trial limit for this feature has been reached. Choose a plan to continue.', 402, {
+        action: { label: 'View plans', url: `${getWebRedirectBaseUrl()}/pricing` }, usageGuard: true
+      });
+    }
+    return operation();
+  });
 }
 
 function prepareIdempotentRequest(action) {

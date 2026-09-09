@@ -31,6 +31,7 @@ import { issueEmailVerification, verifyEmailCode, VerificationRateLimitError } f
 import { requireEmailDelivery } from '@/lib/email/resend';
 import { changeAuthenticatedPassword } from '@/lib/auth/password-reset';
 import { newPasswordSchema } from '@/lib/auth/password-policy';
+import { checkCredentialRateLimit } from '@/lib/auth/rate-limit';
 import { safeAuthRedirect } from '@/lib/auth/verification-code';
 import {
   validatedAction,
@@ -73,6 +74,8 @@ export const authenticate = validatedAction(signInSchema, async (data, formData)
 export const signIn = validatedAction(signInSchema, async (data, formData) => {
   const { password } = data;
   const email = data.email.toLowerCase();
+  const limited = await checkCredentialRateLimit(email);
+  if (limited) return { error: limited, email };
 
   const userWithTeam = await db
     .select({
@@ -142,6 +145,8 @@ const signUpSchema = z.object({
 export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   const { password, inviteId, ref } = data;
   const email = data.email.toLowerCase();
+  const limited = await checkCredentialRateLimit(email, true);
+  if (limited) return { error: limited, email, ref };
 
   const existingUser = await db
     .select()

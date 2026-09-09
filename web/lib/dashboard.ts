@@ -13,6 +13,7 @@ export type DashboardAccount = {
   settings?: { senderName?: string | null; school?: string | null; region?: string | null; resumeFileName?: string | null } | null;
   subscription?: { planName?: string; status?: string };
   extension?: { connected: boolean };
+  trial?: { total: number; remaining: number; requiresCard: false } | null;
   usage: DashboardUsage[];
 };
 

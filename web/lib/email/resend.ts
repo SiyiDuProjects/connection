@@ -2,6 +2,7 @@ import 'server-only';
 import { verificationEmail } from './verification-template';
 import { passwordChangedEmail, passwordResetEmail } from './password-reset-template';
 import { BRAND_NAME } from '@/lib/brand';
+import { reserveAccountEmailDelivery } from '@/lib/auth/rate-limit';
 
 export function requireEmailDelivery() {
   if (!process.env.RESEND_API_KEY?.trim() || !process.env.EMAIL_FROM?.trim()) {
@@ -37,6 +38,7 @@ export function accountEmailSender() {
 
 async function sendAccountEmail(email: string, content: { subject: string; text: string; html: string }, deliveryId: string) {
   requireEmailDelivery();
+  await reserveAccountEmailDelivery();
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {

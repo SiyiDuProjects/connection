@@ -1,6 +1,8 @@
 'use client';
+import { BRAND_NAME } from '@/lib/brand';
 
 import { useMemo, useState } from 'react';
+import { ExtensionInstallLink } from '@/components/extension-install-link';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { ArrowsRotateLeft } from '@gravity-ui/icons';
@@ -42,8 +44,9 @@ export function DashboardOverviewContent({ account, preview, error, loading, ref
     { id: 'createdAt', header: 'Date', allowsSorting: true, minWidth: 160, cell: row => Number.isFinite(Date.parse(row.createdAt)) ? new Date(row.createdAt).toLocaleString() : '—' }
   ], []);
   return <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 pb-10 pt-4">
-    {preview ? <p className="text-xs text-muted">Reachard preview · <Link href="/sign-in" className="text-accent underline">Sign in</Link> to load your account.</p> : null}
+    {preview ? <p className="text-xs text-muted">{BRAND_NAME} preview · <Link href="/sign-in" className="text-accent underline">Sign in</Link> to load your account.</p> : null}
     {error ? <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Description>{error}</Alert.Description></Alert.Content></Alert> : null}
+    {account?.trial ? <Alert><Alert.Indicator /><Alert.Content><Alert.Title>{account.trial.remaining > 0 ? `${account.trial.remaining} of 3 free email unlocks remaining` : 'Your free email unlocks have been used'}</Alert.Title><Alert.Description>No card required. You will only be charged if you choose a paid plan. <Link href="/pricing" className="underline">View plans</Link></Alert.Description></Alert.Content></Alert> : null}
     <div className="flex items-start justify-between gap-3">
       <div><h2 className="text-base font-semibold">Recent activity</h2><p className="mt-1 text-sm text-muted">Your latest 10 searches, email reveals and drafts.</p></div>
       <Tooltip><Button isIconOnly size="sm" variant="tertiary" aria-label="Refresh activity" isDisabled={preview || refreshing} onPress={onRefresh}><ArrowsRotateLeft className="size-4" /></Button><Tooltip.Content>Refresh activity</Tooltip.Content></Tooltip>
@@ -54,6 +57,6 @@ export function DashboardOverviewContent({ account, preview, error, loading, ref
       </Tabs.List></Tabs.ListContainer></Tabs>
       <SearchField aria-label="Search activity" className="w-full sm:w-60" value={search} onChange={setSearch}><SearchField.Group><SearchField.SearchIcon /><SearchField.Input placeholder="Company, role or activity…" /><SearchField.ClearButton /></SearchField.Group></SearchField>
     </div>
-    {loading ? <div className="flex justify-center py-10"><Spinner aria-label="Loading activity" /></div> : rows.length ? <DataGrid aria-label="Outreach history" columns={columns} contentClassName="min-w-[640px]" data={rows} getRowId={row => String(row.id)} sortDescriptor={sort} onSortChange={setSort} /> : !error ? <EmptyState><EmptyState.Header><EmptyState.Title>{search || filter !== 'all' ? 'No matching activity' : 'No outreach yet'}</EmptyState.Title><EmptyState.Description>{preview ? 'Sign in to see your own activity.' : search || filter !== 'all' ? 'Try another search or switch to All.' : 'Use Reachard to find people and prepare your first message.'}</EmptyState.Description></EmptyState.Header></EmptyState> : null}
+    {loading ? <div className="flex justify-center py-10"><Spinner aria-label="Loading activity" /></div> : rows.length ? <DataGrid aria-label="Outreach history" columns={columns} contentClassName="min-w-[640px]" data={rows} getRowId={row => String(row.id)} sortDescriptor={sort} onSortChange={setSort} /> : !error ? <EmptyState><EmptyState.Header><EmptyState.Title>{search || filter !== 'all' ? 'No matching activity' : 'Prepare your first message'}</EmptyState.Title><EmptyState.Description>{preview ? 'Sign in to see your own activity.' : search || filter !== 'all' ? 'Try another search or switch to All.' : `Open a job or company page in desktop Chrome, then open ${BRAND_NAME} to find people and prepare a draft.`}</EmptyState.Description></EmptyState.Header><EmptyState.Content>{search || filter !== 'all' ? <Button variant="secondary" onPress={() => { setSearch(''); setFilter('all'); }}>Clear filters</Button> : <><ExtensionInstallLink size="sm" /><Link href="/getting-started" className="text-sm text-accent underline">How to prepare your first draft</Link></>}</EmptyState.Content></EmptyState> : null}
   </div>;
 }

@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import test from 'node:test';
 import { createProviderUsageGuard, createRateLimiter } from './usage-guard.js';
 import { fail, ok, publicError } from './http.js';
+import { hasActionAccess } from './membership-policy.js';
 
 const deferred = () => {
   let resolve;
@@ -34,13 +35,13 @@ function fixtureServer({ env = {}, search = async () => [{ name: 'Fixture Person
     cors: () => () => {}, helmet: () => () => {},
     requestContext: () => {}, logRequest: () => {}, writeLog: () => {}, errorHandler: () => {},
     createRateLimiter, createProviderUsageGuard, fail, ok, publicError,
-    isBetaUnlimitedUsage: () => false, hasMembershipAccess: () => true,
+    isBetaUnlimitedUsage: () => false, hasActionAccess,
     getBearerToken: (req) => req.get('authorization')?.replace(/^Bearer /, '') || '',
     getUserFromApiToken: async (token) => {
       if (!['alice', 'bob', 'charlie'].includes(token)) throw publicError('Invalid token', 401);
       return { id: token };
     },
-    getMembershipForUser: async () => ({}), getCreditBalance: async () => 20,
+    getMembershipForUser: async () => ({ status: 'active', periodEnd: Math.floor(Date.now() / 1000) + 3600 }), getCreditBalance: async () => 20,
     getOnboardingForUser: async () => ({ complete: true }), getUserSettings: async () => ({}),
     getAccountSummary: async () => ({}), isAccountDbConfigured: () => true,
     checkAccountDb: async () => {}, closeAccountDb: async () => {}, pruneApiIdempotencyKeys: async () => {},

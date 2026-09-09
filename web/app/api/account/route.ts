@@ -1,6 +1,7 @@
 import { getActiveExtensionTokenInfo, getCreditBalance, getRecentUsage, getSettings, getTeamForUser, getUser } from '@/lib/db/queries';
 import { getOnboardingStatus } from '@/lib/onboarding';
 import { toPublicUser } from '@/lib/auth/public-user';
+import { getFreeTrialStatus } from '@/lib/free-trial';
 
 export async function GET() {
   const user = await getUser();
@@ -13,7 +14,8 @@ export async function GET() {
       getRecentUsage(user.id),
       getSettings(user.id),
       getTeamForUser(),
-      getActiveExtensionTokenInfo(user.id)
+      getActiveExtensionTokenInfo(user.id),
+      getFreeTrialStatus(user.id)
     ]).catch((error) => {
     console.error('Could not load account data:', error);
     return null;
@@ -24,7 +26,7 @@ export async function GET() {
       { status: 503 }
     );
   }
-  const [balance, usage, settings, team, extensionToken] = accountData;
+  const [balance, usage, settings, team, extensionToken, trial] = accountData;
 
   const onboardingProfile = getOnboardingStatus(user, settings);
   const successfulSearch = usage.find((item) => item.action === 'contacts.search' && item.status === 'success');
@@ -46,9 +48,10 @@ export async function GET() {
     },
     usage,
     settings,
+    trial,
     subscription: {
-      planName: team?.planName || 'Free',
-      status: team?.subscriptionStatus || 'inactive'
+      planName: trial ? 'Free trial' : team?.planName || 'Free',
+      status: trial ? 'free_trial' : team?.subscriptionStatus || 'inactive'
     },
     extension: {
       connected: Boolean(extensionToken),

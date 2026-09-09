@@ -14,6 +14,7 @@ const modules = new Map();
 let schema, currentUser, teamPause, verificationCalls, cancellationCalls, sessions;
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const overrides = {
+  '@/lib/auth/rate-limit': { checkCredentialRateLimit: async () => null, reserveAccountEmailDelivery: async () => {} },
   'server-only': {},
   '@/lib/db/drizzle': { db },
   'next/navigation': { redirect: url => { throw Object.assign(new Error('redirect'), { url }); } },

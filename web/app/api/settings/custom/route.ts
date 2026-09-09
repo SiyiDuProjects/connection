@@ -1,4 +1,3 @@
-import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '@/lib/db/drizzle';
 import { userSettings } from '@/lib/db/schema';
@@ -37,37 +36,18 @@ export async function PATCH(request: Request) {
   }
 
   const custom = normalizeCustom(parsed.data);
-  const values = {
-    userId: user.id,
-    emailTone: custom.emailTone,
-    outreachLength: custom.outreachLength,
-    outreachGoal: custom.outreachGoal,
-    outreachStyleNotes: custom.outreachStyleNotes,
-    updatedAt: new Date()
-  } satisfies Pick<
-    typeof userSettings.$inferInsert,
-    'userId' | 'emailTone' | 'outreachLength' | 'outreachGoal' | 'outreachStyleNotes' | 'updatedAt'
-  >;
-  const existing = await getSettings(user.id);
-
-  if (existing) {
-    await db
-      .update(userSettings)
-      .set(values)
-      .where(eq(userSettings.userId, user.id));
-  } else {
-    await db.insert(userSettings).values(values);
+  const mapping = { tone: 'emailTone', length: 'outreachLength', goal: 'outreachGoal', notes: 'outreachStyleNotes' } as const;
+  const patch: Partial<typeof userSettings.$inferInsert> = {};
+  for (const key of Object.keys(mapping) as (keyof typeof mapping)[]) {
+    if (Object.prototype.hasOwnProperty.call(parsed.data, key)) patch[mapping[key]] = custom[mapping[key]];
   }
-
-  return Response.json({
-    ok: true,
-    custom: {
-      tone: custom.tone,
-      length: custom.outreachLength,
-      goal: custom.outreachGoal,
-      notes: custom.outreachStyleNotes
-    }
-  });
+  if (Object.keys(patch).length === 0) {
+    return Response.json({ ok: true, custom: settingsToCustom(await getSettings(user.id)) });
+  }
+  // An atomic partial upsert preserves omitted fields and tolerates concurrent first saves.
+  const [saved] = await db.insert(userSettings).values({ userId: user.id, ...patch, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: userSettings.userId, set: { ...patch, updatedAt: new Date() } }).returning();
+  return Response.json({ ok: true, custom: settingsToCustom(saved) });
 }
 
 async function getAuthenticatedUser(request: Request) {

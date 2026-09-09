@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Alert, Button, Description, FieldError, Fieldset, Form, Input, InputGroup, Label, ListBox, Select, Separator, TextArea, TextField } from '@heroui/react';
+import { Alert, Button, Description, FieldError, Fieldset, Form, Input, Label, ListBox, Select, Separator, TextArea, TextField } from '@heroui/react';
 import { SettingsRow } from '@/components/settings-row';
 import { DropZone } from '@heroui-pro/react';
 import { extractResumeText, getResumeTextErrorKey, RESUME_FILE_ACCEPT } from '@/lib/resume-text';
@@ -18,7 +18,6 @@ export type ProfileValues = {
     region?: { label: string; linkedinGeoId: string };
   };
 };
-type Match = { id: string; label: string; subtitle: string };
 
 // Native HeroUI Fieldset/Form examples and Pro DropZone anatomy. Business state
 // is shared by onboarding and My profile so neither retains a separate old UI.
@@ -30,8 +29,6 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
   const [importing, setImporting] = useState(false);
   const [status, setStatus] = useState('');
   const [failed, setFailed] = useState(false);
-  const [resolving, setResolving] = useState('');
-  const [matches, setMatches] = useState<{ school: Match[]; region: Match[] }>({ school: [], region: [] });
   const disabled = saving || importing;
 
   function update<K extends keyof ProfileValues>(key: K, value: ProfileValues[K]) {
@@ -41,32 +38,6 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
         defaultSearchPreferences: { ...current.defaultSearchPreferences, [key]: undefined },
       } : {}),
     }));
-    if (key === 'school' || key === 'region') setMatches(current => ({ ...current, [key]: [] }));
-  }
-
-  async function resolve(kind: 'school' | 'region') {
-    if (preview) return;
-    const query = values[kind].trim();
-    if (query.length < 2) return;
-    setResolving(kind); setStatus('');
-    try {
-      const response = await fetch(`/api/metadata/${kind === 'school' ? 'schools' : 'locations'}?q=${encodeURIComponent(query)}`);
-      const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error || 'Search is unavailable. You can enter the name yourself.');
-      setMatches(current => ({ ...current, [kind]: Array.isArray(result.items) ? result.items : [] }));
-      if (!result.items?.length) { setFailed(false); setStatus('No matches found. You can keep the name you entered.'); }
-    } catch (error) { setFailed(true); setStatus(error instanceof Error ? error.message : 'Search is unavailable. Please try again.'); }
-    finally { setResolving(''); }
-  }
-
-  function selectMatch(kind: 'school' | 'region', id: string) {
-    const item = matches[kind].find(item => item.id === id);
-    if (!item) return;
-    setValues(current => ({ ...current, [kind]: item.label, defaultSearchPreferences: {
-      ...current.defaultSearchPreferences,
-      ...(kind === 'school' ? { school: { label: item.label, linkedinId: item.id } } : { region: { label: item.label, linkedinGeoId: item.id } }),
-    } }));
-    setMatches(current => ({ ...current, [kind]: [] }));
   }
 
   async function importResume(file?: File) {
@@ -98,25 +69,19 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
 
   return <Form className="flex w-full flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
     <Separator />
-        <SettingsRow label="Personal information" description="Your name, school or affiliation, and region help make your outreach relevant.">
+        <SettingsRow label="Personal information" description={onboarding ? "Your name and school or affiliation help make introductions relevant." : "Your name, school or affiliation, and region help make your outreach relevant."}>
         <Fieldset disabled={disabled} className="w-full">
           <Fieldset.Legend className="sr-only">Personal information</Fieldset.Legend>
           <Fieldset.Group className="gap-5">
             <TextField fullWidth isRequired name="name" maxLength={100} value={values.name} onChange={value => update('name', value)}>
               <Label className="sr-only">Full name</Label><Input autoComplete="name" placeholder="Your name" /><FieldError />
             </TextField>
-            <div className="grid gap-3 lg:grid-cols-2">
-              {(['school', 'region'] as const).map(kind => <div className="min-w-0" key={kind}>
+            <div className={onboarding ? "grid gap-3" : "grid gap-3 lg:grid-cols-2"}>
+              {(onboarding ? ['school'] as const : ['school', 'region'] as const).map(kind => <div className="min-w-0" key={kind}>
                 <TextField fullWidth isRequired={kind === 'school'} name={kind} maxLength={160} value={values[kind]} onChange={value => update(kind, value)}>
                   <Label className="sr-only">{kind === 'school' ? 'School or affiliation' : 'Region'}</Label>
-                  <InputGroup fullWidth className="min-w-0">
-                    <InputGroup.Input className="min-w-0 flex-1" placeholder={kind === 'school' ? 'School or organization' : 'City or region'} />
-                    <InputGroup.Suffix className="shrink-0"><Button type="button" size="sm" variant="ghost" isPending={resolving === kind} isDisabled={preview || disabled || values[kind].trim().length < 2} onPress={() => void resolve(kind)}>Search</Button></InputGroup.Suffix>
-                  </InputGroup><FieldError />
+                  <Input placeholder={kind === 'school' ? 'School or organization' : 'City or region'} /><FieldError />
                 </TextField>
-                {matches[kind].length > 0 && <ListBox aria-label={`${kind} matches`} className="mt-2 max-h-48 overflow-y-auto" onAction={key => selectMatch(kind, String(key))}>
-                  {matches[kind].map(item => <ListBox.Item id={item.id} key={item.id} textValue={item.label}><Label>{item.label}</Label>{item.subtitle && <Description>{item.subtitle}</Description>}</ListBox.Item>)}
-                </ListBox>}
               </div>)}
             </div>
           </Fieldset.Group>

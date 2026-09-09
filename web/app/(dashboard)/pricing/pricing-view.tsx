@@ -1,4 +1,5 @@
 'use client';
+import { BRAND_NAME } from '@/lib/brand';
 
 import { useState } from 'react';
 import { Button, Card, Tabs } from '@heroui/react';
@@ -29,7 +30,8 @@ export function PricingView({ plans, checkoutAction }: {
         <div className="rd-plans-heading">
           <p>Pricing</p>
           <h1 id="pricing-title">Choose your membership.</h1>
-          <span>{audience === 'individuals' ? 'Monthly plans. Cancel anytime.' : 'Reachard for the people you support.'}</span>
+          <span>{audience === 'individuals' ? 'Monthly plans. Cancel anytime.' : `${BRAND_NAME} for the people you support.`}</span>
+          {audience === 'individuals' ? <p><Link href="/sign-up" className="underline">Start with 3 free email unlocks.</Link> No card required.</p> : null}
         </div>
 
         <Tabs className="rd-pricing-tabs" selectedKey={audience} onSelectionChange={key => setAudience(String(key))}>
@@ -85,7 +87,7 @@ export function PricingView({ plans, checkoutAction }: {
                 <p className="rd-org-description">For study abroad agencies, career advisors and teams supporting job seekers.</p>
               </Card.Header>
               <Card.Content className="rd-org-content">
-                <p>Tell us about your organization and how you’d like to use Reachard.</p>
+                <p>Tell us about your organization and how you’d like to use {BRAND_NAME}.</p>
                 <a className="button button--primary w-full" href="mailto:support@reachard.co?subject=Teams%20%26%20Agencies%20inquiry">
                   <Mail size={16} aria-hidden="true" />Contact us
                 </a>

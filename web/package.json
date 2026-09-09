@@ -13,7 +13,9 @@
     "db:seed": "npx tsx lib/db/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test:trial": "node --test scripts/free-trial.test.mjs",
+    "test:auth-rate-limit": "node --test scripts/auth-rate-limit.test.mjs"
   },
   "dependencies": {
     "@gravity-ui/icons": "^2.22.0",
@@ -48,13 +50,13 @@
     "maplibre-gl": "^6.7.0",
     "marked": "^18.0.11",
     "motion": "^12.38.0",
-    "next": "15.6.0-canary.59",
+    "next": "15.5.24",
     "pdfjs-dist": "^6.3.289",
     "postcss": "^8.5.3",
     "postgres": "^3.4.5",
-    "react": "19.1.0",
+    "react": "19.1.7",
     "react-aria-components": "^1.21.0",
-    "react-dom": "19.1.0",
+    "react-dom": "19.1.7",
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^4.12.3",
     "recharts": "^3.10.1",
