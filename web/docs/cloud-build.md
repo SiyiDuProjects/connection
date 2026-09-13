@@ -19,6 +19,13 @@ hpsetup from generating local Vercel configuration containing a key. If the
 installer selects a newer component version, verification stops the release
 until that upgrade is reviewed and tested.
 
+The reviewed dependency set is Pro `1.0.0-beta.9` with HeroUI React/styles
+`3.2.5`. The beta.9 release raises those peer minimums and adds React Aria,
+React Stately, and interaction peers, which are explicitly declared here for
+pnpm's dependency isolation. Reachard does not use the changed HoverCard
+content-state API. Keep the exact Pro version guard: a future installer update
+must still stop the build for review.
+
 No local environment variables are needed for the existing preview setup.
 Do not commit downloaded library files or private template reference copies.
 
