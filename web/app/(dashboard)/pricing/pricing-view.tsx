@@ -11,6 +11,7 @@ import { SubmitButton } from './submit-button';
 type Plan = {
   name: 'Base' | 'Plus';
   credits: number;
+  unlimited: boolean;
   price: number | null;
   currency: string;
   interval: string | null;
@@ -51,7 +52,7 @@ export function PricingView({ plans, checkoutAction }: {
                 <Card.Header className={`rd-plan-panel ${featured ? 'rd-plan-panel-plus' : ''}`}>
                   <Sparkles size={20} aria-hidden="true" />
                   <h2 className="rd-plan-name">{plan.name}</h2>
-                  <p className="rd-plan-allowance">Monthly membership</p>
+                  <p className="rd-plan-allowance">{plan.unlimited ? 'Unlimited personal outreach' : 'For a focused job search'}</p>
                   <div className="rd-plan-price">
                     <strong>{configured
                       ? new Intl.NumberFormat('en-US', { style: 'currency', currency: plan.currency, maximumFractionDigits: 2 }).format(plan.price! / 100)
@@ -69,15 +70,16 @@ export function PricingView({ plans, checkoutAction }: {
                 <Card.Content className="rd-plan-features">
                   <ul>
                     <li><Chrome size={16} aria-hidden="true" />Chrome extension</li>
-                    <li><Mail size={16} aria-hidden="true" />{plan.credits} verified work emails included monthly</li>
+                    <li><Mail size={16} aria-hidden="true" />{plan.unlimited ? 'Unlimited verified work email unlocks' : `${plan.credits} verified work email unlocks / month`}</li>
                     <li><Sparkles size={16} aria-hidden="true" />Personalized email drafts</li>
                   </ul>
+                  <p className="rd-plan-usage-detail">{plan.unlimited ? 'For one person. No monthly email cap.' : 'Refreshes each billing period. Unused unlocks do not roll over.'}</p>
                 </Card.Content>
               </Card>
             );
           })}
         </div>
-        <p className="rd-plan-note">One monthly subscription. Searches and drafts included. Email allowance is used only when a verified work email is found.</p>
+        <p className="rd-plan-note">Searches and drafts use no credits. Only a newly unlocked, verified work email uses an email credit. Unsuccessful lookups and viewing previously unlocked emails use none.<br />Personal use only. No shared accounts or automated bulk harvesting. <Link href="/terms#personal-use" className="underline">Usage terms</Link></p>
           </Tabs.Panel>
           <Tabs.Panel id="organizations">
             <Card className="rd-plan-card rd-org-card">

@@ -27,6 +27,7 @@ export default async function PricingPage() {
     return {
       name,
       credits: requireReachardPlanByName(name).monthlyCredits,
+      unlimited: requireReachardPlanByName(name).unlimited,
       price: price?.unitAmount ?? null,
       currency: price?.currency ?? 'usd',
       interval: price?.interval ?? null,

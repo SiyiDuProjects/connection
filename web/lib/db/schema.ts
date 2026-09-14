@@ -9,6 +9,7 @@ import {
   boolean,
   index,
   uniqueIndex,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -464,6 +465,17 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type Invitation = typeof invitations.$inferSelect;
 export type NewInvitation = typeof invitations.$inferInsert;
+export const contactEmailUnlocks = pgTable('contact_email_unlocks', {
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  emailFingerprint: text('email_fingerprint').notNull(),
+  contactKey: text('contact_key'),
+  email: text('email').notNull(),
+  provider: text('provider').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+}, (table) => ({
+  pk: primaryKey({ columns: [table.userId, table.emailFingerprint] }),
+  contactIndex: index('contact_email_unlocks_user_contact_idx').on(table.userId, table.contactKey)
+}));
 export type FriendInvite = typeof friendInvites.$inferSelect;
 export type FriendInviteRedemption = typeof friendInviteRedemptions.$inferSelect;
 export type FriendInviteReward = typeof friendInviteRewards.$inferSelect;

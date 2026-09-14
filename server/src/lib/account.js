@@ -16,11 +16,14 @@ export async function checkAccountDb() {
       to_regclass('public.api_idempotency_keys')::text as api_idempotency_keys,
       to_regclass('public.free_trial_claims')::text as free_trial_claims,
       to_regclass('public.auth_rate_limits')::text as auth_rate_limits,
+      to_regclass('public.contact_email_unlocks')::text as contact_email_unlocks,
+      to_regprocedure('public.get_account_entitlement(integer)')::text as get_account_entitlement,
       to_regprocedure('public.ensure_free_trial(integer)')::text as ensure_free_trial,
       to_regprocedure('public.consume_free_trial_operation(integer,text)')::text as consume_free_trial_operation
   `;
   if (!row?.credit_ledger || !row?.api_usage || !row?.api_idempotency_keys
-    || !row?.free_trial_claims || !row?.auth_rate_limits || !row?.ensure_free_trial || !row?.consume_free_trial_operation) {
+    || !row?.free_trial_claims || !row?.auth_rate_limits || !row?.contact_email_unlocks || !row?.get_account_entitlement
+    || !row?.ensure_free_trial || !row?.consume_free_trial_operation) {
     throw new Error("Required account database migrations have not been applied.");
   }
   return true;
@@ -192,33 +195,18 @@ export async function getOnboardingForUser(userId) {
 }
 
 export async function getCreditBalance(userId) {
+  return (await getBillingStateForUser(userId)).remaining;
+}
+
+export async function getBillingStateForUser(userId) {
   ensureConfigured();
   await ensureFreeTrial(userId);
-
-  const rows = await sql`
-    select coalesce(sum(amount), 0)::int as balance
-    from credit_ledger
-    where user_id = ${userId}
-  `;
-
-  return Number(rows[0]?.balance || 0);
+  const [row] = await sql`select * from get_account_entitlement(${userId}::integer)`;
+  return billingState(row);
 }
 
 export async function getMembershipForUser(userId) {
-  ensureConfigured();
-  const trialEligible = await ensureFreeTrial(userId);
-  const [membership] = await sql`
-    select teams.subscription_status as status,
-      (select max((credit_ledger.metadata->>'periodEnd')::bigint)
-        from credit_ledger
-        where credit_ledger.user_id = ${userId}
-          and credit_ledger.action in ('subscription.initial_grant', 'subscription.monthly_grant')
-          and credit_ledger.metadata->>'subscriptionId' = teams.stripe_subscription_id) as period_end
-    from teams inner join team_members on team_members.team_id = teams.id
-    where team_members.user_id = ${userId} and team_members.role = 'owner'
-    order by teams.created_at desc limit 1
-  `;
-  return { status: trialEligible ? 'free_trial' : membership?.status || 'inactive', periodEnd: Number(membership?.period_end || 0) };
+  return getBillingStateForUser(userId);
 }
 
 export async function ensureFreeTrial(userId) {
@@ -236,10 +224,40 @@ export async function consumeFreeTrialOperation(userId, action) {
 export async function hasRevealedEmail(userId, email) {
   ensureConfigured();
   if (typeof email !== 'string' || !email.trim()) return false;
-  const rows = await sql`select 1 from api_idempotency_keys where user_id = ${userId}
-    and action = 'contacts.reveal' and status = 'succeeded'
-    and lower(response->>'email') = ${email.trim().toLowerCase()} limit 1`;
+  const rows = await sql`select 1 from contact_email_unlocks where user_id = ${userId}
+    and email_fingerprint = ${hashToken(email.trim().toLowerCase())} limit 1`;
   return rows.length > 0;
+}
+
+export async function getPreviouslyRevealedContact(userId, contact) {
+  ensureConfigured();
+  const contactKey = getContactKey(contact);
+  const email = typeof contact?.email === 'string' ? contact.email.trim().toLowerCase() : '';
+  if (!contactKey && !email) return null;
+  const [unlocked] = await sql`select email, provider from contact_email_unlocks
+    where user_id = ${userId} and
+      ((${contactKey || null}::text is not null and contact_key = ${contactKey})
+        or (${email || null}::text is not null and email_fingerprint = ${hashToken(email)}))
+    order by created_at desc limit 1`;
+  return unlocked || null;
+}
+
+export function getContactKey(contact) {
+  if (!contact || typeof contact !== 'object') return '';
+  try {
+    const url = new URL(String(contact.linkedinUrl || ''));
+    if (['http:', 'https:'].includes(url.protocol)
+      && url.hostname.replace(/^www\./i, '').toLowerCase() === 'linkedin.com'
+      && /^\/in\/[^/]+\/?$/i.test(url.pathname)) {
+      return `linkedin:${url.pathname.replace(/\/+$/, '').toLowerCase()}`;
+    }
+  } catch {}
+  const apolloId = typeof contact.apolloId === 'string' ? contact.apolloId.trim() : '';
+  if (apolloId && apolloId.length <= 256) return `apollo:${apolloId}`;
+  const id = typeof contact.id === 'string' ? contact.id.trim() : '';
+  const provider = typeof contact.provider === 'string' ? contact.provider.trim().toLowerCase() : '';
+  if (id && id.length <= 256 && ['treg', 'apollo', 'hunter', 'rapidapi', 'explorium', 'mock'].includes(provider)) return `${provider}:${id}`;
+  return '';
 }
 
 export async function claimApiRequest({ userId, action, idempotencyKey }) {
@@ -259,6 +277,12 @@ export async function claimApiRequest({ userId, action, idempotencyKey }) {
     const existing = rows[0];
 
     if (!existing) {
+      // A pruned response must not let the same request key collide with a
+      // durable debit or repeat a successful paid operation with new input.
+      const [completed] = await tx`select 1 from api_usage
+        where user_id = ${userId} and action = ${action} and request_id = ${idempotencyKey}
+          and status = 'success' limit 1`;
+      if (completed) return { status: 'expired' };
       await tx`
         insert into api_idempotency_keys (user_id, action, idempotency_key, status)
         values (${userId}, ${action}, ${idempotencyKey}, 'processing')
@@ -310,30 +334,42 @@ export async function chargeAndLogApiUsage({
     `;
     const idempotency = idempotencyRows[0];
     if (idempotency?.status === "succeeded") {
-      const balanceRows = await tx`
-        select coalesce(sum(amount), 0)::int as balance
-        from credit_ledger
-        where user_id = ${userId}
-      `;
+      const [entitlement] = await tx`select * from get_account_entitlement(${userId}::integer)`;
+      const state = billingState(entitlement);
       return {
         ok: true,
         replayed: true,
-        balance: Number(balanceRows[0]?.balance || 0),
-        response: idempotency.response || {}
+        balance: state.remaining,
+        response: { ...(idempotency.response || {}), credits: publicCredits(state) }
       };
     }
     if (!idempotency || idempotency.status !== "processing") {
       throw new Error("Idempotency request was not claimed before completion.");
     }
 
-    const balanceRows = await tx`
-      select coalesce(sum(amount), 0)::int as balance
-      from credit_ledger
-      where user_id = ${userId}
-    `;
-    const balance = Number(balanceRows[0]?.balance || 0);
+    // Re-read the paid period after obtaining the per-user charge lock. A
+    // request that crosses renewal must never spend an earlier month's grant.
+    const [entitlement] = await tx`select * from get_account_entitlement(${userId}::integer)`;
+    const state = billingState(entitlement);
+    const balance = state.remaining;
+    const email = action === 'contacts.reveal' && typeof response?.email === 'string'
+      ? response.email.trim().toLowerCase() : '';
+    const emailFingerprint = email ? hashToken(email) : '';
+    const [unlocked] = email ? await tx`select 1 from contact_email_unlocks
+      where user_id = ${userId} and email_fingerprint = ${emailFingerprint}` : [];
+    const alreadyUnlocked = Boolean(unlocked);
+    const betaUnlimited = ['1', 'true', 'yes', 'on'].includes(String(process.env.BETA_UNLIMITED_USAGE || '').trim().toLowerCase());
+    const membershipActive = ['active', 'trialing', 'past_due'].includes(state.status) && state.periodEnd * 1000 > Date.now();
+    // Requests admitted before cancellation or expiry are checked again before
+    // completion. Viewing an email this account already unlocked remains free.
+    if (!alreadyUnlocked && !betaUnlimited && state.status !== 'free_trial' && !membershipActive) {
+      await tx`update api_idempotency_keys set status = 'failed', error = 'membership_required', updated_at = now()
+        where user_id = ${userId} and action = ${action} and idempotency_key = ${idempotencyKey}`;
+      return { ok: false, balance, membershipRequired: true };
+    }
+    const chargedAmount = state.unlimited || betaUnlimited || alreadyUnlocked ? 0 : amount;
 
-    if (balance < amount) {
+    if (balance < chargedAmount) {
       await tx`
         update api_idempotency_keys
         set status = 'failed', error = 'insufficient_credits', updated_at = now()
@@ -344,24 +380,35 @@ export async function chargeAndLogApiUsage({
       return { ok: false, balance };
     }
 
-    const remaining = balance - amount;
+    const remaining = balance - chargedAmount;
     const completedResponse = {
       ...(response || {}),
-      credits: { remaining }
+      ...(alreadyUnlocked ? { alreadyUnlocked: true } : {}),
+      credits: publicCredits({ ...state, remaining })
     };
 
-    if (amount > 0) {
-      await tx`
+    if (chargedAmount > 0) {
+      const debits = await tx`
         insert into credit_ledger (user_id, amount, action, request_id, metadata)
         values (
           ${userId},
-          ${-amount},
+          ${-chargedAmount},
           ${action},
           ${idempotencyKey},
-          ${sql.json({ ...(request || {}), requestId: idempotencyKey })}
+          ${sql.json({ ...(request || {}), requestId: idempotencyKey,
+            ...(state.allowanceMode === 'monthly' ? { entitlementGrantId: state.entitlementGrantId } : {}) })}
         )
         on conflict do nothing
+        returning id
       `;
+      if (!debits.length) throw new Error('This request key already has a recorded debit. Retry with a new request key.');
+    }
+
+    if (email) {
+      await tx`insert into contact_email_unlocks (user_id, email_fingerprint, contact_key, email, provider)
+        values (${userId}, ${emailFingerprint}, ${request?.contactKey || null}, ${email}, ${String(response?.provider || '')})
+        on conflict (user_id, email_fingerprint) do update
+          set contact_key = coalesce(contact_email_unlocks.contact_key, excluded.contact_key)`;
     }
 
     await tx`
@@ -370,7 +417,7 @@ export async function chargeAndLogApiUsage({
         ${userId},
         ${action},
         ${idempotencyKey},
-        ${amount},
+        ${chargedAmount},
         'success',
         ${sql.json(request || {})},
         ${sql.json(summarizeUsageResponse(action, completedResponse, internalCost))}
@@ -416,6 +463,30 @@ function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+function billingState(row) {
+  return {
+    status: row?.status || 'inactive',
+    periodStart: Number(row?.period_start || 0),
+    periodEnd: Number(row?.period_end || 0),
+    allowanceMode: row?.allowance_mode || 'legacy',
+    monthlyAllowance: Number(row?.monthly_allowance || 0),
+    remaining: Number(row?.remaining || 0),
+    unlimited: row?.unlimited === true,
+    entitlementGrantId: row?.entitlement_grant_id == null ? null : Number(row.entitlement_grant_id)
+  };
+}
+
+export function publicCredits(state) {
+  return {
+    remaining: state.unlimited ? null : state.remaining,
+    balance: state.unlimited ? null : state.remaining,
+    unlimited: state.unlimited,
+    status: state.unlimited ? 'unlimited' : state.remaining > 0 ? 'available' : 'empty',
+    monthlyAllowance: state.unlimited ? null : state.monthlyAllowance,
+    resetsAt: state.allowanceMode === 'monthly' && state.periodEnd ? new Date(state.periodEnd * 1000).toISOString() : null
+  };
+}
+
 function summarizeUsageResponse(action, response, internalCost) {
   const internal = sanitizeInternalCost(internalCost);
   if (action === "contacts.search") {
@@ -440,6 +511,9 @@ function sanitizeInternalCost(value) {
     if (item) result[key] = item.slice(0, 160);
   }
   for (const key of numbers) {
+    // Missing provider receipts are unknown, not free. Preserve that distinction
+    // in the durable usage report used to monitor unlimited-plan economics.
+    if (value[key] == null || value[key] === '') continue;
     const item = Number(value[key]);
     if (Number.isFinite(item) && item >= 0) result[key] = Math.round(item);
   }

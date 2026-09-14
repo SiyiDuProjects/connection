@@ -1,4 +1,5 @@
 (function () {
+  const BRAND_NAME = globalThis.ReachardBrand.name;
   const ROOT_ID = "fc-linkedin-root";
   const PANEL_ID = "fc-linkedin-panel";
   const BUTTON_ID = "fc-linkedin-button";
@@ -18,7 +19,7 @@
   };
 
   function clampSidebarCenterY(value, root) {
-    const height = root?.getBoundingClientRect?.().height || 82;
+    const height = root?.getBoundingClientRect?.().height || 56;
     const min = SIDEBAR_DRAG_MARGIN_PX + (height / 2);
     const max = Math.max(min, window.innerHeight - SIDEBAR_DRAG_MARGIN_PX - (height / 2));
     return Math.min(max, Math.max(min, value));
@@ -147,6 +148,7 @@
       personName: cleanText(context.personName),
       personTitle: cleanText(context.personTitle),
       personLinkedInUrl: cleanText(context.personLinkedInUrl),
+      personPhotoUrl: cleanText(context.personPhotoUrl),
       sourceUrl,
       pageTitle: cleanText(context.pageTitle)
     };
@@ -278,6 +280,9 @@
   }
 
   function getLinkedInPersonContext() {
+    const portrait = document.querySelector('main img.pv-top-card-profile-picture__image--show, main img.pv-top-card-profile-picture__image, main img.profile-photo-edit__preview');
+    const portraitSource = portrait?.currentSrc || portrait?.src || '';
+    const personPhotoUrl = /^https:\/\//i.test(portraitSource) ? portraitSource : '';
     const personName = textFrom([
       "main h1",
       ".pv-text-details__left-panel h1",
@@ -299,6 +304,7 @@
       personName,
       personTitle,
       personLinkedInUrl: location.href,
+      personPhotoUrl,
       pageTitle: personName || "LinkedIn profile"
     };
   }
@@ -409,8 +415,7 @@
     button.setAttribute("aria-label", buttonLabel(context));
     button.setAttribute("title", buttonLabel(context));
     button.innerHTML = `
-      <span class="fc-sidebar-logo" aria-hidden="true">R</span>
-      <span class="fc-sidebar-text">Reachard</span>
+      <span class="fc-sidebar-logo" aria-hidden="true"><img src="${globalThis.ReachardBrand.markDataUrl}" width="32" height="32" alt="" /></span>
     `;
     button.addEventListener("click", (event) => {
       if (root.dataset.fcSuppressClick === "true") {
@@ -430,8 +435,8 @@
 
   function openPanel() {
     chrome.runtime.sendMessage({ type: 'OPEN_REACHARD_SIDE_PANEL' }).then(result => {
-      if (!result?.ok) console.warn('Could not open Reachard', result?.error);
-    }).catch(error => console.warn('Could not open Reachard', error.message));
+      if (!result?.ok) console.warn(`Could not open ${BRAND_NAME}`, result?.error);
+    }).catch(error => console.warn(`Could not open ${BRAND_NAME}`, error.message));
   }
   function textFrom(selectors) {
     for (const selector of selectors) {
@@ -671,7 +676,7 @@
   }
 
   function t(key, values = {}) {
-    const template = ({ emailWithReachard: "Email with Reachard", findWithReachard: "Find with Reachard" })[key] || key;
+    const template = ({ emailWithReachard: `Email with ${BRAND_NAME}`, findWithReachard: `Find with ${BRAND_NAME}` })[key] || key;
     return Object.entries(values).reduce(
       (result, [name, value]) => result.replaceAll(`{${name}}`, String(value)),
       template

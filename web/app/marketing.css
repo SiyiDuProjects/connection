@@ -46,6 +46,7 @@
 .rd-plan-features ul { display: grid; gap: 14px; }
 .rd-plan-features li { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .rd-plan-features svg { color: var(--rd-muted); flex-shrink: 0; }
+.rd-plan-usage-detail { margin-top: 16px; color: var(--rd-muted); font-size: 12px; line-height: 1.6; }
 .rd-plan-note { margin: 22px auto 0; text-align: center; color: var(--rd-muted); font-size: 12px; line-height: 1.8; }
 .rd-pricing-footer { display: flex; justify-content: center; gap: 24px; padding: 14px 24px 30px; color: var(--rd-muted); font-size: 12px; }
 .dark .rd-plan-panel { background: linear-gradient(135deg, #292c32, #343944); color: #f2f2f3; }

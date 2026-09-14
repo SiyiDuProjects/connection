@@ -9,12 +9,13 @@ otherPlugin.attachShadow({mode:'open'}).innerHTML='<style>button{position:fixed;
 const scenario = new URLSearchParams(location.search).get('state');
 if (scenario === 'compact-host') document.documentElement.style.fontSize = '10px';
 const calls=[]; window.__fixtureCalls=calls;
-// Actual packaged custom panel and page reader; service responses are simulated.
+// Actual packaged page reader. Native side-panel opening is simulated here.
 let custom={tone:'warm',length:'concise',goal:'advice',notes:''};
 const contact={id:'fixture-maya',name:'Maya Chen',title:'Engineering Manager',location:'San Francisco, CA',reasons:['Sample contact: leads a robotics engineering team.'],companyName:'OpenAI'};
 window.chrome={runtime:{id:'reachard-local-fixture',onMessage:{addListener(){},removeListener(){}},async sendMessage(message){
   calls.push({type:message.type,payload:message.payload});
   await new Promise(resolve=>setTimeout(resolve,180));
+  if(message.type==='OPEN_REACHARD_SIDE_PANEL')return{ok:true};
   if(scenario==='signed-out')return{ok:false,status:401,error:'Sign in on the website.',action:{label:'Log In to Reachard',url:'https://reachard.co/dashboard'}};
   if(message.type==='GET_EMAIL_CUSTOMIZE')return{ok:true,custom};
   if(message.type==='SET_EMAIL_CUSTOMIZE'){if(scenario==='slow-save')await new Promise(resolve=>setTimeout(resolve,900));if(scenario==='save-error')return{ok:false,error:'Could not save your style. Try again.'};custom=message.payload;return{ok:true,custom};}
@@ -25,4 +26,4 @@ window.chrome={runtime:{id:'reachard-local-fixture',onMessage:{addListener(){},r
   return{ok:false,error:'Unsupported fixture message'};
 }},storage:{local:{get(key,callback){callback({})},set(){}}}};
 chrome.runtime.getURL=path=>new URL(path,location.origin).href;
-</script><script src="/ui.js"></script><script src="/content.js"></script><script src="/sidepanel-context.js"></script><script src="/sidepanel.js"></script></body></html>
+</script><script src="/brand.js"></script><script src="/ui.js"></script><script src="/content.js"></script><script src="/sidepanel-context.js"></script><script src="/sidepanel.js"></script></body></html>

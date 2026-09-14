@@ -53,10 +53,10 @@ export function DashboardSidebar({ account, pathname, onSignOut, signingOut }: {
           <div className="rounded-xl border border-separator bg-surface/60 px-3 py-3">
             {account?.subscription?.planName ? <p className="mb-2 text-sm font-medium">{account.subscription.planName} plan</p> : null}
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted">Credits available</span>
+              <span className="text-muted">Email unlocks</span>
               <span className="font-medium tabular-nums">{account?.credits?.unlimited ? 'Unlimited' : account?.credits?.remaining?.toLocaleString('en-US') ?? '—'}</span>
             </div>
-            <Link href="/pricing" className="mt-3 flex items-center gap-2 text-sm font-medium hover:underline"><CreditCard className="size-4" />Manage plan</Link>
+            <Link href="/dashboard/billing" className="mt-3 flex items-center gap-2 text-sm font-medium hover:underline"><CreditCard className="size-4" />Manage plan</Link>
           </div>
           {account?.user ? <div className="mt-2 flex items-center gap-2.5 px-1 py-2">
             <Avatar size="sm"><Avatar.Fallback>{initials}</Avatar.Fallback></Avatar>

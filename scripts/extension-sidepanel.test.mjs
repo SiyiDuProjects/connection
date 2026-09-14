@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const source = async name => readFile(new URL(`../extension/${name}`, import.meta.url), 'utf8');
+const source = async name => {
+  const code = await readFile(new URL(`../extension/${name}`, import.meta.url), 'utf8');
+  if (name === 'sidepanel.js' || name === 'service_worker.js') {
+    const brand = await readFile(new URL('../extension/brand.js', import.meta.url), 'utf8');
+    return brand + '\n' + code.replace("importScripts('brand.js');", '');
+  }
+  return code;
+};
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const event = () => {
@@ -82,19 +89,42 @@ const job = name => ({ type: 'external_job', companyName: name, jobTitle: `${nam
 
 // Opening preserves the click gesture; login returns to the originating page.
 {
- const opens=[], behavior=[];
+ const opens=[], behavior=[], injections=[], notifications=[];
  const storage={get:async()=>({}),set:async()=>{},remove:async()=>{}};
- const chrome={sidePanel:{setPanelBehavior:async value=>behavior.push(value),open:args=>{opens.push(args);return Promise.resolve();}},runtime:{getURL:path=>'chrome-extension://test/'+path,onInstalled:event(),onStartup:event(),onMessage:event(),onMessageExternal:event()},storage:{local:storage,sync:storage},tabs:{get:async id=>({id,windowId:1}),sendMessage:async()=>({ok:true,pageContext:job('A')})}};
+ const chrome={action:{onClicked:event()},scripting:{insertCSS:async args=>injections.push(['css',args]),executeScript:async args=>injections.push(['js',args])},sidePanel:{setPanelBehavior:async value=>behavior.push(value),open:args=>{opens.push(args);return Promise.resolve();}},runtime:{getURL:path=>'chrome-extension://test/'+path,onInstalled:event(),onStartup:event(),onMessage:event(),onMessageExternal:event(),sendMessage:async message=>notifications.push(message)},storage:{local:storage,sync:storage},tabs:{get:async id=>({id,windowId:1}),sendMessage:async()=>({ok:true,pageContext:job('A')})}};
  const worker={chrome,URL,console,fetch:()=>{throw new Error('No live requests');}};
  vm.runInNewContext(await source('service_worker.js'),worker);
- assert.equal(behavior[0].openPanelOnActionClick,true);
+ assert.equal(behavior[0].openPanelOnActionClick,false);
  let response;
  chrome.runtime.onMessage.emit({type:'OPEN_REACHARD_SIDE_PANEL'},{tab:{id:10,windowId:1},frameId:0},value=>response=value);
  assert.equal(opens[0].windowId,1); await tick(); assert.equal(response.ok,true);
  chrome.runtime.onMessage.emit({type:'OPEN_REACHARD_SIDE_PANEL'},{tab:{id:10,windowId:1},frameId:2},value=>response=value);
  assert.equal(response.ok,false); assert.equal(opens.length,1);
+ // A toolbar click opens synchronously and injects only if that page has no reader.
+ chrome.action.onClicked.emit({id:10,windowId:1,url:'https://example.com/jobs/A'});
+ assert.equal(opens.length,2); await tick(); assert.equal(injections.length,0);
+ const existingReader=chrome.tabs.sendMessage;
+ chrome.tabs.sendMessage=async()=>{throw new Error('No receiving end');};
+ chrome.action.onClicked.emit({id:20,windowId:1,url:'https://other.example/jobs/B'});
+ assert.equal(opens.length,3); await tick();
+ assert.deepEqual(injections.map(item=>item[0]),['css','js']);
+ assert.equal(injections[1][1].target.tabId,20);
+ assert.deepEqual(Array.from(injections[1][1].files),['brand.js','content.js']);
+ assert.equal(notifications.at(-1).tabId,20);
+ await worker.activateCurrentPage({id:30,windowId:1,url:'chrome://settings/'});
+ assert.equal(injections.length,2,'browser pages must never receive scripts');
+ chrome.scripting.executeScript=async()=>{throw new Error('Chrome protected page');};
+ await worker.activateCurrentPage({id:40,windowId:1,url:'https://chromewebstore.google.com/'});
+ assert.equal(notifications.at(-1).tabId,40,'failed access still clears stale panel state');
+ chrome.tabs.sendMessage=existingReader;
  const login=await worker.handleMessage({type:'GET_ACCOUNT_STATUS',sourceTabId:10},{url:chrome.runtime.getURL('sidepanel.html')});
  assert.equal(login.status,401); assert.equal(new URL(login.action.url).searchParams.get('return'),job('A').sourceUrl);
+ const signIn=await worker.handleMessage({type:'GET_SIGN_IN_ACTION',sourceTabId:10},{url:chrome.runtime.getURL('sidepanel.html')});
+ assert.equal(signIn.action.url,login.action.url);
+ for (const type of ['CONTACTS_SEARCH','CONTACTS_REVEAL','EMAIL_DRAFT']) {
+   const denied=await worker.handleMessage({type,payload:{}},{});
+   assert.equal(denied.status,401,`${type} must reject missing credentials before fetch`);
+ }
  const older=deferred(),writes=[];
  worker.setEmailCustomize=async value=>{writes.push(value.tone);if(value.tone==='warm')await older.promise;return{ok:true};};
  const one=worker.handleMessage({type:'SET_EMAIL_CUSTOMIZE',payload:{tone:'warm'}},{});

@@ -29,3 +29,20 @@ export function isMonthlyPrice(price: Stripe.Price): boolean {
     && price.recurring.interval_count === 1 && price.billing_scheme === 'per_unit'
     && price.recurring.usage_type === 'licensed' && price.unit_amount !== null;
 }
+
+export function invoiceLinePriceId(line: Stripe.InvoiceLineItem | undefined): string | null {
+  return stripeObjectId(line?.pricing?.price_details?.price)
+    || stripeObjectId((line as unknown as { price?: unknown } | undefined)?.price);
+}
+
+export function isMembershipInvoiceLine(line: Stripe.InvoiceLineItem, subscriptionId: string, allowProration = false): boolean {
+  const legacy = line as unknown as { type?: string; subscription?: unknown; proration?: boolean;
+    proration_details?: { credited_items?: unknown } };
+  const item = line.parent?.type === 'subscription_item_details' ? line.parent.subscription_item_details : null;
+  if (line.amount < 0 || item?.proration_details?.credited_items || legacy.proration_details?.credited_items) return false;
+  if (line.quantity != null && line.quantity !== 1) return false;
+  if (!invoiceLinePriceId(line)) return false;
+  return item ? (allowProration || !item.proration) && stripeObjectId(item.subscription) === subscriptionId
+    : legacy.type === 'subscription' && (allowProration || !legacy.proration)
+      && (!legacy.subscription || stripeObjectId(legacy.subscription) === subscriptionId);
+}

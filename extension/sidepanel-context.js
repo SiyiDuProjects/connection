@@ -19,7 +19,7 @@ window.ReachardPanelContext = {
             const response = await chrome.tabs.sendMessage(activeTabId, { type: 'GET_REACHARD_PAGE_CONTEXT' });
             pageContext = response?.ok ? response.pageContext : null;
           }
-        } catch { /* Browser pages and tabs not refreshed after install have no content script. */ }
+        } catch { /* A page has no reader until its toolbar action grants activeTab access. */ }
         if (stopped || request !== generation) return;
         onChange({ tabId: activeTabId, windowId, pageContext });
       } catch {
@@ -31,6 +31,7 @@ window.ReachardPanelContext = {
     const removed = id => { if (id === activeTabId) void refresh(); };
     const message = (value, sender) => {
       if (value?.type === 'REACHARD_PAGE_CHANGED' && sender.tab?.id === activeTabId) void refresh();
+      if (value?.type === 'REACHARD_PAGE_ACCESS_UPDATED' && value.windowId === windowId) void refresh();
     };
     chrome.tabs.onActivated.addListener(activated);
     chrome.tabs.onUpdated.addListener(updated);

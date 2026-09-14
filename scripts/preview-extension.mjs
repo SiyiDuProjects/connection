@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 // Local-only test harness: serves the exact packaged content scripts.
 // The Chrome API fixture below never ships in extension/ or the install ZIP.
 const root = new URL('../', import.meta.url);
-const assets = new Map(['content.js','content.css','ui.js','sidepanel.js','sidepanel.css','sidepanel-context.js','sidepanel-boot.js'].map(name => [`/${name}`, new URL(`extension/${name}`, root)]));
+const assets = new Map(['brand.js','content.js','content.css','ui.js','sidepanel.js','sidepanel.css','sidepanel-context.js','sidepanel-boot.js'].map(name => [`/${name}`, new URL(`extension/${name}`, root)]));
 assets.set('/sidepanel-fixture.js', new URL('extension-ui/sidepanel-fixture.js', root));
 http.createServer(async (req,res) => {
   const pathname = new URL(req.url, 'http://127.0.0.2:3018').pathname;

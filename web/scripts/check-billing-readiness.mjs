@@ -12,7 +12,7 @@ check('paid_usage_policy', process.env.BETA_UNLIMITED_USAGE === 'false', 'Set fa
 let client;
 try {
   if (process.env.STRIPE_SECRET_KEY) {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2025-04-30.basil' });
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     const account = await stripe.accounts.retrieve();
     check('stripe_account_identity', account.id === process.env.STRIPE_EXPECTED_ACCOUNT_ID);
     check('stripe_charges_enabled', account.charges_enabled === true);
@@ -26,7 +26,8 @@ try {
       check(`${name}_live_monthly_price`, price.livemode && price.active && price.type === 'recurring'
         && price.recurring?.interval === 'month' && price.recurring.interval_count === 1
         && price.recurring.usage_type === 'licensed' && price.billing_scheme === 'per_unit'
-        && price.unit_amount > 0 && typeof price.product === 'object' && price.product.active && price.product.name === name,
+        && price.currency === 'usd' && price.unit_amount === (name === 'Base' ? 900 : 1900)
+        && typeof price.product === 'object' && price.product.active && price.product.name === name,
         `${price.currency.toUpperCase()} ${price.unit_amount} minor units`);
     }
     const endpointUrl = `${String(process.env.BASE_URL || '').replace(/\/$/, '')}/api/stripe/webhook`;
@@ -38,7 +39,8 @@ try {
     check('reachard_webhook_events', Boolean(endpoint && events.every(event => endpoint.enabled_events.includes('*') || endpoint.enabled_events.includes(event))));
     if (process.env.STRIPE_PORTAL_CONFIGURATION_ID) {
       const portal = await stripe.billingPortal.configurations.retrieve(process.env.STRIPE_PORTAL_CONFIGURATION_ID);
-      check('membership_portal', portal.active && portal.livemode && !portal.features.subscription_update.enabled
+      check('membership_portal', portal.active && portal.livemode && portal.metadata?.reachardPolicy === 'personal-membership-v2'
+        && portal.features.subscription_update.enabled && portal.features.subscription_update.proration_behavior === 'always_invoice'
         && portal.features.subscription_cancel.enabled && portal.features.subscription_cancel.mode === 'at_period_end');
     }
   }
@@ -50,6 +52,9 @@ try {
       const indexes = await sql`select indexname from pg_indexes where tablename='credit_ledger'
         and indexname in ('credit_ledger_initial_subscription_unique','credit_ledger_monthly_invoice_unique')`;
       check('billing_grant_indexes', indexes.length === 2);
+      const [entitlementSchema] = await sql`select to_regprocedure('public.get_account_entitlement(integer)') is not null as entitlement,
+        to_regclass('public.contact_email_unlocks') is not null as unlocks`;
+      check('billing_entitlement_schema', entitlementSchema.entitlement && entitlementSchema.unlocks);
       const [row] = await sql`select count(*)::int as missing from teams where subscription_status in ('active','trialing','past_due')
         and stripe_subscription_id is not null and not exists (
           select 1 from credit_ledger where metadata->>'subscriptionId'=teams.stripe_subscription_id

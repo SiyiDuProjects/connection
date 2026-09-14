@@ -3,8 +3,9 @@ import { db } from '@/lib/db/drizzle';
 import { creditLedger, teamMembers, teams, users } from '@/lib/db/schema';
 import { resolveSubscriptionPlan, stripe } from '@/lib/payments/stripe';
 import { applyPendingFriendInviteRewards } from '@/lib/payments/friend-invite-rewards';
-import { canFulfillCheckout, isTerminalSubscription, stripeObjectId } from '@/lib/payments/billing-policy';
+import { canFulfillCheckout, isTerminalSubscription, stripeObjectId, invoiceSubscriptionId, isMembershipInvoiceLine, invoiceLinePriceId } from '@/lib/payments/billing-policy';
 import { recordProductEvent } from '@/lib/product-events';
+import { entitlementGrantMetadata } from '@/lib/payments/plans';
 
 export async function handleSuccessfulCheckoutSession(
   sessionId: string,
@@ -40,18 +41,46 @@ export async function handleSuccessfulCheckoutSession(
     // Fetch after acquiring the same row lock used by subscription webhooks.
     const subscription = await stripe.subscriptions.retrieve(subscriptionId, { expand: ['items.data.price.product'] });
     if (!canFulfillCheckout(session, subscription)) return null;
+    const currentPlan = await resolveSubscriptionPlan(subscription);
     if (team.stripeSubscriptionId && team.stripeSubscriptionId !== subscriptionId) {
       const current = await stripe.subscriptions.retrieve(team.stripeSubscriptionId);
       if (!isTerminalSubscription(current.status)) throw new Error('A different subscription already exists.');
       if (current.created >= subscription.created) return null;
     }
-    const plan = await resolveSubscriptionPlan(subscription);
+    const checkoutItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 2, expand: ['data.price.product'] });
+    if (checkoutItems.has_more || checkoutItems.data.length !== 1 || checkoutItems.data[0].quantity !== 1 || !checkoutItems.data[0].price) {
+      throw new Error('Checkout must contain one purchased membership.');
+    }
+    const purchasedPrice = checkoutItems.data[0].price;
+    const plan = await resolveSubscriptionPlan({ ...subscription, items: { ...subscription.items,
+      data: [{ ...subscription.items.data[0], price: purchasedPrice, quantity: 1 }] } });
+    let periodStart = subscription.items.data[0].current_period_start;
+    let periodEnd = subscription.items.data[0].current_period_end;
+    const invoiceId = stripeObjectId(session.invoice);
+    if (invoiceId) {
+      const initialInvoice = await stripe.invoices.retrieve(invoiceId);
+      if (initialInvoice.status !== 'paid' || invoiceSubscriptionId(initialInvoice) !== subscriptionId
+        || stripeObjectId(initialInvoice.customer) !== customerId) throw new Error('Checkout invoice is not paid for this membership.');
+      let lines = initialInvoice.lines.data;
+      if (initialInvoice.lines.has_more) {
+        lines = [];
+        for await (const line of stripe.invoices.listLineItems(invoiceId, { limit: 100 })) lines.push(line);
+      }
+      const purchasedLines = lines.filter(line => isMembershipInvoiceLine(line, subscriptionId)
+        && invoiceLinePriceId(line) === purchasedPrice.id);
+      if (purchasedLines.length !== 1) throw new Error('Checkout invoice does not match the purchased membership.');
+      periodStart = purchasedLines[0].period.start;
+      periodEnd = purchasedLines[0].period.end;
+    } else if (plan.entitlementVersion) {
+      throw new Error('Checkout is awaiting its paid membership invoice.');
+    }
+    await tx.execute(sql`select pg_advisory_xact_lock(${userId}::bigint)`);
     if (!Number.isSafeInteger(subscription.items.data[0].current_period_end)) {
       throw new Error('Subscription billing period is unavailable.');
     }
     await tx.update(teams).set({
       stripeCustomerId: customerId, stripeSubscriptionId: subscriptionId,
-      stripeProductId: plan.productId, planName: plan.name,
+      stripeProductId: currentPlan.productId, planName: currentPlan.name,
       subscriptionStatus: subscription.status, updatedAt: new Date()
     }).where(eq(teams.id, team.id));
 
@@ -61,8 +90,8 @@ export async function handleSuccessfulCheckoutSession(
     if (!existing) {
       await tx.insert(creditLedger).values({ userId, amount: plan.monthlyCredits,
         action: 'subscription.initial_grant', metadata: {
-          subscriptionId, checkoutSessionId: session.id, planName: plan.name,
-          periodEnd: subscription.items.data[0].current_period_end
+          subscriptionId, checkoutSessionId: session.id,
+          ...entitlementGrantMetadata(plan, periodStart, periodEnd)
         }
       }).onConflictDoNothing();
     }

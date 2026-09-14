@@ -2,7 +2,7 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
-import { activityLogs, ActivityType, apiIdempotencyKeys, emailVerificationTokens, extensionApiTokens, passwordResetTokens, teamMembers, users, userSettings } from '@/lib/db/schema';
+import { activityLogs, ActivityType, apiIdempotencyKeys, contactEmailUnlocks, emailVerificationTokens, extensionApiTokens, passwordResetTokens, teamMembers, users, userSettings } from '@/lib/db/schema';
 
 // Recheck the credential under the same user lock as password recovery before
 // billing cancellation. Local deletion steps then commit or roll back together.
@@ -20,6 +20,7 @@ export async function deleteAccountData(userId: number, teamId: number | null | 
     await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));
     await tx.delete(userSettings).where(eq(userSettings.userId, userId));
     await tx.delete(apiIdempotencyKeys).where(eq(apiIdempotencyKeys.userId, userId));
+    await tx.delete(contactEmailUnlocks).where(eq(contactEmailUnlocks.userId, userId));
     if (teamId != null) await tx.insert(activityLogs).values({ teamId, userId, action: ActivityType.DELETE_ACCOUNT, ipAddress: '' });
     await tx.update(users).set({
       deletedAt: now, updatedAt: now, name: null, emailVerifiedAt: null,

@@ -13,7 +13,7 @@ import { hasActionAccess } from '../../server/src/lib/membership-policy.js';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const pg = new PGlite();
 const journal = JSON.parse(readFileSync(resolve(root, 'lib/db/migrations/meta/_journal.json'), 'utf8'));
-for (const entry of journal.entries.filter(entry => entry.idx <= 18)) {
+for (const entry of journal.entries.filter(entry => entry.idx <= 19)) {
   await pg.exec(readFileSync(resolve(root, 'lib/db/migrations', entry.tag + '.sql'), 'utf8'));
 }
 const require = createRequire(import.meta.url);

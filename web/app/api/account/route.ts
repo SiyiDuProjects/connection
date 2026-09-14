@@ -1,4 +1,4 @@
-import { getActiveExtensionTokenInfo, getCreditBalance, getRecentUsage, getSettings, getTeamForUser, getUser } from '@/lib/db/queries';
+import { getActiveExtensionTokenInfo, getAccountEntitlement, getRecentUsage, getSettings, getTeamForUser, getUser } from '@/lib/db/queries';
 import { getOnboardingStatus } from '@/lib/onboarding';
 import { toPublicUser } from '@/lib/auth/public-user';
 import { getFreeTrialStatus } from '@/lib/free-trial';
@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   const accountData = await Promise.all([
-      getCreditBalance(user.id),
+      getAccountEntitlement(user.id),
       getRecentUsage(user.id),
       getSettings(user.id),
       getTeamForUser(),
@@ -26,7 +26,9 @@ export async function GET() {
       { status: 503 }
     );
   }
-  const [balance, usage, settings, team, extensionToken, trial] = accountData;
+  const [entitlement, usage, settings, team, extensionToken, trial] = accountData;
+  const balance = entitlement.balance;
+  const unlimited = entitlement.unlimited || isBetaUnlimitedUsage();
 
   const onboardingProfile = getOnboardingStatus(user, settings);
   const successfulSearch = usage.find((item) => item.action === 'contacts.search' && item.status === 'success');
@@ -38,11 +40,13 @@ export async function GET() {
     credits: {
       balance,
       remaining: balance,
-      status: isBetaUnlimitedUsage() ? 'unlimited' : balance > 0 ? 'available' : 'empty',
-      unlimited: isBetaUnlimitedUsage(),
+      status: unlimited ? 'unlimited' : balance > 0 ? 'available' : 'empty',
+      unlimited,
+      monthlyAllowance: entitlement.monthlyCredits,
+      resetsAt: entitlement.allowanceMode === 'monthly' ? entitlement.periodEnd : null,
       costs: {
         search: creditCost('CONTACT_SEARCH_CREDITS', 0),
-        reveal: creditCost('CONTACT_REVEAL_CREDITS', 1),
+        reveal: unlimited ? 0 : creditCost('CONTACT_REVEAL_CREDITS', 1),
         draft: creditCost('EMAIL_DRAFT_CREDITS', 0)
       }
     },

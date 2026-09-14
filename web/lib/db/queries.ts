@@ -145,13 +145,18 @@ export async function getTeamForUser() {
 }
 
 export async function getCreditBalance(userId: number) {
-  await ensureFreeTrial(userId);
-  const result = await db
-    .select({ balance: sql<number>`coalesce(sum(${creditLedger.amount}), 0)` })
-    .from(creditLedger)
-    .where(eq(creditLedger.userId, userId));
+  return (await getAccountEntitlement(userId)).balance;
+}
 
-  return Number(result[0]?.balance || 0);
+export async function getAccountEntitlement(userId: number) {
+  await ensureFreeTrial(userId);
+  const result = await db.execute(sql`select * from get_account_entitlement(${userId}::integer)`);
+  const row = result[0];
+  if (!row) throw new Error('Account allowance is unavailable.');
+  return { balance: Number(row.remaining || 0), unlimited: row.unlimited === true,
+    monthlyCredits: row.monthly_allowance == null ? null : Number(row.monthly_allowance),
+    periodStart: Number(row.period_start || 0), periodEnd: Number(row.period_end || 0),
+    allowanceMode: String(row.allowance_mode || 'legacy'), status: String(row.status || 'inactive') };
 }
 
 export async function getRecentUsage(userId: number) {

@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { DashboardShell } from './dashboard-shell';
-import { getCreditBalance, getSettings, getUser } from '@/lib/db/queries';
+import { getAccountEntitlement, getSettings, getUser } from '@/lib/db/queries';
 import { getOnboardingStatus } from '@/lib/onboarding';
 
 export default async function DashboardLayout({
@@ -16,7 +16,7 @@ export default async function DashboardLayout({
 
   const [settings, credits] = await Promise.all([
     getSettings(user.id),
-    getCreditBalance(user.id)
+    getAccountEntitlement(user.id)
   ]);
   const onboarding = getOnboardingStatus(user, settings);
   if (!onboarding.complete) {
@@ -34,7 +34,8 @@ export default async function DashboardLayout({
           },
           settings: { senderName: settings?.senderName },
           credits: {
-            remaining: credits
+            remaining: credits.balance,
+            unlimited: credits.unlimited
           }
         }}
       >

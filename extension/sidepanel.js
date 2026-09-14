@@ -1,3 +1,4 @@
+const BRAND_NAME = globalThis.ReachardBrand.name;
 window.ReachardController = { start() {
   const PANEL_ID = "fc-linkedin-panel";
   const DEFAULT_EMAIL_CUSTOMIZE = {
@@ -7,8 +8,8 @@ window.ReachardController = { start() {
     notes: ""
   };
   const MESSAGES = {
-    emailWithReachard: "Email with Reachard",
-    findWithReachard: "Find with Reachard",
+    emailWithReachard: `Email with ${BRAND_NAME}`,
+    findWithReachard: `Find with ${BRAND_NAME}`,
     close: "Close",
     thisCompany: "this company",
     linkedInProfile: "LinkedIn profile",
@@ -54,7 +55,7 @@ window.ReachardController = { start() {
     unlockBeforeWriting: "Unlock this contact before writing outreach.",
     couldNotDraft: "Could not draft email.",
     signInWebsite: "Sign in on the website.",
-    logInToReachard: "Log In to Reachard",
+    logInToReachard: `Log In to ${BRAND_NAME}`,
     viewContacts: "View contacts",
     closeSearch: "Close",
     searchingContacts: "Finding contacts...",
@@ -104,9 +105,10 @@ window.ReachardController = { start() {
     prompt: null,
     action: null,
     creditsRemaining: null,
+    creditsUnlimited: false,
     account: null,
     authenticated: null,
-    accountLoading: false,
+    accountLoading: true,
     accountError: "",
     customizeError: "",
     accountNotice: "",
@@ -128,6 +130,7 @@ window.ReachardController = { start() {
   let sourceTabId = null;
   let activeKey = "";
   let accountRequest = 0;
+  let authEpoch = 0;
   const pageStates = new Map();
 
   function ensurePanel() {
@@ -148,8 +151,11 @@ window.ReachardController = { start() {
       search: runSearch,
       reveal: revealEmail,
       draft: draftEmail,
-      showResults(open) { state.searchSheetOpen = open; renderPanel(); },
+      signIn: openSignIn,
+      retryAccount: loadAccountStatus,
+      showResults(open) { state.searchSheetOpen = open && canUseAccount(); renderPanel(); },
       customize(value) {
+        if (!canUseAccount()) return;
         const next = normalizeCustomize(value);
         const editingNotes = next.notes !== state.emailCustomize.notes;
         state.emailCustomize = next;
@@ -206,7 +212,7 @@ window.ReachardController = { start() {
       revealed: new Map(), revealing: new Set(), drafts: new Map(), drafting: new Set()
     };
     // Account and style are shared; contact results belong to their originating tab and role.
-    for (const name of ["emailCustomize", "authenticated", "account", "creditsRemaining", "customizeError"]) state[name] = previous[name];
+    for (const name of ["emailCustomize", "authenticated", "account", "creditsRemaining", "creditsUnlimited", "customizeError", "accountLoading", "accountError", "action"]) state[name] = previous[name];
     state.sourceTabId = tabId;
     state.pageContext = pageContext || null;
     state.contextPending = Boolean(pending);
@@ -217,6 +223,8 @@ window.ReachardController = { start() {
   }
 
   async function runSearch() {
+    if (!canUseAccount()) return;
+    const epoch = authEpoch;
     const operationState = state;
     operationState.loading = true;
     operationState.searchSheetOpen = true;
@@ -249,10 +257,12 @@ window.ReachardController = { start() {
         type: "CONTACTS_SEARCH",
         payload: { pageContext: effectivePageContext(operationState) }
       }, operationState.sourceTabId);
+      if (epoch !== authEpoch) return;
       if (!response?.ok) throw apiError(response, t("couldNotFindContacts"));
       setCredits(response, operationState);
       operationState.contacts = response.contacts || [];
     } catch (error) {
+      if (epoch !== authEpoch) return;
       applyError(error, t("couldNotFindContacts"), operationState);
     } finally {
       operationState.loading = false;
@@ -275,22 +285,21 @@ window.ReachardController = { start() {
   }
 
   async function loadEmailCustomize() {
+    const epoch = authEpoch;
     const revision = customizeRevision;
     state.accountNotice = "";
     try {
       const response = await sendRuntimeMessage({ type: "GET_EMAIL_CUSTOMIZE" });
-      if (customizeRevision !== revision) return;
+      if (customizeRevision !== revision || epoch !== authEpoch) return;
       if (!response?.ok) {
         state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
-        state.authenticated = response?.status === 401 ? false : null;
-        state.accountError = response?.error || t("signInWebsite");
-        state.action = response?.action || null;
+        state.customizeError = response?.status === 401 ? "" : response?.error || t("couldNotLoadCustom");
         return;
       }
       state.emailCustomize = normalizeCustomize(response.custom);
-      state.authenticated = true;
-      state.accountError = "";
+      // Preferences are not proof of a valid account session.
     } catch (error) {
+      if (epoch !== authEpoch) return;
       state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
       state.accountError = error.message || t("couldNotLoadCustom");
     }
@@ -298,28 +307,64 @@ window.ReachardController = { start() {
 
   async function loadAccountStatus() {
     const request = ++accountRequest;
+    const epoch = authEpoch;
     state.accountLoading = true;
     state.accountError = "";
     state.accountNotice = "";
     renderPanel();
     try {
       const response = await sendRuntimeMessage({ type: "GET_ACCOUNT_STATUS" });
-      if (request !== accountRequest || disposed) return;
-      if (!response?.ok) {
-        state.account = null;
-        state.authenticated = response?.status === 401 ? false : state.authenticated;
+      if (request !== accountRequest || epoch !== authEpoch || disposed) return;
+      if (!response?.ok || !response.account) {
+        invalidateAccount(response?.status === 401 ? false : null);
         state.accountError = response?.error || t("signInWebsite");
         state.action = response?.action || null;
         return;
       }
       state.account = response.account;
       state.authenticated = true;
+      state.action = null;
+      state.creditsRemaining = null;
+      state.creditsUnlimited = false;
       setCredits(response.account);
     } catch (error) {
-      if (request !== accountRequest || disposed) return;
+      if (request !== accountRequest || epoch !== authEpoch || disposed) return;
+      invalidateAccount(null);
       state.accountError = error.message || t("couldNotLoadAccount");
     } finally {
       if (request === accountRequest && !disposed) { state.accountLoading = false; renderPanel(); }
+    }
+  }
+
+  function canUseAccount() {
+    return state.authenticated === true;
+  }
+
+  function invalidateAccount(authenticated = null) {
+    authEpoch++;
+    for (const entry of new Set([state, ...pageStates.values()])) {
+      entry.authenticated = authenticated;
+      entry.account = null;
+      entry.creditsRemaining = null;
+      entry.creditsUnlimited = false;
+      entry.contacts = [];
+      entry.searchSheetOpen = false;
+      entry.loading = false;
+      entry.revealed.clear(); entry.revealing.clear();
+      entry.drafts.clear(); entry.drafting.clear();
+    }
+    pageStates.clear();
+  }
+
+  async function openSignIn() {
+    try {
+      const response = await sendRuntimeMessage({ type: "GET_SIGN_IN_ACTION" });
+      const url = safeHttpUrl(response?.action?.url);
+      if (!response?.ok || !url) throw new Error(response?.error || t("signInWebsite"));
+      await chrome.tabs.create({ url });
+    } catch (error) {
+      state.accountError = error.message || t("signInWebsite");
+      renderPanel();
     }
   }
 
@@ -332,12 +377,15 @@ window.ReachardController = { start() {
       companyName: context.companyName,
       companyDomain: context.companyDomain,
       linkedinUrl: context.personLinkedInUrl,
+      photoUrl: context.personPhotoUrl || '',
       email: "",
       reasons: [t("selectedProfile")]
     };
   }
 
   async function revealEmail(contactId) {
+    if (!canUseAccount()) return;
+    const epoch = authEpoch;
     const operationState = state;
     const contact = findContact(contactId, operationState);
     if (!contact) return;
@@ -354,11 +402,13 @@ window.ReachardController = { start() {
         type: "CONTACTS_REVEAL",
         payload: { contact, pageContext: operationState.pageContext }
       }, operationState.sourceTabId);
+      if (epoch !== authEpoch) return;
       if (!response?.ok) throw apiError(response, t("couldNotUnlock"));
       setCredits(response, operationState);
       operationState.revealed.set(contactId, response.email);
       await draftEmail(contactId, operationState);
     } catch (error) {
+      if (epoch !== authEpoch) return;
       applyError(error, t("couldNotUnlock"), operationState);
     } finally {
       operationState.revealing.delete(contactId);
@@ -367,6 +417,8 @@ window.ReachardController = { start() {
   }
 
   async function draftEmail(contactId, operationState = state) {
+    if (!canUseAccount()) return;
+    const epoch = authEpoch;
     const contact = findContact(contactId, operationState);
     if (!contact) return;
 
@@ -387,6 +439,7 @@ window.ReachardController = { start() {
 
     try {
       if (!await saveCustomizeFromPanel()) throw new Error(operationState.customizeError || t("couldNotSaveCustom"));
+      if (epoch !== authEpoch || !canUseAccount()) return;
       const response = await sendRuntimeMessage({
         type: "EMAIL_DRAFT",
         payload: {
@@ -394,10 +447,12 @@ window.ReachardController = { start() {
           pageContext: effectivePageContext(operationState)
         }
       }, operationState.sourceTabId);
+      if (epoch !== authEpoch) return;
       if (!response?.ok) throw apiError(response, t("couldNotDraft"));
       setCredits(response, operationState);
       operationState.drafts.set(contactId, response);
     } catch (error) {
+      if (epoch !== authEpoch) return;
       applyError(error, t("couldNotDraft"), operationState);
     } finally {
       operationState.drafting.delete(contactId);
@@ -423,6 +478,7 @@ window.ReachardController = { start() {
   function applyError(error, fallback, target = state) {
     setCredits(error, target);
     if (error.status === 401) {
+      invalidateAccount(false);
       target.authenticated = false;
       target.prompt = error.message || t("signInWebsite");
       target.error = "";
@@ -434,10 +490,14 @@ window.ReachardController = { start() {
   }
 
   function setCredits(source, target = state) {
+    if (typeof source?.credits?.unlimited === 'boolean') {
+      state.creditsUnlimited = source.credits.unlimited;
+      target.creditsUnlimited = source.credits.unlimited;
+    }
     const remaining = source?.credits?.remaining
       ?? source?.credits?.balance
       ?? source?.onboarding?.billing?.creditsRemaining;
-    if (Number.isFinite(Number(remaining))) {
+    if (remaining !== null && remaining !== undefined && Number.isFinite(Number(remaining))) {
       state.creditsRemaining = Number(remaining);
       target.creditsRemaining = Number(remaining);
     }
@@ -535,12 +595,24 @@ window.ReachardController = { start() {
 
   renderPanel();
   const contextSubscription = window.ReachardPanelContext.start(updatePage);
-  const refreshAccount = async message => {
+  // An async listener also returns a Promise for unrelated messages. With more
+  // than one panel, Chrome can use its empty response before the worker replies.
+  const refreshAccount = message => {
     if (message?.type !== "ACCOUNT_AUTH_UPDATED") return;
-    if (await saveCustomizeFromPanel()) await loadPanelData();
-    await loadAccountStatus();
+    return refreshAccountState();
   };
+  async function refreshAccountState() {
+    invalidateAccount();
+    window.clearTimeout(customizeTimer);
+    state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
+    customizeRevision++;
+    savedCustomizeRevision = customizeRevision;
+    await loadAccountStatus();
+    if (state.authenticated === true) await loadPanelData();
+    renderPanel();
+  }
   chrome.runtime.onMessage.addListener(refreshAccount);
+  void loadAccountStatus();
   void loadPanelData().then(renderPanel);
   window.addEventListener("pagehide", () => {
     // Dispatch the latest value before the extension page is destroyed. The worker

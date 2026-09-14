@@ -12,13 +12,16 @@ const deferred = () => {
   return { promise, resolve };
 };
 
-function fixtureServer({ env = {}, search = async () => [{ name: 'Fixture Person' }] } = {}) {
+function fixtureServer({ env = {}, search = async () => [{ name: 'Fixture Person' }],
+  reveal = async () => 'person@example.com', remaining = 20, unlimited = false,
+  status = 'active', previouslyRevealed = null } = {}) {
   const routes = new Map();
   const access = [];
   const claims = new Map();
   let calls = 0;
   const operationCalls = { search: 0, reveal: 0, draft: 0 };
   let charges = 0;
+  const chargedAmounts = [];
   const claimKey = ({ userId, action, idempotencyKey }) => `${userId}:${action}:${idempotencyKey}`;
   const application = {
     use: (path, fn) => { if (path === '/api') access.push(fn); },
@@ -41,7 +44,12 @@ function fixtureServer({ env = {}, search = async () => [{ name: 'Fixture Person
       if (!['alice', 'bob', 'charlie'].includes(token)) throw publicError('Invalid token', 401);
       return { id: token };
     },
-    getMembershipForUser: async () => ({ status: 'active', periodEnd: Math.floor(Date.now() / 1000) + 3600 }), getCreditBalance: async () => 20,
+    getBillingStateForUser: async () => ({ status, periodEnd: Math.floor(Date.now() / 1000) + 3600, remaining, unlimited }),
+    getCreditBalance: async () => remaining,
+    getPreviouslyRevealedContact: async () => previouslyRevealed,
+    getContactKey: () => 'linkedin:/in/fixture',
+    publicCredits: state => ({ remaining: state.unlimited ? null : state.remaining, unlimited: state.unlimited }),
+    consumeFreeTrialOperation: async () => true, hasRevealedEmail: async () => true,
     getOnboardingForUser: async () => ({ complete: true }), getUserSettings: async () => ({}),
     getAccountSummary: async () => ({}), isAccountDbConfigured: () => true,
     checkAccountDb: async () => {}, closeAccountDb: async () => {}, pruneApiIdempotencyKeys: async () => {},
@@ -54,12 +62,13 @@ function fixtureServer({ env = {}, search = async () => [{ name: 'Fixture Person
     },
     chargeAndLogApiUsage: async (value) => {
       charges += 1;
+      chargedAmounts.push(value.amount);
       claims.set(claimKey(value), { status: 'replay', response: value.response });
       return { ok: true, response: value.response };
     },
     failApiRequest: async (value) => { claims.delete(claimKey(value)); }, logApiUsage: async () => {},
     searchContacts: async (...args) => { calls += 1; operationCalls.search += 1; return search(...args); }, rankContacts: (people) => people,
-    revealEmail: async () => { operationCalls.reveal += 1; return 'person@example.com'; },
+    revealEmail: async (...args) => { operationCalls.reveal += 1; return reveal(...args); },
     createDraft: async () => { operationCalls.draft += 1; return { subject: 'Hello', body: 'Draft' }; },
     createMailtoUrl: () => 'mailto:person@example.com', getDraftInternalCost: () => null,
   };
@@ -94,8 +103,59 @@ function fixtureServer({ env = {}, search = async () => [{ name: 'Fixture Person
       next();
     });
   }
-  return { request, calls: () => calls, charges: () => charges, operationCalls };
+  return { request, calls: () => calls, charges: () => charges, operationCalls, chargedAmounts };
 }
+
+test('Base at zero allowance can search and draft, but cannot send a new paid reveal', async () => {
+  const fixture = fixtureServer({ remaining: 0, env: { CONTACT_SEARCH_CREDITS: '5', EMAIL_DRAFT_CREDITS: '5' } });
+  assert.equal((await fixture.request({ key: 'search' })).status, 200);
+  assert.equal((await fixture.request({ path: '/api/email/draft', key: 'draft', body: { contact: { email: 'known@example.com' } } })).status, 200);
+  assert.equal((await fixture.request({ path: '/api/contacts/reveal', key: 'reveal', body: { contact: { name: 'New person' } } })).status, 402);
+  assert.deepEqual(fixture.operationCalls, { search: 1, reveal: 0, draft: 1 });
+  assert.deepEqual(fixture.chargedAmounts, [0, 0]);
+});
+
+test('Plus zero numeric balance admits reveals and still obeys provider concurrency controls', async () => {
+  const hold = deferred();
+  const fixture = fixtureServer({ remaining: 0, unlimited: true, search: async () => { await hold.promise; return []; } });
+  const running = fixture.request({ key: 'search' });
+  await new Promise(done => setImmediate(done));
+  assert.equal((await fixture.request({ path: '/api/contacts/reveal', key: 'busy', body: { contact: { name: 'Person' } } })).status, 429);
+  assert.equal(fixture.operationCalls.reveal, 0);
+  hold.resolve(); await running;
+  assert.equal((await fixture.request({ path: '/api/contacts/reveal', key: 'reveal', body: { contact: { name: 'Person' } } })).status, 200);
+  assert.equal(fixture.operationCalls.reveal, 1);
+});
+
+test('previously unlocked contact is returned at zero credits without a provider call, including after membership ends', async () => {
+  const fixture = fixtureServer({ remaining: 0, status: 'canceled', previouslyRevealed: { email: 'owned@example.com', provider: 'fixture' } });
+  const response = await fixture.request({ path: '/api/contacts/reveal', key: 'owned', body: { contact: { name: 'Person' } } });
+  assert.equal(response.status, 200);
+  assert.equal(response.body.email, 'owned@example.com');
+  assert.equal(fixture.operationCalls.reveal, 0);
+});
+
+test('a provider miss never invokes customer charging', async () => {
+  const fixture = fixtureServer({ reveal: async () => '' });
+  assert.equal((await fixture.request({ path: '/api/contacts/reveal', key: 'missing', body: { contact: { name: 'Person' } } })).status, 404);
+  assert.equal(fixture.charges(), 0);
+});
+
+test('HTTP reveal strips client email, verification and provider claims before calling a provider', async () => {
+  let received;
+  const fixture = fixtureServer({ reveal: async contact => { received = contact; return ''; } });
+  const response = await fixture.request({ path: '/api/contacts/reveal', key: 'untrusted-email', body: { contact: {
+    name: 'Actual lookup person', companyDomain: 'fixture.test', linkedinUrl: 'https://linkedin.com/in/fixture?trk=untrusted',
+    email: 'forged@fixture.test', mockEmail: 'also-forged@fixture.test', provider: 'mock',
+    emailStatus: 'verified', email_status: 'verified', verification: { status: 'verified' },
+  } } });
+  assert.equal(response.status, 404);
+  assert.equal(received.linkedinUrl, 'https://www.linkedin.com/in/fixture');
+  for (const key of ['email', 'mockEmail', 'provider', 'emailStatus', 'email_status', 'verification']) {
+    assert.equal(Object.hasOwn(received, key), false, key);
+  }
+  assert.equal(fixture.charges(), 0);
+});
 
 test('authenticated accounts behind one proxy get independent limits; forged identity does not bypass them', async () => {
   const fixture = fixtureServer({ env: { RATE_LIMIT_MAX: '1' } });

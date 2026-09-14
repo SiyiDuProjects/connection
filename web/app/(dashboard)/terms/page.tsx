@@ -9,7 +9,7 @@ export default function TermsPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 pb-20 pt-28 text-foreground">
       <article className="legal-copy">
-        <p className="text-sm font-semibold text-muted">Effective August 30, 2026</p>
+        <p className="text-sm font-semibold text-muted">Effective September 13, 2026</p>
         <h1>{BRAND_NAME} Terms of Service</h1>
         <p>
           {BRAND_NAME} is a job-search research and writing assistant. By using {BRAND_NAME}, you agree to use it lawfully and responsibly and to review all contact information and outreach before acting on it.
@@ -30,7 +30,10 @@ export default function TermsPage() {
 
         <h2>Monthly memberships and included usage</h2>
         <p>
-          {BRAND_NAME} charges a recurring monthly membership fee for access to its software features. The plan price, billing interval, any trial, and included monthly work email allowance are disclosed before purchase. A successful verified work email lookup uses one included lookup; searches and draft generation do not use this allowance. We do not sell individual Contact Kits or automatically charge extra for exceeding the included allowance.
+          {BRAND_NAME} charges a recurring monthly membership fee. Base at $9 per month includes 50 newly unlocked, verified work emails per billing period. Its allowance refreshes at the start of each paid billing period; unused monthly unlocks do not roll over. Plus at $19 per month includes unlimited verified work email unlocks for personal use, with no monthly email cap. The price and billing interval are shown before purchase. Earlier subscriptions retain the price and allowance associated with their existing plan unless you choose to change plans.
+        </p>
+        <p>
+          Only a newly unlocked, verified work email uses one email credit on a limited plan. Unsuccessful lookups, viewing an email already unlocked by your account, people searches and draft generation do not use email credits. We do not automatically charge overage fees. A limited plan cannot unlock more new emails after its allowance is used until the allowance refreshes or you change plans.
         </p>
         <p>
           Subscriptions renew until canceled. You can manage or cancel renewal through the Stripe billing portal. Deleting an owner account schedules its active subscription to stop renewing. Chargebacks, refunds, promotions, and trial eligibility may affect access or balances.
@@ -38,6 +41,14 @@ export default function TermsPage() {
 
         <p>
           New verified accounts can try 3 successful work-email unlocks without a payment card. This trial does not automatically start a subscription or charge you. One trial is available per verified email address, including after deleting and recreating an account. To prevent abuse, the trial allows up to 20 people searches, 30 email-lookup attempts and 12 drafts for contacts you unlocked. Unsuccessful lookups do not use your 3 email unlocks. A paid membership is required after the free allowance or a trial feature limit is reached.
+        </p>
+
+        <h2 id="personal-use">Personal use and service protection</h2>
+        <p>
+          Base and Plus are for one person&apos;s own professional outreach. Do not share accounts, use scripts or bots to automate bulk contact harvesting, resell contact data, or use an individual plan to run outreach for multiple people. Organizations can contact <a href="mailto:support@reachard.co">support@reachard.co</a> to discuss their needs.
+        </p>
+        <p>
+          Plus has no monthly email allowance to exhaust. Request rate limits and temporary service protections may delay requests to protect account security and service availability. They are not a hidden monthly email cap. Access may be restricted for the prohibited uses described above; data availability and the availability of third-party providers still apply.
         </p>
 
         <h2>Third-party services and data</h2>

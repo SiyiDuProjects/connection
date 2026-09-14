@@ -1,3 +1,5 @@
+importScripts('brand.js');
+const BRAND_NAME = globalThis.ReachardBrand.name;
 const DEFAULT_API_BASE_URL = "https://contacts.reachard.co";
 const DEFAULT_WEB_BASE_URL = "https://reachard.co";
 const SUPPORTED_URLS = ["https://*/*", "http://*/*"];
@@ -6,7 +8,31 @@ const SESSION_EXPIRED_ERROR = "Session expired. Sign in again.";
 const pendingIdempotencyKeys = new Map();
 let customizeWriteQueue = Promise.resolve();
 
-chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:true}).catch(error => console.warn(error.message));
+chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false}).catch(error => console.warn(error.message));
+
+chrome.action.onClicked.addListener((tab) => {
+  if (!Number.isInteger(tab.id) || !Number.isInteger(tab.windowId)) return;
+  // Opening must happen synchronously inside the toolbar click's user gesture.
+  chrome.sidePanel.open({windowId:tab.windowId}).catch(error => console.warn(error.message));
+  void activateCurrentPage(tab);
+});
+
+async function activateCurrentPage(tab) {
+  try {
+    if (!/^https?:\/\//i.test(tab.url || '')) return;
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, {type:'GET_REACHARD_PAGE_CONTEXT'});
+      if (response?.ok) return;
+    } catch { /* A new page has no reader until the user invokes Reachard. */ }
+    // Only packaged code runs, with the temporary access granted by activeTab.
+    await chrome.scripting.insertCSS({target:{tabId:tab.id},files:['content.css']});
+    await chrome.scripting.executeScript({target:{tabId:tab.id},files:['brand.js','content.js']});
+  } catch {
+    // Chrome-protected pages cannot be read, even after a toolbar click.
+  } finally {
+    chrome.runtime.sendMessage({type:'REACHARD_PAGE_ACCESS_UPDATED',tabId:tab.id,windowId:tab.windowId}).catch(() => {});
+  }
+}
 
 chrome.runtime.onInstalled.addListener((details) => {
   migrateSensitiveStorage().catch(() => {});
@@ -77,6 +103,8 @@ async function handleMessage(message, sender) {
       return postJson("/api/email/draft", message.payload, sender);
     case "GET_ACCOUNT_STATUS":
       return getAccountStatus(sender);
+    case "GET_SIGN_IN_ACTION":
+      return { ok: true, action: await loginAction(sender) };
     // Acknowledge older clients without storing or broadcasting language.
     case "GET_EXTENSION_LANGUAGE":
     case "SET_EXTENSION_LANGUAGE":
@@ -90,9 +118,9 @@ async function handleMessage(message, sender) {
 
 async function openInstallConnectPage() {
   try {
-    await chrome.tabs.create({ url: `${await getWebBaseUrl()}/dashboard` });
+    await chrome.tabs.create({ url: `${await getWebBaseUrl()}/getting-started?source=extension-install` });
   } catch (error) {
-    console.warn("Could not open Reachard after install", error);
+    console.warn(`Could not open ${BRAND_NAME} after install`, error);
   }
 }
 
@@ -225,7 +253,6 @@ function isAllowedWebsite(url) {
   return [
     "https://reachard.co",
     "https://www.reachard.co",
-    "https://contacts.reachard.co",
     "http://localhost:3000",
     "http://127.0.0.1:3000"
   ].includes(origin);
