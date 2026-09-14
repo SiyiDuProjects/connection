@@ -37,7 +37,7 @@ export function DashboardShell({ account, children }: { account: SidebarAccount;
       await mutate('/api/account', undefined, false);
       router.push('/'); router.refresh();
     } catch {
-      setSigningOut(false); setError('Could not log out. Please try again.');
+      setSigningOut(false); setError('Could not log out all devices. Please try again.');
     }
   }
 

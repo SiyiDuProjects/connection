@@ -58,14 +58,13 @@ export function DashboardSidebar({ account, pathname, onSignOut, signingOut }: {
             </div>
             <Link href="/dashboard/billing" className="mt-3 flex items-center gap-2 text-sm font-medium hover:underline"><CreditCard className="size-4" />Manage plan</Link>
           </div>
-          {account?.user ? <div className="mt-2 flex items-center gap-2.5 px-1 py-2">
+          {account?.user ? <><div className="mt-2 flex items-center gap-2.5 px-1 py-2">
             <Avatar size="sm"><Avatar.Fallback>{initials}</Avatar.Fallback></Avatar>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{name}</p>
               <p className="truncate text-xs text-muted">{account?.user?.email || 'Reachard account'}</p>
             </div>
-            {onSignOut ? <Button isIconOnly size="sm" variant="ghost" aria-label="Log out" isDisabled={signingOut} onPress={onSignOut}><LogOut className="size-4" /></Button> : null}
-          </div> : <Link href="/sign-in" className="px-2 py-3 text-sm font-medium">Sign in to Reachard</Link>}
+          </div>{onSignOut ? <Button size="sm" variant="ghost" fullWidth isDisabled={signingOut} onPress={onSignOut}><LogOut className="size-4" />{signingOut ? 'Logging out…' : 'Log out all devices'}</Button> : null}</> : <Link href="/sign-in" className="px-2 py-3 text-sm font-medium">Sign in to Reachard</Link>}
         </Sidebar.Footer>
       </>
     );

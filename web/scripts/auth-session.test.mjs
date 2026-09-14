@@ -8,6 +8,7 @@ import ts from 'typescript';
 import * as jose from 'jose';
 import React from 'react';
 import { NextRequest } from 'next/server.js';
+import { getPathMatch } from 'next/dist/shared/lib/router/utils/path-match.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -96,6 +97,24 @@ test('password recovery page suppresses referrer propagation and caching', async
   const response = await middleware(new NextRequest('https://reachard.co/reset-password?token=fixture'));
   assert.equal(response.headers.get('Referrer-Policy'), 'no-referrer');
   assert.equal(response.headers.get('Cache-Control'), 'no-store');
+});
+
+test('matching Next header rules preserve reset-page privacy after the global defaults', async () => {
+  const config = load(resolve(root, 'next.config.ts')).default;
+  const rules = await config.headers();
+  function matchingHeaders(pathname) {
+    const headers = new Headers();
+    for (const rule of rules) if (getPathMatch(rule.source)(pathname)) {
+      for (const { key, value } of rule.headers) headers.set(key, value);
+    }
+    return headers;
+  }
+  const recovery = matchingHeaders('/reset-password');
+  assert.equal(recovery.get('Referrer-Policy'), 'no-referrer');
+  assert.equal(recovery.get('Cache-Control'), 'no-store');
+  assert.equal(recovery.get('X-Frame-Options'), 'DENY');
+  assert.equal(recovery.get('Content-Security-Policy'), "frame-ancestors 'none'");
+  assert.equal(matchingHeaders('/pricing').get('Referrer-Policy'), 'strict-origin-when-cross-origin');
 });
 
 test('authenticated sign-in and sign-up entries redirect without another form', async () => {

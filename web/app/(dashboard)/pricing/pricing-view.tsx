@@ -54,7 +54,7 @@ export function PricingView({ plans, checkoutAction }: {
                   <h2 className="rd-plan-name">{plan.name}</h2>
                   <p className="rd-plan-allowance">{plan.unlimited ? 'Unlimited personal outreach' : 'For a focused job search'}</p>
                   <div className="rd-plan-price">
-                    <strong>{configured
+                    <strong>{typeof plan.price === 'number'
                       ? new Intl.NumberFormat('en-US', { style: 'currency', currency: plan.currency, maximumFractionDigits: 2 }).format(plan.price! / 100)
                       : '—'}</strong>
                     <span>/ month</span>

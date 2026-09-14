@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import {
   User,
@@ -26,7 +26,6 @@ import { comparePasswords, hashPassword, setSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { getUser, getUserWithTeam } from '@/lib/db/queries';
-import { revokeExtensionTokens } from '@/lib/extension-tokens';
 import { issueEmailVerification, verifyEmailCode, VerificationRateLimitError } from '@/lib/auth/email-verification';
 import { requireEmailDelivery } from '@/lib/email/resend';
 import { changeAuthenticatedPassword } from '@/lib/auth/password-reset';
@@ -354,10 +353,25 @@ export async function signOut() {
   }
 
   const userWithTeam = await getUserWithTeam(user.id);
-  await Promise.all([
-    revokeExtensionTokens(user.id),
-    logActivity(userWithTeam?.teamId, user.id, ActivityType.SIGN_OUT)
-  ]);
+  await db.transaction(async (tx) => {
+    // JWTs have no per-device session row. Rotate the account version so every
+    // existing web session and extension credential is revoked together.
+    // Share the user lock with recovery/token creation, and ignore an old
+    // request if another logout or credential change already rotated it.
+    const [current] = await tx.select().from(users).where(eq(users.id, user.id)).for('update');
+    if (!current || current.deletedAt || current.sessionVersion !== user.sessionVersion) return;
+    const now = new Date();
+    await tx.update(users).set({ sessionVersion: current.sessionVersion + 1, updatedAt: now })
+      .where(eq(users.id, user.id));
+    await tx.update(extensionApiTokens).set({ revokedAt: now })
+      .where(and(eq(extensionApiTokens.userId, user.id), isNull(extensionApiTokens.revokedAt)));
+    if (userWithTeam?.teamId !== null && userWithTeam?.teamId !== undefined) {
+      await tx.insert(activityLogs).values({
+        teamId: userWithTeam.teamId, userId: user.id,
+        action: ActivityType.SIGN_OUT, ipAddress: ''
+      });
+    }
+  });
   (await cookies()).delete('session');
 }
 

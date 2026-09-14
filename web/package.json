@@ -7,7 +7,7 @@
     "start": "next start",
     "test:resume": "node --experimental-strip-types --test scripts/resume-text.test.mjs",
     "test:email": "node --test scripts/email-verification.test.mjs",
-    "test:billing": "node --test scripts/billing.test.mjs",
+    "test:billing": "node --test scripts/billing.test.mjs scripts/public-pricing.test.cjs",
     "check:billing": "node scripts/check-billing-readiness.mjs",
     "db:setup": "npx tsx lib/db/setup.ts",
     "db:seed": "npx tsx lib/db/seed.ts",

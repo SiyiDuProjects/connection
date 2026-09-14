@@ -11,14 +11,14 @@ const root = path.resolve(__dirname, '..');
 const pg = new PGlite();
 const db = drizzle(pg);
 const modules = new Map();
-let schema, currentUser, teamPause, verificationCalls, cancellationCalls, sessions;
+let schema, currentUser, teamPause, verificationCalls, cancellationCalls, sessions, deletedCookies;
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const overrides = {
   '@/lib/auth/rate-limit': { checkCredentialRateLimit: async () => null, reserveAccountEmailDelivery: async () => {} },
   'server-only': {},
   '@/lib/db/drizzle': { db },
   'next/navigation': { redirect: url => { throw Object.assign(new Error('redirect'), { url }); } },
-  'next/headers': { cookies: async () => ({ delete() {} }) },
+  'next/headers': { cookies: async () => ({ delete(name) { deletedCookies.push(name); } }) },
   'next/server': { after: () => {} },
   '@/lib/auth/session': {
     hashPassword: async value => `fixture:${value}`,
@@ -94,9 +94,53 @@ beforeEach(async () => {
     INSERT INTO email_verification_tokens (user_id) VALUES (1);
     INSERT INTO user_settings (user_id,resume_context) VALUES (1,'private fixture');
   `);
-  currentUser = await userRow(); teamPause = null; verificationCalls = []; cancellationCalls = 0; sessions = [];
+  currentUser = await userRow(); teamPause = null; verificationCalls = []; cancellationCalls = 0; sessions = []; deletedCookies = [];
 });
 after(async () => { await pg.close(); });
+
+test('logout invalidates every prior web version and extension token only for the signed-in user', async () => {
+  await pg.exec("INSERT INTO users (id,email,password_hash,email_verified_at) VALUES (2,'other@example.com','fixture:otherpassword',now()); INSERT INTO extension_api_tokens (user_id) VALUES (2)");
+  const previousVersion = currentUser.sessionVersion;
+  await actions.signOut();
+  assert.equal((await userRow()).sessionVersion, previousVersion + 1);
+  assert.ok((await pg.query('SELECT revoked_at FROM extension_api_tokens WHERE user_id=1')).rows[0].revoked_at);
+  assert.equal((await pg.query('SELECT session_version FROM users WHERE id=2')).rows[0].session_version, 0);
+  assert.equal((await pg.query('SELECT revoked_at FROM extension_api_tokens WHERE user_id=2')).rows[0].revoked_at, null);
+  assert.deepEqual(deletedCookies, ['session']);
+  assert.equal((await pg.query('SELECT count(*)::integer AS count FROM activity_logs')).rows[0].count, 1);
+});
+
+test('a logout authenticated before recovery cannot revoke a later login or extension token', async () => {
+  const token = await resetLink();
+  teamPause = { started: deferred(), resume: deferred() };
+  const pending = actions.signOut();
+  await teamPause.started.promise;
+  assert.ok(await recovery.resetPassword(token, 'newpassword'));
+  await pg.exec('INSERT INTO extension_api_tokens (user_id) VALUES (1)');
+  teamPause.resume.resolve();
+  await pending;
+  assert.equal((await userRow()).sessionVersion, 1);
+  assert.equal((await pg.query('SELECT count(*)::integer AS count FROM extension_api_tokens WHERE user_id=1 AND revoked_at IS NULL')).rows[0].count, 1);
+  assert.deepEqual(deletedCookies, ['session']);
+});
+
+test('logout rolls back its version change if extension revocation fails and does not claim success', async () => {
+  await pg.exec('ALTER TABLE extension_api_tokens ADD CONSTRAINT force_logout_rollback CHECK (revoked_at IS NULL)');
+  try {
+    await assert.rejects(actions.signOut());
+    assert.equal((await userRow()).sessionVersion, 0);
+    assert.equal((await pg.query('SELECT revoked_at FROM extension_api_tokens WHERE user_id=1')).rows[0].revoked_at, null);
+    assert.deepEqual(deletedCookies, []);
+  } finally { await pg.exec('ALTER TABLE extension_api_tokens DROP CONSTRAINT force_logout_rollback'); }
+});
+
+test('unauthenticated logout only clears the local cookie', async () => {
+  currentUser = null;
+  await actions.signOut();
+  assert.deepEqual(deletedCookies, ['session']);
+  assert.equal((await userRow()).sessionVersion, 0);
+  assert.equal((await pg.query('SELECT revoked_at FROM extension_api_tokens WHERE user_id=1')).rows[0].revoked_at, null);
+});
 
 test('email update authenticated before recovery cannot regain access after the reset commits', async () => {
   const token = await resetLink();

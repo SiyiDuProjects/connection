@@ -54,19 +54,27 @@ export function resolvePurchasedPlan(value: unknown, price: {
   const plan = requireReachardPlanByName(value);
   const publishedPriceId = plan.key === 'base'
     ? 'price_1UFMwl0nhgFoMCt9zFzWNPKB' : 'price_1UFMyB0nhgFoMCt9O3DiG8iW';
-  const current = price.id === plan.configuredPriceId || price.id === publishedPriceId
+  const publishedCurrent = price.id === publishedPriceId
     || price.metadata?.reachardEntitlementVersion === ENTITLEMENT_VERSION;
-  if (current) {
+  if (publishedCurrent) {
     if (price.currency !== 'usd' || price.unit_amount !== (plan.key === 'base' ? 900 : 1900)) {
       throw new Error('Configured Reachard price does not match the published monthly amount.');
     }
     return plan;
   }
-  if (price.currency !== 'usd' || price.unit_amount !== (plan.key === 'base' ? 800 : 1200)) {
-    throw new Error('Unrecognized Reachard subscription price.');
+  // A stale Preview configuration may still select an old price. That does
+  // not rewrite the terms of an existing purchase or make legacy renewal fail.
+  if (price.currency === 'usd' && price.unit_amount === (plan.key === 'base' ? 800 : 1200)) {
+    return { ...plan, monthlyCredits: plan.key === 'base' ? 20 : 60,
+      unlimited: false, allowanceMode: 'legacy', entitlementVersion: null };
   }
-  return { ...plan, monthlyCredits: plan.key === 'base' ? 20 : 60,
-    unlimited: false, allowanceMode: 'legacy', entitlementVersion: null };
+  if (price.id === plan.configuredPriceId) {
+    if (price.currency !== 'usd' || price.unit_amount !== (plan.key === 'base' ? 900 : 1900)) {
+      throw new Error('Configured Reachard price does not match the published monthly amount.');
+    }
+    return plan;
+  }
+  throw new Error('Unrecognized Reachard subscription price.');
 }
 
 export function entitlementGrantMetadata(plan: ReachardPlan & { priceId: string }, periodStart: number | undefined, periodEnd: number) {

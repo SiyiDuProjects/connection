@@ -426,3 +426,41 @@ test('revisiting an older Base checkout cannot roll back the visible plan after 
   assert.equal((await rows('select plan_name from teams where id=1'))[0].plan_name, 'Plus');
   assert.equal((await account.getBillingStateForUser(1)).unlimited, true);
 });
+
+test('stale configured $8/$12 IDs preserve legacy fulfillment while new checkout still rejects those old prices', async () => {
+  const savedEnv = [process.env.STRIPE_BASE_PRICE_ID, process.env.STRIPE_PLUS_PRICE_ID];
+  const savedCache = new Map(cache);
+  process.env.STRIPE_BASE_PRICE_ID = 'price_base'; process.env.STRIPE_PLUS_PRICE_ID = 'price_plus';
+  for (const path of ['lib/payments/plans.ts', 'lib/payments/stripe.ts', 'lib/payments/checkout.ts']) cache.delete(resolve(root, path));
+  try {
+    // Reload the actual module under the old environment, rather than changing
+    // its exported objects after initialization.
+    const staleBilling = load(resolve(root, 'lib/payments/stripe.ts'));
+    const staleCheckout = load(resolve(root, 'lib/payments/checkout.ts'));
+    for (const [id, allowance] of [['price_base', 20], ['price_plus', 60]]) {
+      const value = subscription(); value.items.data[0].price = price(id);
+      const plan = await staleBilling.resolveSubscriptionPlan(value);
+      assert.equal(plan.monthlyCredits, allowance);
+      assert.equal(plan.unlimited, false);
+      assert.equal(plan.allowanceMode, 'legacy');
+      await assert.rejects(staleBilling.resolveCheckoutPlan(id), /published/);
+    }
+    await staleCheckout.handleSuccessfulCheckoutSession('cs_main');
+    await staleCheckout.handleSuccessfulCheckoutSession('cs_main');
+    assert.deepEqual((await grants()).map(row => row.amount), [20]);
+  } finally {
+    [process.env.STRIPE_BASE_PRICE_ID, process.env.STRIPE_PLUS_PRICE_ID] = savedEnv;
+    cache.clear(); for (const [path, value] of savedCache) cache.set(path, value);
+  }
+});
+
+test('immutable current IDs or entitlement metadata with incorrect amounts can never fall back to legacy terms', () => {
+  for (const [name, id, wrongAmount] of [
+    ['Base', 'price_1UFMwl0nhgFoMCt9zFzWNPKB', 800], ['Plus', 'price_1UFMyB0nhgFoMCt9O3DiG8iW', 1200]
+  ]) {
+    assert.throws(() => plans.resolvePurchasedPlan(name, { id, currency: 'usd', unit_amount: wrongAmount }), /published/);
+    assert.throws(() => plans.resolvePurchasedPlan(name, { id: 'price_metadata_fixture', currency: 'usd', unit_amount: wrongAmount,
+      metadata: { reachardEntitlementVersion: plans.ENTITLEMENT_VERSION } }), /published/);
+    assert.throws(() => plans.resolvePurchasedPlan(name, { id, currency: 'eur', unit_amount: name === 'Base' ? 900 : 1900 }), /published/);
+  }
+});
