@@ -7,9 +7,11 @@ import { Alert, Button, Form, Separator } from '@heroui/react';
 import { buttonVariants } from '@heroui/styles';
 import { SettingsRow } from '@/components/settings-row';
 import { openBillingPortal } from './actions';
+import type { getAccountEntitlement } from '@/lib/db/queries';
 
-export function BillingContent({ planName = 'No active plan', status = 'inactive', hasCustomer = false, isOwner = false, preview = false, trialRemaining }: {
+export function BillingContent({ planName = 'No active plan', status = 'inactive', hasCustomer = false, isOwner = false, preview = false, trialRemaining, allowance }: {
   planName?: string; status?: string; hasCustomer?: boolean; isOwner?: boolean; preview?: boolean; trialRemaining?: number;
+  allowance?: Awaited<ReturnType<typeof getAccountEntitlement>>;
 }) {
   const [state, action, pending] = useActionState(openBillingPortal, {});
   const needsPayment = ['past_due', 'unpaid', 'incomplete'].includes(status);
@@ -27,6 +29,15 @@ export function BillingContent({ planName = 'No active plan', status = 'inactive
       </Form> : !isOwner && hasCustomer ? <p className="text-sm text-muted">Ask the account owner to manage billing.</p> : <Link href="/pricing" className={buttonVariants({ variant: 'primary' })}>View plans</Link>}
       {state.error ? <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Description>{state.error}</Alert.Description></Alert.Content></Alert> : null}
     </SettingsRow>
+    {allowance && ['active', 'trialing', 'past_due'].includes(allowance.status) ? <>
+      <Separator />
+      <SettingsRow label="Email unlocks" description={allowance.unlimited ? 'Unlimited for personal use' : allowance.allowanceMode === 'unlimited' ? 'Membership needs attention' : `${allowance.balance.toLocaleString('en-US')} remaining`}>
+        <p className="text-sm text-muted">{allowance.unlimited ? 'Your plan has no monthly email cap. For one person’s own outreach; no shared accounts or automated bulk harvesting.' : allowance.allowanceMode === 'unlimited' ? 'Unlimited email unlocks are available during an active paid membership. Review your membership and payment status above.' : allowance.allowanceMode === 'monthly' ? `${allowance.monthlyCredits} verified work email unlocks per billing period. Unused monthly unlocks do not roll over.` : allowance.monthlyCredits ? `${allowance.monthlyCredits} email unlocks included monthly under your existing plan. Your existing allowance rules are unchanged.` : 'Your existing plan’s email allowance applies.'}</p>
+        {allowance.allowanceMode === 'monthly' && allowance.periodEnd > 0 ? <p className="text-sm text-muted">Allowance period ends: {new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(allowance.periodEnd * 1000))}. Your allowance refreshes when the next billing period is paid.</p> : null}
+        <p className="text-sm text-muted">Searches and drafts are included. Unsuccessful lookups and viewing previously unlocked emails use no credits.</p>
+        <Link href="/terms#personal-use" className="text-sm text-accent underline">Usage terms</Link>
+      </SettingsRow>
+    </> : null}
     <Separator />
     <SettingsRow label="Payment help" description="Questions about a charge, failed payment or refund?">
       <a className="text-sm text-accent underline" href={`mailto:support@reachard.co?subject=${encodeURIComponent(BRAND_NAME)}%20billing%20help`}>Contact billing support</a>

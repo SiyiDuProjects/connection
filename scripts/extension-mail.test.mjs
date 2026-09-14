@@ -24,7 +24,7 @@ test('edited email survives reopening and mail app receives the current text', a
     }}}
   };
   sandbox.window=sandbox;
-  vm.runInNewContext(await readFile(new URL('../extension/sidepanel.js',import.meta.url),'utf8'),sandbox);
+  vm.runInNewContext(await readFile(new URL('../extension/brand.js',import.meta.url),'utf8') + '\n' + await readFile(new URL('../extension/sidepanel.js',import.meta.url),'utf8'),sandbox);
   sandbox.ReachardController.start();
   await new Promise(setImmediate);
   await actions.search();

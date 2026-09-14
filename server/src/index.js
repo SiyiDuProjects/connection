@@ -18,8 +18,10 @@ import {
   closeAccountDb,
   failApiRequest,
   getAccountSummary,
+  getBillingStateForUser,
   getCreditBalance,
-  getMembershipForUser,
+  getContactKey,
+  getPreviouslyRevealedContact,
   consumeFreeTrialOperation,
   hasRevealedEmail,
   getOnboardingForUser,
@@ -27,6 +29,7 @@ import {
   getUserSettings,
   isAccountDbConfigured,
   logApiUsage,
+  publicCredits,
   pruneApiIdempotencyKeys
 } from "./lib/account.js";
 
@@ -159,21 +162,22 @@ app.get(["/connect-extension", "/pricing"], (req, res) => {
 
 app.get("/api/account", async (req, res, next) => {
   try {
-    const [account, balance] = await Promise.all([
+    const [account, billing] = await Promise.all([
       getAccountSummary(req.user.id),
-      getCreditBalance(req.user.id)
+      getBillingStateForUser(req.user.id)
     ]);
     if (account.onboarding?.billing) {
-      account.onboarding.billing.creditsRemaining = balance;
-      account.onboarding.billing.creditStatus = balance > 0 ? "available" : "empty";
+      account.onboarding.billing.creditsRemaining = billing.unlimited ? null : billing.remaining;
+      account.onboarding.billing.creditStatus = publicCredits(billing).status;
+      account.onboarding.billing.unlimited = billing.unlimited;
     }
-    ok(res, { ...account, credits: { balance, remaining: balance } });
+    ok(res, { ...account, credits: publicCredits(billing) });
   } catch (error) {
     next(error);
   }
 });
 
-app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), requireCredits("contacts.search", creditCost("CONTACT_SEARCH_CREDITS", 0)), async (req, res, next) => {
+app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), requireCredits("contacts.search", 0), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
     if (!onboarding.complete) return fail(res, 428, `Complete your profile before using ${BRAND_NAME}.`, onboardingAction(onboarding));
@@ -215,10 +219,14 @@ app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), re
   }
 });
 
-app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), requireCredits("contacts.reveal", creditCost("CONTACT_REVEAL_CREDITS", 1)), async (req, res, next) => {
+app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), requireCredits("contacts.reveal", 1), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
     if (!onboarding.complete) return fail(res, 428, `Complete your profile before using ${BRAND_NAME}.`, onboardingAction(onboarding));
+    if (req.previouslyRevealedContact) {
+      const completed = await chargeAndRecord(req, 'contacts.reveal', req.previouslyRevealedContact);
+      return ok(res, completed.response);
+    }
     const contact = normalizeRevealContact(req.body?.contact);
     if (!contact) return fail(res, 400, "Choose a valid contact before revealing an email.");
 
@@ -265,7 +273,7 @@ app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), re
   }
 });
 
-app.post("/api/email/draft", prepareIdempotentRequest("email.draft"), requireCredits("email.draft", creditCost("EMAIL_DRAFT_CREDITS", 0)), async (req, res, next) => {
+app.post("/api/email/draft", prepareIdempotentRequest("email.draft"), requireCredits("email.draft", 0), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
     if (!onboarding.complete) return fail(res, 428, `Complete your profile before using ${BRAND_NAME}.`, onboardingAction(onboarding));
@@ -333,16 +341,19 @@ async function requireAuth(req, res, next) {
 function requireCredits(action, amount) {
   return async (req, res, next) => {
     try {
-      const balance = await getCreditBalance(req.user.id);
-      const membership = await getMembershipForUser(req.user.id);
+      const membership = await getBillingStateForUser(req.user.id);
+      const balance = membership.remaining;
+      req.previouslyRevealedContact = action === 'contacts.reveal'
+        ? await getPreviouslyRevealedContact(req.user.id, req.body?.contact) : null;
       req.freeTrial = !isBetaUnlimitedUsage() && membership.status === 'free_trial';
-      if (!isBetaUnlimitedUsage() && !hasActionAccess(membership, action, balance)) {
+      if (!req.previouslyRevealedContact && !isBetaUnlimitedUsage() && !hasActionAccess(membership, action, balance)) {
         await failApiRequest({ userId: req.user.id, action, idempotencyKey: req.idempotencyKey, error: 'membership_required' });
         return fail(res, 402, req.freeTrial ? 'Your 3 free email unlocks have been used. Choose a plan to continue.' : `An active ${BRAND_NAME} membership is required.`, {
           action: { label: "View membership plans", url: `${getWebRedirectBaseUrl()}/pricing` }
         });
       }
-      if (balance < amount) {
+      const chargeAmount = membership.unlimited || isBetaUnlimitedUsage() || req.previouslyRevealedContact ? 0 : amount;
+      if (balance < chargeAmount) {
         await failApiRequest({
           userId: req.user.id,
           action,
@@ -351,7 +362,7 @@ function requireCredits(action, amount) {
         });
         return fail(res, 402, "Your included email allowance has been used.", {
           action: { label: "Open pricing", url: `${getWebRedirectBaseUrl()}/pricing` },
-          credits: { remaining: balance, required: amount }
+          credits: { ...publicCredits(membership), required: chargeAmount }
         });
       }
 
@@ -389,8 +400,10 @@ function prepareIdempotentRequest(action) {
         idempotencyKey: req.idempotencyKey
       });
       if (claim.status === "replay") {
-        return ok(res, { ...(claim.response || {}), idempotentReplay: true });
+        const billing = await getBillingStateForUser(req.user.id);
+        return ok(res, { ...(claim.response || {}), credits: publicCredits(billing), idempotentReplay: true });
       }
+      if (claim.status === 'expired') return fail(res, 409, 'This request has already completed. Retry with a new Idempotency-Key.');
       if (claim.status === "processing") {
         res.setHeader("Retry-After", "2");
         return fail(res, 409, "This request is already being processed.");
@@ -415,7 +428,7 @@ async function chargeAndRecord(req, action, response, internalCost) {
   });
 
   if (!result?.ok) {
-    throw publicError("Your included email allowance has been used.", 402, {
+    throw publicError(result?.membershipRequired ? `An active ${BRAND_NAME} membership is required.` : "Your included email allowance has been used.", 402, {
       action: { label: "Open pricing", url: `${getWebRedirectBaseUrl()}/pricing` },
       credits: { remaining: result?.balance ?? 0, required: charge.amount }
     });
@@ -459,17 +472,9 @@ function summarizeRequest(req) {
     companyDomain: context.companyDomain,
     jobTitle: context.jobTitle,
     contactProvider: body.contact?.provider,
-    contactId: body.contact?.id || body.contact?.linkedinUrl
+    contactId: body.contact?.id || body.contact?.linkedinUrl,
+    contactKey: getContactKey(body.contact)
   };
-}
-
-function creditCost(name, fallback) {
-  if (isBetaUnlimitedUsage()) return 0;
-  const parsed = Number(process.env[name] ?? fallback);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error(`${name} must be a non-negative number.`);
-  }
-  return parsed;
 }
 
 function positiveIntegerEnv(name, fallback) {

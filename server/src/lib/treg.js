@@ -90,11 +90,8 @@ export async function searchTregContacts(job = {}, request = {}) {
 
 export async function revealTregEmail(contact = {}, request = {}) {
   requireTregToken();
-  if (isEmail(contact.email)) {
-    setInternalCost(request, { provider: "existing", cached: true, costMicroUsd: 0 });
-    return String(contact.email).trim().toLowerCase();
-  }
-
+  // Input describes whom to look up; an input email is never verification
+  // evidence. Existing user-owned unlocks are handled by the account store.
   const query = apolloEmailLookupQuery(contact);
   if (!query) return "";
 

@@ -8,6 +8,12 @@ export function hasMembershipAccess(membership, now = Date.now()) {
     && Number(membership?.periodEnd) * 1000 > now;
 }
 
+// Unlimited is an entitlement issued for an exact purchased price. A display
+// name such as "Plus" is not sufficient: legacy Plus subscriptions are limited.
+export function hasUnlimitedAllowance(membership, now = Date.now()) {
+  return membership?.allowanceMode === 'unlimited' && hasMembershipAccess(membership, now);
+}
+
 export function hasActionAccess(membership, action, balance, now = Date.now()) {
   if (hasMembershipAccess(membership, now)) return true;
   if (membership?.status !== 'free_trial') return false;

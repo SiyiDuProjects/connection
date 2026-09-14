@@ -20,29 +20,36 @@ const contentStyles = await readFile(
   "utf8"
 );
 
-assert.equal(manifest.name, "Reachard");
-assert.ok(!manifest.permissions.includes("scripting"), "extension must not request scripting permission");
+const brand = JSON.parse(await readFile(new URL('../brand/brand.json', import.meta.url), 'utf8'));
+assert.equal(manifest.name, brand.name);
+assert.ok(manifest.permissions.includes('activeTab'), 'page access must follow a toolbar gesture');
+assert.ok(manifest.permissions.includes('scripting'), 'inject the bundled reader after the gesture');
+assert.equal(manifest.optional_host_permissions, undefined);
+for (const pattern of [...manifest.host_permissions, ...manifest.content_scripts.flatMap(script => script.matches)]) {
+  assert.ok(!['<all_urls>', 'https://*/*', 'http://*/*', '*://*/*'].includes(pattern), 'no persistent all-site access');
+}
 assert.ok(!`${manifestText}\n${runtimeText}`.includes("reachard.studio"), "retired .studio domain must not return");
 assert.ok(manifest.host_permissions.includes("https://reachard.co/*"));
 assert.ok(manifest.host_permissions.includes("https://contacts.reachard.co/*"));
 assert.equal(manifest.options_page, undefined, "extension account settings must stay on the website");
 const uiSource = await readFile(new URL("../extension-ui/index.jsx", import.meta.url), "utf8");
-assert.deepEqual(manifest.content_scripts[0].js, ['content.js']);
+assert.deepEqual(manifest.content_scripts.map(script => script.js), [['brand.js', 'content.js'], ['web_bridge.js']]);
 assert.ok(manifest.permissions.includes('sidePanel'));
 assert.equal(manifest.side_panel.default_path, 'sidepanel.html');
-assert.equal(manifest.web_accessible_resources, undefined);
-assert.ok(!runtimeFiles[0].includes('createElement(\'iframe\')'));
-assert.ok(!runtimeFiles[0].includes('createElement(\'aside\')'));
+assert.equal(manifest.web_accessible_resources, undefined, 'native side panel needs no public iframe entry');
+assert.ok(!runtimeFiles[0].includes('createElement("iframe")'), 'do not replace the native panel with a webpage iframe');
+assert.ok(!runtimeFiles[0].includes('fc-sidebar-text'), 'launcher must contain only the Reachard mark');
+assert.match(contentStyles, /width: 56px;[\s\S]*height: 56px;/, 'launcher has a square footprint');
+assert.ok(contentStyles.includes('prefers-reduced-motion'), 'launcher attention respects reduced motion');
 assert.ok(!contentStyles.includes('data-reachard-docked'));
 assert.ok(runtimeFiles[0].includes('OPEN_REACHARD_SIDE_PANEL'));
 assert.ok(runtimeText.includes('chrome.sidePanel.open'));
 assert.ok(runtimeText.includes('chrome.sidePanel.close'));
-assert.ok(!runtimeText.includes('GET_REACHARD_EMBEDDED_CONTEXT'));
 assert.ok(!uiSource.includes('ep-toolbar'), "native browser header must not be duplicated inside the panel");
 assert.ok(uiSource.includes("attachShadow"), "extension styles must be isolated from visited websites");
 assert.ok(uiSource.includes("UNSTABLE_portalContainer={portal}"), "menus must stay inside the isolated UI");
 assert.ok(uiSource.includes("isNonModal"), "menus must not hide their Shadow DOM host from accessibility");
-assert.ok(uiSource.includes("Log In to Reachard"), "signed-out primary action must be explicit");
+assert.ok(uiSource.includes("? 'Sign in'"), "signed-out primary action must be explicit");
 assert.ok(!/\bzh:\s*\{/.test(runtimeText), "extension must remain English-only");
 assert.ok(runtimeText.includes("window.ReachardUI.render(panel, state"), "UI must render the actual extension state");
 for (const action of ["search: runSearch", "reveal: revealEmail", "draft: draftEmail", "save: saveCustomizeFromPanel"]) {

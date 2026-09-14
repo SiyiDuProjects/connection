@@ -13,6 +13,7 @@
     "test:country": "node src/lib/contact-country.test-fixtures.js",
     "test:usage-guard": "node --test src/lib/usage-guard.test-fixtures.js",
     "test:spend-budget": "node --test src/lib/spend-budget.test-fixtures.js",
+    "test:entitlements": "node --test src/lib/account-entitlements.test-fixtures.js",
     "test:email": "node src/lib/email.test-fixtures.js",
     "report:costs": "node src/scripts/report-internal-costs.js",
     "test:live-flow": "node scripts/test-live-contact-flow.mjs",
@@ -28,5 +29,8 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8"
+  },
+  "overrides": {
+    "qs": "6.16.0"
   }
 }

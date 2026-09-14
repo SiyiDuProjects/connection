@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import './sync-brand.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const webRequire = createRequire(path.join(root, 'web/package.json'));

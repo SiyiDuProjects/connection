@@ -17,16 +17,23 @@ const pg = new PGlite();
 const database = drizzle(pg);
 const cache = new Map();
 const sub = new Map(), sessions = new Map();
+const priceOverrides = new Map();
+const invoiceOverrides = new Map();
+process.env.STRIPE_BASE_PRICE_ID = 'price_base_current';
+process.env.STRIPE_PLUS_PRICE_ID = 'price_plus_current';
 let events = [], balances = [], createdSessions = [], portals = [], configs = [];
 let failStripe = false;
-const future = Math.floor(Date.now() / 1000) + 86400 * 30;
-const price = (id = 'price_base', name = 'Base') => ({ id, active: true, type: 'recurring', billing_scheme: 'per_unit',
-  unit_amount: name === 'Base' ? 800 : 1200, currency: 'usd', recurring: { interval: 'month', interval_count: 1, usage_type: 'licensed' },
+const now = Math.floor(Date.now() / 1000);
+const future = now + 86400 * 30;
+const price = (id = 'price_base', name = id.includes('plus') ? 'Plus' : 'Base') => ({ id, active: true, type: 'recurring', billing_scheme: 'per_unit',
+  unit_amount: name === 'Base' ? (id.endsWith('_current') ? 900 : 800) : (id.endsWith('_current') ? 1900 : 1200),
+  currency: 'usd', recurring: { interval: 'month', interval_count: 1, usage_type: 'licensed' },
   product: { id: `prod_${name}`, active: true, name, default_price: id } });
 const subscription = (id = 'sub_main', options = {}) => ({ id, customer: 'cus_main', status: 'active', created: 10,
-  metadata: { reachardTeamId: '1' }, items: { data: [{ price: price(), quantity: 1, current_period_end: future }] }, ...options });
+  metadata: { reachardTeamId: '1' }, items: { data: [{ price: price(), quantity: 1, current_period_start: now - 86400, current_period_end: future }] }, ...options });
 const checkoutSession = (id = 'cs_main', options = {}) => ({ id, customer: 'cus_main', subscription: 'sub_main',
-  status: 'complete', mode: 'subscription', payment_status: 'paid', client_reference_id: '1', metadata: { reachardTeamId: '1' }, ...options });
+  status: 'complete', mode: 'subscription', payment_status: 'paid', client_reference_id: '1', priceId: 'price_base',
+  invoice: 'in_checkout', metadata: { reachardTeamId: '1' }, ...options });
 const invoice = (options = {}) => ({ id: 'in_renewal', customer: 'cus_main', status: 'paid', amount_paid: 800,
   billing_reason: 'subscription_cycle', parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_main' } },
   lines: { has_more: false, data: [{ period: { start: future - 100, end: future + 86400 * 30 },
@@ -39,12 +46,25 @@ const fakeStripe = {
     retrieve: async id => { if (failStripe) throw new Error('fixture unavailable'); assert.ok(sub.has(id), id); return clone(sub.get(id)); },
     list: async ({ customer }) => ({ data: [...sub.values()].filter(item => item.customer === customer), has_more: false }),
   },
-  prices: { retrieve: async id => price(id, id === 'price_plus' ? 'Plus' : 'Base') },
+  prices: {
+    retrieve: async id => clone(priceOverrides.get(id) || price(id)),
+    list: async ({ product } = {}) => ({ data: [...priceOverrides.values()].filter(item => !product || item.product.id === product).map(clone), has_more: false }),
+  },
+  invoices: {
+    retrieve: async id => clone(invoiceOverrides.get(id) || invoice({ id, billing_reason: 'subscription_create',
+      lines: { has_more: false, data: [{ amount: price(sessions.get('cs_main').priceId).unit_amount,
+        period: { start: now - 86400, end: future },
+        parent: { type: 'subscription_item_details', subscription_item_details: { subscription: 'sub_main', proration: false } },
+        pricing: { price_details: { price: sessions.get('cs_main').priceId } } }] } })),
+  },
   checkout: { sessions: {
     retrieve: async id => { assert.ok(sessions.has(id), id); return clone(sessions.get(id)); },
     list: async filter => ({ data: [...sessions.values()].filter(item => (!filter.customer || item.customer === filter.customer)
       && (!filter.subscription || item.subscription === filter.subscription) && (!filter.status || item.status === filter.status)), has_more: false }),
-    listLineItems: async id => ({ data: [{ price: { id: sessions.get(id).priceId || 'price_base' } }] }),
+    listLineItems: async id => {
+      const priceId = sessions.get(id).priceId || 'price_base';
+      return { data: [{ price: clone(priceOverrides.get(priceId) || price(priceId)), quantity: 1 }] };
+    },
     expire: async id => { const session = sessions.get(id); assert.equal(session.status, 'open'); session.status = 'expired'; return clone(session); },
     create: async params => { createdSessions.push(params); const id = `cs_new_${createdSessions.length}`;
       const session = { ...params, id, status: 'open', priceId: params.line_items[0].price, url: `https://checkout.stripe.com/${id}` };
@@ -59,6 +79,7 @@ const fakeStripe = {
   billingPortal: {
     configurations: {
       list: async () => ({ data: configs }),
+      retrieve: async id => { const config = configs.find(item => item.id === id); assert.ok(config); return clone(config); },
       create: async data => { const result = { ...data, id: 'bpc_reachard', active: true }; configs.push(result); return result; },
     },
     sessions: { create: async data => { portals.push(data); return { url: 'https://billing.stripe.com/fixture' }; } },
@@ -96,30 +117,37 @@ const billing = load(resolve(root, 'lib/payments/stripe.ts'));
 const invoices = load(resolve(root, 'lib/payments/invoices.ts'));
 const webhook = load(resolve(root, 'app/api/stripe/webhook/route.ts'));
 const policy = load(resolve(root, 'lib/payments/billing-policy.ts'));
+const plans = load(resolve(root, 'lib/payments/plans.ts'));
 const previousDbUrl = process.env.POSTGRES_URL;
 process.env.POSTGRES_URL = 'fixture-only';
 const account = load(resolve(root, '../server/src/lib/account.js'));
 if (previousDbUrl === undefined) delete process.env.POSTGRES_URL; else process.env.POSTGRES_URL = previousDbUrl;
 const rows = async sql => (await pg.query(sql)).rows;
 const grants = () => rows('SELECT * FROM credit_ledger ORDER BY id');
+function useCurrentCheckout(name = 'Base') {
+  const id = name === 'Base' ? 'price_base_current' : 'price_plus_current';
+  sub.get('sub_main').items.data[0].price = price(id);
+  sessions.get('cs_main').priceId = id;
+  return id;
+}
+function invoiceLine(priceId, { start = now - 30, end = future, amount = 100, proration = false, credited = false } = {}) {
+  return { amount, period: { start, end }, pricing: { price_details: { price: priceId } },
+    parent: { type: 'subscription_item_details', subscription_item_details: {
+      subscription: 'sub_main', proration,
+      ...(credited ? { proration_details: { credited_items: { invoice: 'in_previous', invoice_line_items: ['il_previous'] } } } : {})
+    } } };
+}
 
 before(async () => {
-  await pg.exec(`CREATE TABLE users (id serial PRIMARY KEY, name varchar(100), email varchar(255), email_verified_at timestamp, password_hash text,
-    role varchar(20) DEFAULT 'owner', created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now(), deleted_at timestamp);
-    CREATE TABLE teams (id serial PRIMARY KEY, name varchar(100), created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now(),
-      stripe_customer_id text UNIQUE, stripe_subscription_id text UNIQUE, stripe_product_id text, plan_name varchar(50), subscription_status varchar(20));
-    CREATE TABLE team_members (id serial PRIMARY KEY, user_id int, team_id int, role varchar(50), joined_at timestamp DEFAULT now());
-    CREATE TABLE credit_ledger (id serial PRIMARY KEY, user_id int, amount int, action text, request_id text, metadata jsonb DEFAULT '{}', created_at timestamp DEFAULT now());
-    CREATE TABLE stripe_webhook_events (id text PRIMARY KEY, type text, processed boolean DEFAULT false, created_at timestamp DEFAULT now());
-    CREATE TABLE friend_invites (id serial PRIMARY KEY, inviter_user_id int, token text, created_at timestamp DEFAULT now(), last_generated_at timestamp DEFAULT now());
-    CREATE TABLE friend_invite_redemptions (id serial PRIMARY KEY, invite_id int, invited_user_id int, created_at timestamp DEFAULT now());`);
-  await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0010_friend_invite_rewards.sql'), 'utf8'));
-  await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0015_password_recovery.sql'), 'utf8'));
-  await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0017_free_trial.sql'), 'utf8'));
-  // Intentionally omit billing grant indexes: row locking must still prevent duplicate grants.
+  const journal = JSON.parse(readFileSync(resolve(root, 'lib/db/migrations/meta/_journal.json'), 'utf8'));
+  for (const entry of journal.entries.filter(entry => entry.idx <= 19)) {
+    await pg.exec(readFileSync(resolve(root, 'lib/db/migrations', `${entry.tag}.sql`), 'utf8'));
+  }
+  // Row locking must still prevent duplicates without the defense-in-depth indexes.
+  await pg.exec('DROP INDEX credit_ledger_initial_subscription_unique; DROP INDEX credit_ledger_monthly_invoice_unique;');
 });
 beforeEach(async () => {
-  sub.clear(); sessions.clear(); events = []; balances = []; createdSessions = []; portals = []; configs = []; failStripe = false;
+  sub.clear(); sessions.clear(); priceOverrides.clear(); invoiceOverrides.clear(); events = []; balances = []; createdSessions = []; portals = []; configs = []; failStripe = false;
   sub.set('sub_main', subscription());
   sub.set('sub_inviter', subscription('sub_inviter', { customer: 'cus_inviter' }));
   sessions.set('cs_main', checkoutSession());
@@ -189,23 +217,30 @@ test('old subscription snapshots synchronize latest state and cannot cancel a ne
 test('repeated checkout starts reuse the open session; plan change expires the old one', async () => {
   sub.delete('sub_main'); sessions.clear();
   const team = { id: 1 };
-  for (let index=0; index<2; index++) await assert.rejects(billing.createCheckoutSession({ team, priceId: 'price_base' }), error => error.url === 'https://checkout.stripe.com/cs_new_1');
+  for (let index=0; index<2; index++) await assert.rejects(billing.createCheckoutSession({ team, priceId: 'price_base_current' }), error => error.url === 'https://checkout.stripe.com/cs_new_1');
   assert.equal(createdSessions.length, 1);
-  await assert.rejects(billing.createCheckoutSession({ team, priceId: 'price_plus' }), error => error.url === 'https://checkout.stripe.com/cs_new_2');
+  await assert.rejects(billing.createCheckoutSession({ team, priceId: 'price_plus_current' }), error => error.url === 'https://checkout.stripe.com/cs_new_2');
   assert.equal(sessions.get('cs_new_1').status, 'expired');
 });
 test('past due and unpaid subscriptions block a second checkout', async () => {
   for (const status of ['past_due','unpaid','incomplete','paused']) {
     sub.get('sub_main').status = status;
-    await assert.rejects(billing.createCheckoutSession({ team: { id: 1 }, priceId: 'price_base' }), error => error.url === '/dashboard?billing=already-active');
+    await assert.rejects(billing.createCheckoutSession({ team: { id: 1 }, priceId: 'price_base_current' }), error => error.url === '/dashboard?billing=already-active');
   }
   assert.equal(createdSessions.length, 0);
 });
-test('portal ignores another product configuration and disables unsupported changes', async () => {
+test('portal allows only current prices, invoices upgrades, and schedules cheaper changes for the period end', async () => {
   configs = [{ id: 'bpc_other', metadata: {}, features: { subscription_update: { enabled: true } } }];
   await billing.createCustomerPortalSession({ stripeCustomerId: 'cus_main' });
   assert.equal(portals[0].configuration, 'bpc_reachard');
-  assert.equal(configs[1].features.subscription_update.enabled, false);
+  const update = configs[1].features.subscription_update;
+  assert.equal(update.enabled, true);
+  assert.deepEqual(update.default_allowed_updates, ['price']);
+  assert.equal(update.proration_behavior, 'always_invoice');
+  assert.deepEqual(update.products, [
+    { product: 'prod_Base', prices: ['price_base_current'] }, { product: 'prod_Plus', prices: ['price_plus_current'] }
+  ]);
+  assert.deepEqual(update.schedule_at_period_end.conditions, [{ type: 'decreasing_item_amount' }]);
   assert.equal(configs[1].features.subscription_cancel.mode, 'at_period_end');
 });
 test('signed webhook retries a transient failure; tampered payload is rejected; replay is acknowledged', async () => {
@@ -254,7 +289,7 @@ test('contacts API reads only the current membership period from the real ledger
   await checkout.handleSuccessfulCheckoutSession('cs_main');
   assert.equal(hasMembershipAccess(await account.getMembershipForUser(1)), true);
   await invoices.handlePaidInvoice(invoice());
-  assert.equal((await account.getMembershipForUser(1)).periodEnd, future + 86400 * 30);
+  assert.equal((await account.getMembershipForUser(1)).periodEnd, future);
   await pg.exec("UPDATE teams SET stripe_subscription_id='sub_different' WHERE id=1");
   assert.equal(hasMembershipAccess(await account.getMembershipForUser(1)), false);
 });
@@ -264,4 +299,237 @@ test('account deletion can safely encounter an already canceled subscription', a
   await billing.cancelSubscriptionAtPeriodEnd('sub_main');
   sub.get('sub_main').status = 'active'; sub.get('sub_main').cancel_at_period_end = true;
   await billing.cancelSubscriptionAtPeriodEnd('sub_main');
+});
+
+test('current $9 checkout grants exactly 50 with a purchased-price period, excluding prior trial or saved allowance', async () => {
+  useCurrentCheckout();
+  await pg.exec("insert into credit_ledger(user_id,amount,action) values(1,3,'trial.initial_grant'),(1,100,'manual.legacy_grant')");
+  await Promise.all([checkout.handleSuccessfulCheckoutSession('cs_main'), checkout.handleSuccessfulCheckoutSession('cs_main')]);
+  const grant = (await grants()).find(row => row.action === 'subscription.initial_grant');
+  assert.equal(grant.amount, 50);
+  assert.equal(grant.metadata.entitlementVersion, plans.ENTITLEMENT_VERSION);
+  assert.equal(grant.metadata.allowanceMode, 'monthly');
+  assert.equal(grant.metadata.priceId, 'price_base_current');
+  assert.equal(grant.metadata.periodStart, now - 86400);
+  assert.equal(grant.metadata.periodEnd, future);
+  const entitlement = await account.getBillingStateForUser(1);
+  assert.equal(entitlement.remaining, 50);
+  assert.equal(entitlement.unlimited, false);
+});
+
+test('current $19 checkout grants a paid unlimited period without numeric customer credits', async () => {
+  useCurrentCheckout('Plus');
+  await checkout.handleSuccessfulCheckoutSession('cs_main');
+  const grant = (await grants())[0];
+  assert.equal(grant.amount, 0);
+  assert.equal(grant.metadata.allowanceMode, 'unlimited');
+  assert.equal(grant.metadata.priceId, 'price_plus_current');
+  const entitlement = await account.getBillingStateForUser(1);
+  assert.equal(entitlement.unlimited, true);
+  assert.equal(account.publicCredits(entitlement).remaining, null);
+});
+
+test('old prices cannot start new checkouts, while existing $8 and $12 subscriptions retain 20 and 60', async () => {
+  for (const [id, allowance] of [['price_base', 20], ['price_plus', 60]]) {
+    await assert.rejects(billing.resolveCheckoutPlan(id), /configured price/);
+    const value = subscription(); value.items.data[0].price = price(id);
+    const plan = await billing.resolveSubscriptionPlan(value);
+    assert.equal(plan.monthlyCredits, allowance);
+    assert.equal(plan.unlimited, false);
+    assert.equal(plan.allowanceMode, 'legacy');
+  }
+  for (const [id, amount] of [['price_base_current', 900], ['price_plus_current', 1900]]) {
+    assert.equal((await billing.resolveCheckoutPlan(id)).priceId, id);
+    priceOverrides.set(id, { ...price(id), unit_amount: amount - 100 });
+    await assert.rejects(billing.resolveCheckoutPlan(id), /published/);
+    priceOverrides.delete(id);
+  }
+});
+
+test('a subscription update alone and an unpaid upgrade invoice cannot unlock Plus', async () => {
+  useCurrentCheckout(); await checkout.handleSuccessfulCheckoutSession('cs_main');
+  sub.get('sub_main').items.data[0].price = price('price_plus_current');
+  await billing.handleSubscriptionChange(subscription());
+  await invoices.handlePaidInvoice(invoice({ status: 'open', billing_reason: 'subscription_update',
+    lines: { has_more: false, data: [invoiceLine('price_plus_current', { proration: true })] } }));
+  assert.equal((await grants()).length, 1);
+  assert.equal((await account.getBillingStateForUser(1)).unlimited, false);
+  assert.equal((await account.getBillingStateForUser(1)).remaining, 50);
+});
+
+test('paid upgrade skips a zero-dollar old-price credit and grants Plus exactly once', async () => {
+  useCurrentCheckout(); await checkout.handleSuccessfulCheckoutSession('cs_main');
+  const paid = invoice({ id: 'in_upgrade', billing_reason: 'subscription_update', amount_paid: 1000,
+    lines: { has_more: false, data: [
+      invoiceLine('price_base_current', { amount: 0, start: now - 86400, proration: true, credited: true }),
+      invoiceLine('price_plus_current', { amount: 1000, proration: true })
+    ] } });
+  await Promise.all([invoices.handlePaidInvoice(paid), invoices.handlePaidInvoice(paid)]);
+  assert.equal((await grants()).length, 2);
+  assert.equal((await grants())[1].metadata.priceId, 'price_plus_current');
+  assert.equal((await account.getBillingStateForUser(1)).unlimited, true);
+});
+
+test('late old Base invoice in the same period cannot overwrite a more recent paid Plus upgrade', async () => {
+  useCurrentCheckout(); await checkout.handleSuccessfulCheckoutSession('cs_main');
+  await invoices.handlePaidInvoice(invoice({ id: 'in_upgrade', billing_reason: 'subscription_update',
+    lines: { has_more: false, data: [invoiceLine('price_plus_current', { proration: true })] } }));
+  await invoices.handlePaidInvoice(invoice({ id: 'in_delayed_base',
+    lines: { has_more: false, data: [invoiceLine('price_base_current', { start: now - 86400 })] } }));
+  assert.equal((await account.getBillingStateForUser(1)).unlimited, true);
+});
+
+test('a future downgrade invoice leaves Plus unlimited until its purchased billing period starts', async () => {
+  useCurrentCheckout('Plus'); await checkout.handleSuccessfulCheckoutSession('cs_main');
+  await invoices.handlePaidInvoice(invoice({ id: 'in_scheduled_base', amount_paid: 900,
+    lines: { has_more: false, data: [invoiceLine('price_base_current', { start: future, end: future + 86400 * 30, amount: 900 })] } }));
+  const entitlement = await account.getBillingStateForUser(1);
+  assert.equal(entitlement.unlimited, true);
+  assert.equal(entitlement.periodEnd, future);
+});
+
+test('a downgrade starts a fresh Base allowance after the prior Plus period has ended', async () => {
+  useCurrentCheckout('Plus');
+  invoiceOverrides.set('in_checkout', invoice({ id: 'in_checkout', billing_reason: 'subscription_create',
+    lines: { has_more: false, data: [invoiceLine('price_plus_current', { start: now - 86400 * 30, end: now - 60, amount: 1900 })] } }));
+  await checkout.handleSuccessfulCheckoutSession('cs_main');
+  await invoices.handlePaidInvoice(invoice({ id: 'in_current_base', amount_paid: 900,
+    lines: { has_more: false, data: [invoiceLine('price_base_current', { start: now - 60, end: future, amount: 900 })] } }));
+  const entitlement = await account.getBillingStateForUser(1);
+  assert.equal(entitlement.unlimited, false);
+  assert.equal(entitlement.allowanceMode, 'monthly');
+  assert.equal(entitlement.remaining, 50);
+});
+
+test('delayed Base checkout fulfillment cannot use a newer unpaid Plus subscription price', async () => {
+  useCurrentCheckout();
+  sub.get('sub_main').items.data[0].price = price('price_plus_current');
+  await checkout.handleSuccessfulCheckoutSession('cs_main');
+  const grant = (await grants())[0];
+  assert.equal(grant.metadata.priceId, 'price_base_current');
+  assert.equal(grant.amount, 50);
+  assert.equal((await account.getBillingStateForUser(1)).unlimited, false);
+});
+
+test('current-price checkout waits for its paid invoice and rejects mismatched invoice ownership', async () => {
+  useCurrentCheckout();
+  sessions.get('cs_main').invoice = null;
+  await assert.rejects(checkout.handleSuccessfulCheckoutSession('cs_main'), /invoice/i);
+  assert.equal((await grants()).length, 0);
+  sessions.get('cs_main').invoice = 'in_checkout';
+  invoiceOverrides.set('in_checkout', invoice({ id: 'in_checkout', billing_reason: 'subscription_create', customer: 'cus_other' }));
+  await assert.rejects(checkout.handleSuccessfulCheckoutSession('cs_main'), /invoice|customer/i);
+  assert.equal((await grants()).length, 0);
+});
+
+test('revisiting an older Base checkout cannot roll back the visible plan after a paid Plus upgrade', async () => {
+  useCurrentCheckout(); await checkout.handleSuccessfulCheckoutSession('cs_main');
+  sub.get('sub_main').items.data[0].price = price('price_plus_current');
+  await billing.handleSubscriptionChange(subscription());
+  await invoices.handlePaidInvoice(invoice({ id: 'in_upgrade', billing_reason: 'subscription_update',
+    lines: { has_more: false, data: [invoiceLine('price_plus_current', { proration: true })] } }));
+  await checkout.handleSuccessfulCheckoutSession('cs_main');
+  assert.equal((await rows('select plan_name from teams where id=1'))[0].plan_name, 'Plus');
+  assert.equal((await account.getBillingStateForUser(1)).unlimited, true);
+});
+
+test('stale configured $8/$12 IDs preserve legacy fulfillment while new checkout still rejects those old prices', async () => {
+  const savedEnv = [process.env.STRIPE_BASE_PRICE_ID, process.env.STRIPE_PLUS_PRICE_ID];
+  const savedCache = new Map(cache);
+  process.env.STRIPE_BASE_PRICE_ID = 'price_base'; process.env.STRIPE_PLUS_PRICE_ID = 'price_plus';
+  for (const path of ['lib/payments/plans.ts', 'lib/payments/stripe.ts', 'lib/payments/checkout.ts']) cache.delete(resolve(root, path));
+  try {
+    // Reload the actual module under the old environment, rather than changing
+    // its exported objects after initialization.
+    const staleBilling = load(resolve(root, 'lib/payments/stripe.ts'));
+    const staleCheckout = load(resolve(root, 'lib/payments/checkout.ts'));
+    for (const [id, allowance] of [['price_base', 20], ['price_plus', 60]]) {
+      const value = subscription(); value.items.data[0].price = price(id);
+      const plan = await staleBilling.resolveSubscriptionPlan(value);
+      assert.equal(plan.monthlyCredits, allowance);
+      assert.equal(plan.unlimited, false);
+      assert.equal(plan.allowanceMode, 'legacy');
+      await assert.rejects(staleBilling.resolveCheckoutPlan(id), /published/);
+    }
+    await staleCheckout.handleSuccessfulCheckoutSession('cs_main');
+    await staleCheckout.handleSuccessfulCheckoutSession('cs_main');
+    assert.deepEqual((await grants()).map(row => row.amount), [20]);
+  } finally {
+    [process.env.STRIPE_BASE_PRICE_ID, process.env.STRIPE_PLUS_PRICE_ID] = savedEnv;
+    cache.clear(); for (const [path, value] of savedCache) cache.set(path, value);
+  }
+});
+
+test('immutable current IDs or entitlement metadata with incorrect amounts can never fall back to legacy terms', () => {
+  for (const [name, id, wrongAmount] of [
+    ['Base', 'price_1UFMwl0nhgFoMCt9zFzWNPKB', 800], ['Plus', 'price_1UFMyB0nhgFoMCt9O3DiG8iW', 1200]
+  ]) {
+    assert.throws(() => plans.resolvePurchasedPlan(name, { id, currency: 'usd', unit_amount: wrongAmount }), /published/);
+    assert.throws(() => plans.resolvePurchasedPlan(name, { id: 'price_metadata_fixture', currency: 'usd', unit_amount: wrongAmount,
+      metadata: { reachardEntitlementVersion: plans.ENTITLEMENT_VERSION } }), /published/);
+    assert.throws(() => plans.resolvePurchasedPlan(name, { id, currency: 'eur', unit_amount: name === 'Base' ? 900 : 1900 }), /published/);
+  }
+});
+
+async function withoutConfiguredPrices(run) {
+  const savedEnv = [process.env.STRIPE_BASE_PRICE_ID, process.env.STRIPE_PLUS_PRICE_ID];
+  const savedCache = new Map(cache);
+  delete process.env.STRIPE_BASE_PRICE_ID; delete process.env.STRIPE_PLUS_PRICE_ID;
+  cache.clear();
+  try {
+    await run({ billing: load(resolve(root, 'lib/payments/stripe.ts')),
+      checkout: load(resolve(root, 'lib/payments/checkout.ts')),
+      pricing: load(resolve(root, 'app/(dashboard)/pricing/pricing-data.ts')).publicPricingPlans });
+  } finally {
+    [process.env.STRIPE_BASE_PRICE_ID, process.env.STRIPE_PLUS_PRICE_ID] = savedEnv;
+    cache.clear(); for (const [file, module] of savedCache) cache.set(file, module);
+  }
+}
+
+test('an unrecognized default or sole $9/$19 price is rejected before creating a chargeable checkout', async () => {
+  await withoutConfiguredPrices(async ({ billing: fresh, pricing }) => {
+    sub.delete('sub_main'); sessions.clear();
+    for (const name of ['Base', 'Plus']) for (const hasDefault of [true, false]) {
+      priceOverrides.clear();
+      const id = `price_unknown_${name}`;
+      const candidate = { ...price(id, name), unit_amount: name === 'Base' ? 900 : 1900 };
+      if (!hasDefault) candidate.product.default_price = null;
+      priceOverrides.set(id, candidate);
+      const listed = await fresh.getStripePrices();
+      const offer = pricing(listed, [{ id: candidate.product.id, name, defaultPriceId: candidate.product.default_price }]).find(item => item.name === name);
+      assert.equal(offer.priceId, null);
+      await assert.rejects(fresh.createCheckoutSession({ team: { id: 1 }, priceId: id }), /Unrecognized/);
+      assert.equal(createdSessions.length, 0);
+    }
+    assert.equal((await grants()).length, 0);
+  });
+});
+
+for (const identity of ['published', 'metadata']) test(`${identity} fallback has the same public, checkout and paid-invoice entitlement identity`, async () => {
+  await withoutConfiguredPrices(async ({ billing: fresh, checkout: freshCheckout, pricing }) => {
+    const name = identity === 'published' ? 'Base' : 'Plus';
+    const id = identity === 'published' ? 'price_1UFMwl0nhgFoMCt9zFzWNPKB' : 'price_metadata_plus';
+    const candidate = { ...price(id, name), unit_amount: name === 'Base' ? 900 : 1900,
+      ...(identity === 'metadata' ? { metadata: { reachardEntitlementVersion: plans.ENTITLEMENT_VERSION } } : {}) };
+    if (identity === 'metadata') candidate.product.default_price = null;
+    priceOverrides.set(id, candidate);
+    sub.delete('sub_main'); sessions.clear();
+    const listed = await fresh.getStripePrices();
+    const offer = pricing(listed, [{ id: candidate.product.id, name, defaultPriceId: candidate.product.default_price }]).find(item => item.name === name);
+    assert.equal(offer.priceId, id);
+    const checkoutPlan = await fresh.resolveCheckoutPlan(id);
+    assert.equal(checkoutPlan.entitlementVersion, plans.ENTITLEMENT_VERSION);
+    await assert.rejects(fresh.createCheckoutSession({ team: { id: 1 }, priceId: id }), error => error.url === 'https://checkout.stripe.com/cs_new_1');
+    assert.equal(createdSessions.length, 1);
+    sub.set('sub_main', subscription('sub_main', { items: { data: [{ price: candidate, quantity: 1, current_period_start: now - 30, current_period_end: future }] } }));
+    Object.assign(sessions.get('cs_new_1'), { status: 'complete', payment_status: 'paid', subscription: 'sub_main', invoice: 'in_identity' });
+    invoiceOverrides.set('in_identity', invoice({ id: 'in_identity', amount_paid: candidate.unit_amount, billing_reason: 'subscription_create',
+      lines: { has_more: false, data: [invoiceLine(id, { amount: candidate.unit_amount })] } }));
+    await freshCheckout.handleSuccessfulCheckoutSession('cs_new_1');
+    const [grant] = await grants();
+    assert.ok(grant); assert.equal(grant.metadata.priceId, id);
+    assert.equal(grant.metadata.entitlementVersion, checkoutPlan.entitlementVersion);
+    assert.equal(grant.metadata.allowanceMode, checkoutPlan.allowanceMode);
+    assert.equal(grant.amount, name === 'Base' ? 50 : 0);
+  });
 });

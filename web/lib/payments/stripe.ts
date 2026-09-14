@@ -11,14 +11,13 @@ import {
 } from '@/lib/db/queries';
 import {
   getReachardPlanByName,
-  requireReachardPlanByName,
+  ENTITLEMENT_VERSION,
+  resolvePurchasedPlan,
   type ReachardPlan
 } from '@/lib/payments/plans';
 import { recordProductEvent } from '@/lib/product-events';
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-04-30.basil'
-});
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function createCheckoutSession({
   team,
@@ -74,6 +73,7 @@ export async function createCheckoutSession({
       cancel_url: `${process.env.BASE_URL}/pricing`,
       customer: customerId, client_reference_id: String(user.id),
       allow_promotion_codes: true, metadata,
+      integration_identifier: 'reachard-checkout-hqmrzdka',
       subscription_data: { metadata, ...(trialDays ? { trial_period_days: trialDays } : {}) }
     }, { idempotencyKey: `checkout-${team.id}-${checkoutPlan.priceId}-${attempt}` });
     if (!session.url) throw new Error('Stripe did not return a checkout URL.');
@@ -87,35 +87,44 @@ export async function createCheckoutSession({
 
 export async function createCustomerPortalSession(team: Team) {
   if (!team.stripeCustomerId) redirect('/pricing');
+  const base = await resolveCheckoutPlan(getReachardPlanByName('Base')!.configuredPriceId);
+  const plus = await resolveCheckoutPlan(getReachardPlanByName('Plus')!.configuredPriceId);
+  const products = [base, plus].map(plan => ({ product: plan.productId, prices: [plan.priceId] }));
+  const policyId = 'personal-membership-v2';
+  const validConfiguration = (item: Stripe.BillingPortal.Configuration) => {
+    const update = item.features.subscription_update;
+    return item.active && item.metadata?.reachardPolicy === policyId
+      && item.features.subscription_cancel.enabled && item.features.subscription_cancel.mode === 'at_period_end'
+      && update.enabled && update.proration_behavior === 'always_invoice'
+      && update.default_allowed_updates.length === 1 && update.default_allowed_updates[0] === 'price'
+      && update.schedule_at_period_end?.conditions?.some(condition => condition.type === 'decreasing_item_amount')
+      && JSON.stringify(update.products?.map(product => ({ product: product.product, prices: [...product.prices].sort() }))
+        .sort((a, b) => a.product.localeCompare(b.product)))
+        === JSON.stringify([...products].sort((a, b) => a.product.localeCompare(b.product)));
+  };
   const configuredId = process.env.STRIPE_PORTAL_CONFIGURATION_ID?.trim();
   let configuration: Stripe.BillingPortal.Configuration | undefined;
   if (configuredId) {
-    configuration = await stripe.billingPortal.configurations.retrieve(configuredId);
-    if (!configuration.active) throw new Error('Configured billing portal is inactive.');
-    // Until paid upgrade allowances are implemented, use a management-only portal.
-    if (configuration.features.subscription_update.enabled
-      || !configuration.features.subscription_cancel.enabled
-      || configuration.features.subscription_cancel.mode !== 'at_period_end') {
-      throw new Error('Reachard portal must disable subscription updates until upgrade fulfillment is configured.');
-    }
-  } else {
+    const configured = await stripe.billingPortal.configurations.retrieve(configuredId);
+    if (validConfiguration(configured)) configuration = configured;
+  }
+  if (!configuration) {
     const configurations = await stripe.billingPortal.configurations.list({ active: true, limit: 100 });
-    configuration = configurations.data.find(item => item.metadata?.reachardPolicy === 'membership-management-v1'
-      && !item.features.subscription_update.enabled
-      && item.features.subscription_cancel.enabled
-      && item.features.subscription_cancel.mode === 'at_period_end');
+    configuration = configurations.data.find(validConfiguration);
   }
   if (!configuration) {
     configuration = await stripe.billingPortal.configurations.create({
-      metadata: { reachardPolicy: 'membership-management-v1' },
+      metadata: { reachardPolicy: policyId },
       business_profile: { headline: 'Manage your Reachard membership' },
       features: {
-        subscription_update: { enabled: false },
+        subscription_update: { enabled: true, default_allowed_updates: ['price'], products,
+          proration_behavior: 'always_invoice',
+          schedule_at_period_end: { conditions: [{ type: 'decreasing_item_amount' }] } },
         subscription_cancel: { enabled: true, mode: 'at_period_end' },
         payment_method_update: { enabled: true },
         invoice_history: { enabled: true }
       }
-    }, { idempotencyKey: 'reachard-portal-membership-management-v1' });
+    }, { idempotencyKey: `reachard-portal-${policyId}-${createHash('sha256').update(JSON.stringify(products)).digest('hex')}` });
   }
   return stripe.billingPortal.sessions.create({
     customer: team.stripeCustomerId,
@@ -164,7 +173,7 @@ export async function resolveSubscriptionPlan(subscription: Stripe.Subscription)
     ? await stripe.products.retrieve(price.product)
     : price.product;
   const product = requireAvailableProduct(productValue);
-  const plan = requireReachardPlanByName(product.name);
+  const plan = resolvePurchasedPlan(product.name, price);
   return {
     ...plan,
     priceId: price.id,
@@ -191,8 +200,20 @@ export async function resolveCheckoutPlan(priceId: string) {
     throw new Error('This Stripe price is not the configured price for this Reachard plan.');
   }
 
+  if (price.currency !== 'usd' || price.unit_amount !== (plan.key === 'base' ? 900 : 1900)) {
+    throw new Error('This Stripe price does not match the published Reachard price.');
+  }
+
+  // Validate the exact identity through the fulfillment resolver before any
+  // checkout session can be created. A new default price with the right
+  // amount is not sufficient if a paid invoice would not be recognized.
+  const purchasedPlan = resolvePurchasedPlan(product.name, price);
+  if (purchasedPlan.entitlementVersion !== ENTITLEMENT_VERSION || purchasedPlan.allowanceMode === 'legacy') {
+    throw new Error('This Stripe price is not a current Reachard membership.');
+  }
+
   return {
-    ...plan,
+    ...purchasedPlan,
     priceId: price.id,
     productId: product.id,
     trialPeriodDays: price.recurring?.trial_period_days || 0
@@ -241,6 +262,7 @@ export async function getStripePrices() {
       typeof price.product === 'string' ? price.product : price.product.id,
     unitAmount: price.unit_amount,
     currency: price.currency,
+    metadata: price.metadata,
     interval: price.recurring?.interval,
     trialPeriodDays: price.recurring?.trial_period_days
   }));

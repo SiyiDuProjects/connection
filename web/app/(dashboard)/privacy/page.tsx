@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 pb-20 pt-28 text-foreground">
       <article className="legal-copy">
-        <p className="text-sm font-semibold text-muted">Last updated September 7, 2026</p>
+        <p className="text-sm font-semibold text-muted">Last updated September 13, 2026</p>
         <h1>{BRAND_NAME} Privacy Policy</h1>
         <p>
           {BRAND_NAME} helps job seekers identify relevant company contacts and prepare personalized outreach. This policy explains what the {BRAND_NAME} website and browser extension process and why.
@@ -28,13 +28,13 @@ export default function PrivacyPage() {
           The extension reads supported page content locally so it can recognize a job, company, or professional-profile page. Job, company, and profile details are sent to {BRAND_NAME} when you ask it to search, reveal a work email, or create a draft. When you choose Sign in from a page, its URL may also be included in the sign-in return link so you can resume where you left off. {BRAND_NAME} does not sell browsing history, run advertising profiles, or send messages on your behalf.
         </p>
         <p>
-          Authentication tokens and recent account status are stored in Chrome local storage. Configured {BRAND_NAME} URLs may use Chrome sync storage. The extension keeps current search results and drafts while its panel is open. They are not a durable saved-contact or sent-mail archive.
+          Authentication tokens and recent account status are stored in Chrome local storage. Configured {BRAND_NAME} URLs may use Chrome sync storage. The extension keeps current search results and drafts while its panel is open. To let you reopen a work email without paying another credit, our server retains the email you successfully unlocked, its contact identifier, and your account association until you delete your account. This is an unlock record; Reachard does not keep a sent-mail archive.
         </p>
 
         <h2>Service providers</h2>
         <p>We share only the information needed to deliver the requested feature with service providers such as:</p>
         <ul>
-          <li>Treg for company-contact search and work-email lookups through providers including Icypeas and Apollo; RapidAPI for school and location suggestions;</li>
+          <li>Treg for company-contact search and work-email lookups through providers including Icypeas and Apollo;</li>
           <li>OpenAI for contact-query planning and outreach drafting;</li>
           <li>Stripe for subscriptions and billing;</li>
           <li>Resend for account verification, password recovery, and account security emails;</li>
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
 
         <h2>Retention and deletion</h2>
         <p>
-          Account profile and resume context are retained while your account is active. Deleting an account revokes extension access, schedules an owner subscription to stop renewing, removes saved profile settings and verification tokens, clears cached API results, removes the account name and password hash, and replaces the sign-in email with a random deletion identifier. Limited billing, security, fraud-prevention, and usage records may be retained where reasonably necessary for accounting, legal obligations, or dispute handling.
+          Account profile and resume context are retained while your account is active. Deleting an account revokes extension access, schedules an owner subscription to stop renewing, removes saved profile settings, email unlock records and verification tokens, clears cached API results, removes the account name and password hash, and replaces the sign-in email with a random deletion identifier. Limited billing, security, fraud-prevention, and usage records may be retained where reasonably necessary for accounting, legal obligations, or dispute handling.
         </p>
 
         <p>We retain a fingerprint of the verified email address used for a free trial to prevent repeated claims after account deletion.</p>

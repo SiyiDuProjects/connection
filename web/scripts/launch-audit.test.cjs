@@ -133,12 +133,14 @@ test('account deletion is atomic, retryable and isolated from another user', asy
     CREATE TABLE email_verification_tokens (id serial PRIMARY KEY, user_id integer);
     CREATE TABLE password_reset_tokens (id serial PRIMARY KEY, user_id integer);
     CREATE TABLE api_idempotency_keys (id serial PRIMARY KEY, user_id integer);
+    CREATE TABLE contact_email_unlocks (user_id integer, email_fingerprint text);
     CREATE TABLE team_members (id serial PRIMARY KEY, user_id integer);
     CREATE TABLE activity_logs (id serial PRIMARY KEY, team_id integer, user_id integer, action text, ip_address text, timestamp timestamp DEFAULT now());
     INSERT INTO users (id,name,email,password_hash,email_verified_at) VALUES (1,'First','first@example.com','old-hash',now()),(2,'Other','other@example.com','other-hash',now());
     INSERT INTO extension_api_tokens (user_id) VALUES (1),(2);
     INSERT INTO email_verification_tokens (user_id) VALUES (1),(2);
     INSERT INTO api_idempotency_keys (user_id) VALUES (1),(2);
+    INSERT INTO contact_email_unlocks (user_id,email_fingerprint) VALUES (1,'first'),(2,'other');
     INSERT INTO team_members (user_id) VALUES (1),(2);
     INSERT INTO user_settings (user_id,resume_context) VALUES (1,'resume-one'),(2,'resume-two');
     ALTER TABLE users ADD CONSTRAINT force_rollback CHECK (deleted_at IS NULL);
@@ -153,7 +155,7 @@ test('account deletion is atomic, retryable and isolated from another user', asy
   const deleted = (await pg.query('SELECT * FROM users WHERE id=1')).rows[0];
   assert.ok(deleted.deleted_at); assert.equal(deleted.name, null); assert.equal(deleted.email_verified_at, null);
   assert.equal(deleted.password_hash, '!deleted-account'); assert.match(deleted.email, /^deleted-1-.+@deleted.invalid$/); assert.ok(deleted.email.length <= 255);
-  for (const table of ['email_verification_tokens','api_idempotency_keys','team_members','user_settings']) {
+  for (const table of ['email_verification_tokens','api_idempotency_keys','contact_email_unlocks','team_members','user_settings']) {
     assert.equal((await pg.query(`SELECT * FROM ${table} WHERE user_id=1`)).rows.length, 0);
     assert.equal((await pg.query(`SELECT * FROM ${table} WHERE user_id=2`)).rows.length, 1);
   }

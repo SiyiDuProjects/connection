@@ -3,8 +3,8 @@ import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { creditLedger, teamMembers, teams } from '@/lib/db/schema';
 import { stripe } from '@/lib/payments/stripe';
-import { requireReachardPlanByName } from '@/lib/payments/plans';
-import { invoiceSubscriptionId, isPaidRewardInvoice, stripeObjectId } from '@/lib/payments/billing-policy';
+import { resolvePurchasedPlan, entitlementGrantMetadata } from '@/lib/payments/plans';
+import { invoiceSubscriptionId, isPaidRewardInvoice, stripeObjectId, invoiceLinePriceId, isMembershipInvoiceLine, isMonthlyPrice } from '@/lib/payments/billing-policy';
 import { handleSuccessfulCheckoutSession } from '@/lib/payments/checkout';
 import { grantFriendInvitePurchaseReward } from '@/lib/payments/friend-invite-rewards';
 import { recordProductEvent } from '@/lib/product-events';
@@ -12,7 +12,7 @@ import { recordProductEvent } from '@/lib/product-events';
 export async function handlePaidInvoice(invoice: Stripe.Invoice) {
   if (invoice.status !== 'paid') return;
   const subscriptionId = invoiceSubscriptionId(invoice);
-  if (!subscriptionId || !['subscription_create', 'subscription_cycle'].includes(invoice.billing_reason || '')) return;
+  if (!subscriptionId || !['subscription_create', 'subscription_cycle', 'subscription_update'].includes(invoice.billing_reason || '')) return;
 
   let [team] = await db.select().from(teams).where(eq(teams.stripeSubscriptionId, subscriptionId)).limit(1);
   const [initialGrant] = await db.select({ id: creditLedger.id }).from(creditLedger).where(and(
@@ -38,13 +38,14 @@ export async function handlePaidInvoice(invoice: Stripe.Invoice) {
     const [owner] = await tx.select({ userId: teamMembers.userId }).from(teamMembers)
       .where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.role, 'owner'))).limit(1);
     if (!owner) throw new Error('Reachard invoice account has no owner.');
+    await tx.execute(sql`select pg_advisory_xact_lock(${owner.userId}::bigint)`);
     const [initial] = await tx.select().from(creditLedger).where(and(
       eq(creditLedger.action, 'subscription.initial_grant'), sql`${creditLedger.metadata}->>'subscriptionId' = ${subscriptionId}`
     )).limit(1);
     if (!initial) throw new Error('Invoice is awaiting initial subscription fulfillment.');
     let granted = false;
     let planName: string | null = null;
-    if (invoice.billing_reason === 'subscription_cycle') {
+    if (['subscription_cycle', 'subscription_update'].includes(invoice.billing_reason || '')) {
       const [existing] = await tx.select({ id: creditLedger.id }).from(creditLedger).where(and(
         eq(creditLedger.action, 'subscription.monthly_grant'), sql`${creditLedger.metadata}->>'invoiceId' = ${invoice.id}`
       )).limit(1);
@@ -55,26 +56,23 @@ export async function handlePaidInvoice(invoice: Stripe.Invoice) {
           lines = [];
           for await (const line of stripe.invoices.listLineItems(invoice.id!, { limit: 100 })) lines.push(line);
         }
-        const line = lines.find(item => {
-          const legacy = item as unknown as { type?: string; subscription?: unknown; proration?: boolean };
-          return item.parent?.type === 'subscription_item_details'
-            ? !item.parent.subscription_item_details?.proration
-              && stripeObjectId(item.parent.subscription_item_details?.subscription) === subscriptionId
-            : legacy.type === 'subscription' && !legacy.proration
-              && (!legacy.subscription || stripeObjectId(legacy.subscription) === subscriptionId);
-        });
-        const priceId = stripeObjectId(line?.pricing?.price_details?.price)
-          || stripeObjectId((line as unknown as { price?: unknown } | undefined)?.price);
+        const membershipLines = lines.filter(item => isMembershipInvoiceLine(item, subscriptionId,
+          invoice.billing_reason === 'subscription_update'));
+        if (membershipLines.length !== 1) throw new Error('Invoice must contain one purchased membership line.');
+        const line = membershipLines[0];
+        const priceId = invoiceLinePriceId(line);
         if (!priceId) throw new Error('Paid subscription invoice has no recurring price.');
         if (!Number.isSafeInteger(line?.period.end)) throw new Error('Invoice billing period is unavailable.');
         const price = await stripe.prices.retrieve(priceId, { expand: ['product'] });
+        if (!isMonthlyPrice(price)) throw new Error('Invoice price is not a monthly membership.');
         const product = typeof price.product === 'string' ? await stripe.products.retrieve(price.product) : price.product;
         if ('deleted' in product && product.deleted) throw new Error('Invoice product is unavailable.');
-        const plan = requireReachardPlanByName((product as Stripe.Product).name);
+        const plan = resolvePurchasedPlan((product as Stripe.Product).name, price);
         planName = plan.name;
         await tx.insert(creditLedger).values({ userId: owner.userId, amount: plan.monthlyCredits,
           action: 'subscription.monthly_grant', metadata: {
-            subscriptionId, invoiceId: invoice.id, planName: plan.name, periodEnd: line?.period.end
+            subscriptionId, invoiceId: invoice.id,
+            ...entitlementGrantMetadata({ ...plan, priceId }, line?.period.start, line!.period.end)
           }
         }).onConflictDoNothing();
         granted = true;

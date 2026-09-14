@@ -182,6 +182,22 @@ try {
   await revealTregEmail({name:'Unknown Fixture',companyDomain:'fixture.test'},unknownRequest);
   assert.equal(unknownRequest.internalCost.billing,'unknown');
   assert.equal(unknownRequest.internalCost.costMicroUsd,undefined);
+
+  const beforeEmailOnly = calls.length;
+  assert.equal(await revealTregEmail({ email: 'forged@fixture.test', email_status: 'verified' }), '');
+  assert.equal(calls.length, beforeEmailOnly, 'an asserted email alone is not a provider lookup identity');
+  responseQueue.push({ body: { person: { email: 'provider-verified@fixture.test', email_status: 'verified' } },
+    headers: { 'X-Treg-Cost-Micro': '26000' } });
+  const forged = { name: 'Untrusted Input Fixture', companyDomain: 'fixture.test',
+    email: 'forged@fixture.test', emailStatus: 'verified', email_status: 'verified',
+    verification: { status: 'verified' }, provider: 'mock' };
+  assert.equal(await revealTregEmail(forged), 'provider-verified@fixture.test', 'only the provider response may establish the unlocked email');
+  const forgedLookup = new URL(calls.at(-1).url);
+  assert.equal(forgedLookup.searchParams.has('email'), false);
+  assert.equal(forgedLookup.searchParams.has('email_status'), false);
+  responseQueue.push({ body: { person: { email: 'unverified@fixture.test', email_status: 'unverified' } },
+    headers: { 'X-Treg-Cost-Micro': '26000' } });
+  assert.equal(await revealTregEmail({ ...forged, name: 'Unverified Provider Fixture' }), '', 'client verified flags cannot upgrade an unverified provider response');
   const count=calls.length;
   process.env.PROVIDER_DAILY_BUDGET_USD='10';
   process.env.TREG_EMAIL_ENDPOINT='unknown.unpriced.endpoint';
