@@ -46,7 +46,10 @@ const fakeStripe = {
     retrieve: async id => { if (failStripe) throw new Error('fixture unavailable'); assert.ok(sub.has(id), id); return clone(sub.get(id)); },
     list: async ({ customer }) => ({ data: [...sub.values()].filter(item => item.customer === customer), has_more: false }),
   },
-  prices: { retrieve: async id => clone(priceOverrides.get(id) || price(id)) },
+  prices: {
+    retrieve: async id => clone(priceOverrides.get(id) || price(id)),
+    list: async ({ product } = {}) => ({ data: [...priceOverrides.values()].filter(item => !product || item.product.id === product).map(clone), has_more: false }),
+  },
   invoices: {
     retrieve: async id => clone(invoiceOverrides.get(id) || invoice({ id, billing_reason: 'subscription_create',
       lines: { has_more: false, data: [{ amount: price(sessions.get('cs_main').priceId).unit_amount,
@@ -58,7 +61,10 @@ const fakeStripe = {
     retrieve: async id => { assert.ok(sessions.has(id), id); return clone(sessions.get(id)); },
     list: async filter => ({ data: [...sessions.values()].filter(item => (!filter.customer || item.customer === filter.customer)
       && (!filter.subscription || item.subscription === filter.subscription) && (!filter.status || item.status === filter.status)), has_more: false }),
-    listLineItems: async id => ({ data: [{ price: price(sessions.get(id).priceId || 'price_base'), quantity: 1 }] }),
+    listLineItems: async id => {
+      const priceId = sessions.get(id).priceId || 'price_base';
+      return { data: [{ price: clone(priceOverrides.get(priceId) || price(priceId)), quantity: 1 }] };
+    },
     expire: async id => { const session = sessions.get(id); assert.equal(session.status, 'open'); session.status = 'expired'; return clone(session); },
     create: async params => { createdSessions.push(params); const id = `cs_new_${createdSessions.length}`;
       const session = { ...params, id, status: 'open', priceId: params.line_items[0].price, url: `https://checkout.stripe.com/${id}` };
@@ -463,4 +469,67 @@ test('immutable current IDs or entitlement metadata with incorrect amounts can n
       metadata: { reachardEntitlementVersion: plans.ENTITLEMENT_VERSION } }), /published/);
     assert.throws(() => plans.resolvePurchasedPlan(name, { id, currency: 'eur', unit_amount: name === 'Base' ? 900 : 1900 }), /published/);
   }
+});
+
+async function withoutConfiguredPrices(run) {
+  const savedEnv = [process.env.STRIPE_BASE_PRICE_ID, process.env.STRIPE_PLUS_PRICE_ID];
+  const savedCache = new Map(cache);
+  delete process.env.STRIPE_BASE_PRICE_ID; delete process.env.STRIPE_PLUS_PRICE_ID;
+  cache.clear();
+  try {
+    await run({ billing: load(resolve(root, 'lib/payments/stripe.ts')),
+      checkout: load(resolve(root, 'lib/payments/checkout.ts')),
+      pricing: load(resolve(root, 'app/(dashboard)/pricing/pricing-data.ts')).publicPricingPlans });
+  } finally {
+    [process.env.STRIPE_BASE_PRICE_ID, process.env.STRIPE_PLUS_PRICE_ID] = savedEnv;
+    cache.clear(); for (const [file, module] of savedCache) cache.set(file, module);
+  }
+}
+
+test('an unrecognized default or sole $9/$19 price is rejected before creating a chargeable checkout', async () => {
+  await withoutConfiguredPrices(async ({ billing: fresh, pricing }) => {
+    sub.delete('sub_main'); sessions.clear();
+    for (const name of ['Base', 'Plus']) for (const hasDefault of [true, false]) {
+      priceOverrides.clear();
+      const id = `price_unknown_${name}`;
+      const candidate = { ...price(id, name), unit_amount: name === 'Base' ? 900 : 1900 };
+      if (!hasDefault) candidate.product.default_price = null;
+      priceOverrides.set(id, candidate);
+      const listed = await fresh.getStripePrices();
+      const offer = pricing(listed, [{ id: candidate.product.id, name, defaultPriceId: candidate.product.default_price }]).find(item => item.name === name);
+      assert.equal(offer.priceId, null);
+      await assert.rejects(fresh.createCheckoutSession({ team: { id: 1 }, priceId: id }), /Unrecognized/);
+      assert.equal(createdSessions.length, 0);
+    }
+    assert.equal((await grants()).length, 0);
+  });
+});
+
+for (const identity of ['published', 'metadata']) test(`${identity} fallback has the same public, checkout and paid-invoice entitlement identity`, async () => {
+  await withoutConfiguredPrices(async ({ billing: fresh, checkout: freshCheckout, pricing }) => {
+    const name = identity === 'published' ? 'Base' : 'Plus';
+    const id = identity === 'published' ? 'price_1UFMwl0nhgFoMCt9zFzWNPKB' : 'price_metadata_plus';
+    const candidate = { ...price(id, name), unit_amount: name === 'Base' ? 900 : 1900,
+      ...(identity === 'metadata' ? { metadata: { reachardEntitlementVersion: plans.ENTITLEMENT_VERSION } } : {}) };
+    if (identity === 'metadata') candidate.product.default_price = null;
+    priceOverrides.set(id, candidate);
+    sub.delete('sub_main'); sessions.clear();
+    const listed = await fresh.getStripePrices();
+    const offer = pricing(listed, [{ id: candidate.product.id, name, defaultPriceId: candidate.product.default_price }]).find(item => item.name === name);
+    assert.equal(offer.priceId, id);
+    const checkoutPlan = await fresh.resolveCheckoutPlan(id);
+    assert.equal(checkoutPlan.entitlementVersion, plans.ENTITLEMENT_VERSION);
+    await assert.rejects(fresh.createCheckoutSession({ team: { id: 1 }, priceId: id }), error => error.url === 'https://checkout.stripe.com/cs_new_1');
+    assert.equal(createdSessions.length, 1);
+    sub.set('sub_main', subscription('sub_main', { items: { data: [{ price: candidate, quantity: 1, current_period_start: now - 30, current_period_end: future }] } }));
+    Object.assign(sessions.get('cs_new_1'), { status: 'complete', payment_status: 'paid', subscription: 'sub_main', invoice: 'in_identity' });
+    invoiceOverrides.set('in_identity', invoice({ id: 'in_identity', amount_paid: candidate.unit_amount, billing_reason: 'subscription_create',
+      lines: { has_more: false, data: [invoiceLine(id, { amount: candidate.unit_amount })] } }));
+    await freshCheckout.handleSuccessfulCheckoutSession('cs_new_1');
+    const [grant] = await grants();
+    assert.ok(grant); assert.equal(grant.metadata.priceId, id);
+    assert.equal(grant.metadata.entitlementVersion, checkoutPlan.entitlementVersion);
+    assert.equal(grant.metadata.allowanceMode, checkoutPlan.allowanceMode);
+    assert.equal(grant.amount, name === 'Base' ? 50 : 0);
+  });
 });

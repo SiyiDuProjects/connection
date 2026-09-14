@@ -52,9 +52,21 @@ test('legacy defaults also fail closed when newer prices exist in the same produ
   const plans = pricing()([...legacy, ...current], products);
   currentOffers(plans); assert.deepEqual(plans.map(plan => plan.priceId), [null, null]);
 });
-test('matching default and sole prices work without environment overrides', () => {
+test('matching amounts on unknown default or sole prices remain unavailable without an identity', () => {
   for (const catalog of [products, products.map(item => ({ ...item, defaultPriceId: undefined }))]) {
-    assert.deepEqual(pricing()(prices, catalog).map(plan => plan.priceId), ['price_Base', 'price_Plus']);
+    const plans = pricing()(prices, catalog);
+    currentOffers(plans); assert.deepEqual(plans.map(plan => plan.priceId), [null, null]);
+  }
+});
+test('published price identities and exact current entitlement metadata remain valid without environment overrides', () => {
+  const published = ['price_1UFMwl0nhgFoMCt9zFzWNPKB', 'price_1UFMyB0nhgFoMCt9O3DiG8iW'];
+  for (const known of [prices.map((item, index) => ({ ...item, id: published[index] })),
+    prices.map(item => ({ ...item, metadata: { reachardEntitlementVersion: '2026-09-base50-plus-unlimited' } }))]) {
+    for (const defaults of [true, false]) {
+      const catalog = products.map((item, index) => ({ ...item, defaultPriceId: defaults ? known[index].id : undefined }));
+      const plans = pricing()(known, catalog);
+      currentOffers(plans); assert.deepEqual(plans.map(plan => plan.priceId), known.map(item => item.id));
+    }
   }
 });
 test('missing or ambiguous Stripe configuration keeps public prices visible and purchase disabled', () => {

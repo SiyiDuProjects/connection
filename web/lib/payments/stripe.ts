@@ -11,6 +11,7 @@ import {
 } from '@/lib/db/queries';
 import {
   getReachardPlanByName,
+  ENTITLEMENT_VERSION,
   resolvePurchasedPlan,
   type ReachardPlan
 } from '@/lib/payments/plans';
@@ -203,8 +204,16 @@ export async function resolveCheckoutPlan(priceId: string) {
     throw new Error('This Stripe price does not match the published Reachard price.');
   }
 
+  // Validate the exact identity through the fulfillment resolver before any
+  // checkout session can be created. A new default price with the right
+  // amount is not sufficient if a paid invoice would not be recognized.
+  const purchasedPlan = resolvePurchasedPlan(product.name, price);
+  if (purchasedPlan.entitlementVersion !== ENTITLEMENT_VERSION || purchasedPlan.allowanceMode === 'legacy') {
+    throw new Error('This Stripe price is not a current Reachard membership.');
+  }
+
   return {
-    ...plan,
+    ...purchasedPlan,
     priceId: price.id,
     productId: product.id,
     trialPeriodDays: price.recurring?.trial_period_days || 0
@@ -253,6 +262,7 @@ export async function getStripePrices() {
       typeof price.product === 'string' ? price.product : price.product.id,
     unitAmount: price.unit_amount,
     currency: price.currency,
+    metadata: price.metadata,
     interval: price.recurring?.interval,
     trialPeriodDays: price.recurring?.trial_period_days
   }));
