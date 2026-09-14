@@ -1,4 +1,5 @@
 import { withProviderBudget, providerBudgetEnabled } from './spend-budget.js';
+import { writeLog } from './http.js';
 
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com";
 const draftInternalCosts = new WeakMap();
@@ -9,6 +10,7 @@ export function getDraftInternalCost(draft) {
 
 export async function createDraft(contact, job, settings = {}, request = {}) {
   const fallback = createTemplateDraft(contact, job, settings);
+  const attempt = {};
 
   if (!process.env.OPENAI_API_KEY) {
     return {
@@ -21,7 +23,7 @@ export async function createDraft(contact, job, settings = {}, request = {}) {
   }
 
   try {
-    const result = await createAiDraft(contact, job, settings, request);
+    const result = await createAiDraft(contact, job, settings, request, attempt);
     const draft = {
       ...result.draft,
       ai: {
@@ -33,8 +35,14 @@ export async function createDraft(contact, job, settings = {}, request = {}) {
     draftInternalCosts.set(draft, openAiInternalCost(result.response));
     return draft;
   } catch (error) {
-    console.error("AI draft generation failed:", error.message || error);
-    return {
+    // Provider messages and parser errors may repeat input or credentials. Log
+    // only bounded, structured diagnostic fields, never the response body.
+    writeLog('error', 'email.ai_generation_failed', {
+      provider: 'openai',
+      ...attempt.diagnostics,
+      errorName: diagnosticToken(error?.name)
+    });
+    const draft = {
       ...fallback,
       personalizationNotes: fallbackNotes(contact, job, settings),
       missingContext: missingContext(job, settings),
@@ -46,6 +54,10 @@ export async function createDraft(contact, job, settings = {}, request = {}) {
         error: "AI generation was unavailable, so a safe template draft was used."
       }
     };
+    // A rejected/unknown request retains unknown cost. A successfully billed
+    // response that cannot be parsed still retains its reported token usage.
+    if (attempt.internalCost) draftInternalCosts.set(draft, attempt.internalCost);
+    return draft;
   }
 }
 
@@ -113,7 +125,7 @@ function contactRoleLabel(value) {
   return "";
 }
 
-async function createAiDraft(contact, job, settings, request) {
+async function createAiDraft(contact, job, settings, request, attempt) {
   const payload = JSON.stringify({
     model: openAiModel(), instructions: aiInstructions(), input: buildAiInput(contact, job, settings),
     max_output_tokens: 4096,
@@ -141,13 +153,21 @@ async function createAiDraft(contact, job, settings, request) {
     const { response, data } = await withProviderBudget({
       provider: 'openai', action: 'email.draft', customerId: request.customerId, maximumMicroUsd,
     }, async () => {
+      attempt.internalCost = openAiInternalCost();
       const response = await fetch(openAiResponsesUrl(), {
         method: 'POST', signal: controller.signal,
         headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
         body: payload,
       });
       const data = await response.json().catch(() => ({}));
-      return { value: { response, data }, costMicroUsd: response.ok ? openAiInternalCost(data).costMicroUsd : null };
+      attempt.diagnostics = {
+        httpStatus: response.status,
+        type: diagnosticToken(data.error?.type),
+        code: diagnosticToken(data.error?.code),
+        param: diagnosticToken(data.error?.param)
+      };
+      attempt.internalCost = response.ok ? openAiInternalCost(data) : openAiInternalCost();
+      return { value: { response, data }, costMicroUsd: attempt.internalCost.costMicroUsd };
     });
     if (!response.ok) {
       const error = new Error(data.error?.message || `OpenAI request failed with ${response.status}`);
@@ -164,6 +184,13 @@ async function createAiDraft(contact, job, settings, request) {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function diagnosticToken(value) {
+  if (typeof value !== 'string' || value.length > 96
+    || !/^[a-zA-Z][a-zA-Z0-9_.\[\]-]*$/.test(value)
+    || /^(?:sk-|org-|proj[_-])/i.test(value)) return undefined;
+  return value;
 }
 
 function aiInstructions() {

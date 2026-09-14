@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { createDraft, getDraftInternalCost } from "./email.js";
 
 const originalFetch = globalThis.fetch;
+const originalConsoleError = console.error;
+const diagnostics = [];
+console.error = (line) => diagnostics.push(JSON.parse(line));
 const envNames = [
   "OPENAI_API_KEY",
   "OPENAI_BASE_URL",
@@ -68,6 +71,8 @@ try {
   assert.equal(request.body.store, false);
   assert.equal(request.body.max_output_tokens, 4096);
   const aiInput = JSON.parse(request.body.input);
+  assert.equal(aiInput.contact.email, undefined, 'recipient email must stay outside the AI request');
+  assert.equal(request.body.input.includes('alex@example.com'), false);
   assert.equal(aiInput.sender.resumeContext, "Built a distributed systems capstone.");
   assert.equal(aiInput.sender.emailSignature, "Jamie");
   assert.equal(aiInput.sender.emailTone, "confident");
@@ -92,6 +97,56 @@ try {
   assert.equal(JSON.stringify(draft).includes("internalCost"), false);
   assert.equal(JSON.stringify(draft).includes("costMicroUsd"), false);
 
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: {
+    message: 'You have no credits remaining. private@example.test sk-proj-do-not-log-this',
+    type: 'insufficient_quota', code: 'credit_balance_exhausted', param: null
+  } }), { status: 429 });
+  const exhausted = await createDraft({name:'Fixture'}, {companyName:'Fixture'});
+  assert.equal(exhausted.ai.used, false);
+  assert.equal(exhausted.ai.provider, 'template');
+  assert.equal(getDraftInternalCost(exhausted).billing, 'unknown');
+  assert.equal(getDraftInternalCost(exhausted).costMicroUsd, null, 'an error without a receipt must not fabricate a zero charge');
+  assert.deepEqual(Object.fromEntries(Object.entries(diagnostics.at(-1)).filter(([key]) => key !== 'time')), {
+    level: 'error', event: 'email.ai_generation_failed', provider: 'openai',
+    httpStatus: 429, type: 'insufficient_quota', code: 'credit_balance_exhausted', errorName: 'Error'
+  });
+  assert.equal(JSON.stringify(diagnostics).includes('private@example.test'), false);
+  assert.equal(JSON.stringify(diagnostics).includes('sk-proj-'), false);
+  assert.equal(JSON.stringify(exhausted).includes('credit_balance_exhausted'), false, 'provider diagnostics must not enter the public payload');
+
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: {
+    message: 'Private schema or input detail', type: 'invalid_request_error', code: 'invalid_json_schema', param: 'text.format.schema'
+  } }), { status: 400 });
+  await createDraft({name:'Fixture'}, {companyName:'Fixture'});
+  assert.equal(diagnostics.at(-1).param, 'text.format.schema');
+  assert.equal(diagnostics.at(-1).httpStatus, 400);
+
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: {
+    message: 'Ignored private message', type: 'private@example.test', code: 'sk-proj-secret', param: 'resume contents with spaces'
+  } }), { status: 401 });
+  await createDraft({name:'Fixture'}, {companyName:'Fixture'});
+  assert.equal(diagnostics.at(-1).type, undefined);
+  assert.equal(diagnostics.at(-1).code, undefined);
+  assert.equal(diagnostics.at(-1).param, undefined);
+
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    id: 'resp_parse_failure', output_text: 'Private provider output is not JSON',
+    usage: { input_tokens: 1000, input_tokens_details: { cached_tokens: 200 }, output_tokens: 300, total_tokens: 1300 }
+  }), { status: 200 });
+  const unparseable = await createDraft({name:'Fixture'}, {companyName:'Fixture'});
+  assert.equal(unparseable.ai.used, false);
+  assert.equal(getDraftInternalCost(unparseable).costMicroUsd, 524, 'a billed response keeps its usage even if output parsing fails');
+  assert.equal(getDraftInternalCost(unparseable).responseId, 'resp_parse_failure');
+  assert.equal(diagnostics.at(-1).httpStatus, 200);
+  assert.equal(diagnostics.at(-1).errorName, 'SyntaxError');
+  assert.equal(JSON.stringify(diagnostics).includes('Private provider output'), false);
+
+  globalThis.fetch = async () => { throw new Error('Transport error containing private@example.test'); };
+  const transport = await createDraft({name:'Fixture'}, {companyName:'Fixture'});
+  assert.equal(getDraftInternalCost(transport).costMicroUsd, null);
+  assert.equal(diagnostics.at(-1).httpStatus, undefined, 'transport errors must not invent an HTTP response');
+  assert.equal(JSON.stringify(diagnostics).includes('private@example.test'), false);
+
   let extraCalls=0;
   globalThis.fetch=async()=>{extraCalls++;return new Response(JSON.stringify({output_text:JSON.stringify({subject:'Fixture',body:'Fixture'})}));};
   const unknown=await createDraft({name:'Fixture'},{companyName:'Fixture'});
@@ -108,6 +163,7 @@ try {
   console.log("Email draft fixture tests passed.");
 } finally {
   globalThis.fetch = originalFetch;
+  console.error = originalConsoleError;
   for (const [key, value] of Object.entries(originalEnv)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
