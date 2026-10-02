@@ -37,7 +37,8 @@
     ".next-marketing-preview\\dev/types/**/*.ts",
     ".next/types/**/*.ts",
     ".next\\dev/types/**/*.ts",
-    "next-env.d.ts"
+    "next-env.d.ts",
+    ".next-marketing-preview/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"
