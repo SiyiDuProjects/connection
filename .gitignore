@@ -9,3 +9,33 @@ output/
 .pnpm-store/
 node_modules.*/
 *.log
+/artifacts/launch-20260907/private/
+
+# Local-only Mac migration inputs and reproducible output
+**/node_modules*/
+**/.next*/
+**/.venv*/
+**/__pycache__/
+**/.qa/
+**/.private/
+**/.runtime/
+.env
+.env.*
+!.env.example
+!.env.sample
+.npmrc
+.dev.vars
+*.pem
+*.key
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+*.db
+*.tsbuildinfo
+/.worktrees/
+/artifacts/
+
+# Licensed template reference copies: local only
+/web/components/heroui-dashboard-template/
+/web/app/template-preview/

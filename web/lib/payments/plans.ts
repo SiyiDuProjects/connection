@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/lib/brand';
 export const ENTITLEMENT_VERSION = '2026-09-base50-plus-unlimited';
 
 export type ReachardPlan = {
@@ -38,7 +39,7 @@ export function getReachardPlanByName(value: unknown) {
 
 export function requireReachardPlanByName(value: unknown) {
   const plan = getReachardPlanByName(value);
-  if (!plan) throw new Error(`Unsupported Reachard plan: ${clean(value) || 'unknown'}`);
+  if (!plan) throw new Error(`Unsupported ${BRAND_NAME} plan: ${clean(value) || 'unknown'}`);
   return plan;
 }
 

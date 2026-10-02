@@ -1,0 +1,20 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const { createRequire } = require('node:module');
+const wr = createRequire(path.resolve(__dirname, '../../web/package.json'));
+const sharp = createRequire(wr.resolve('next/package.json'))('sharp');
+const marks = [
+  { id: 'N01', name: 'The approach', body: `<path d="M62 15 C38 6 14 23 14 48 C14 73 36 87 57 83 C75 80 87 64 85 47 C83 32 72 28 62 34 C51 40 52 54 63 57 C73 60 82 51 86 38"/><circle cx="88" cy="24" r="6"/>` },
+  { id: 'N02', name: 'A shared orbit', body: `<path d="M40 15 C18 20 7 44 18 64 C27 82 50 89 66 76 C80 65 79 46 66 39 C54 32 41 40 40 51"/><path d="M60 85 C82 80 93 56 82 36 C73 18 50 11 34 24 C20 35 21 54 34 61 C46 68 59 60 60 49"/>` },
+  { id: 'N03', name: 'An opening', body: `<path d="M57 14 C36 10 16 24 14 45 C12 65 28 84 48 85 C66 86 82 74 86 57 C89 44 84 33 74 28"/><path d="M67 30 C60 36 64 49 56 58 C48 67 35 63 34 52 C32 43 40 36 49 39"/><circle cx="73" cy="23" r="6"/>` },
+];
+const group = (m, color='#252729') => `<g fill="none" stroke="${color}" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round">${m.body}</g>`;
+const svg = (m) => `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 100 100">${group(m)}</svg>`;
+async function main() {
+  for (const m of marks) fs.writeFileSync(path.join(__dirname, `${m.id}.svg`), svg(m));
+  const cells=marks.map((m,i)=>`<g transform="translate(${i*480} 0)"><text x="48" y="137" class="label">${m.id}</text><g transform="translate(120 186) scale(2.4)">${group(m)}</g><g transform="translate(48 510) scale(.38)">${group(m)}</g><text x="100" y="540" class="word">reachard</text><rect x="360" y="497" width="64" height="64" rx="16" fill="#007aff"/><g transform="translate(370 507) scale(.44)">${group(m,'white')}</g></g>`).join('');
+  const board=`<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="630"><style>.label{font:16px Arial;fill:#858991}.word{font:26px Arial;fill:#252729}</style><rect width="1440" height="630" fill="white"/><text x="48" y="58" class="word">reachard / orbit, with a gesture</text>${cells}</svg>`;
+  fs.writeFileSync(path.join(__dirname,'orbit-studies.svg'),board);
+  await sharp(Buffer.from(board)).png().toFile(path.join(__dirname,'orbit-studies.png'));
+}
+main().catch(e=>{console.error(e);process.exitCode=1;});

@@ -9,7 +9,6 @@
 .hu-auth-card-header { align-items: center; text-align: center; gap: 0; padding-bottom: 28px; }
 .hu-auth-icon { display: flex; align-items: center; justify-content: center; width: 70px; height: 70px; border-radius: 50%; background: var(--default); margin: 7px 0 24px; }
 .hu-auth-fields { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 21px; }
-.hu-auth-email-note { color: var(--muted); text-align: center; font-size: 12px; margin-top: 14px; }
 .hu-auth-card-footer { display: flex; flex-direction: column; gap: 22px; align-items: center; padding-top: 28px; }
 .hu-auth-card-footer > p { font-size: 14px; color: var(--muted); }
 .hu-auth-card-footer p a { color: var(--foreground); font-weight: 500; margin-left: 3px; }

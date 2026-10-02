@@ -1,5 +1,7 @@
 # Reachard Chrome Web Store submission pack
 
+Current local candidate: **0.7.6**, September 20, 2026. Account-switch protection, stale-session response handling and durable request recovery were repaired. Current metadata and privacy changes are tracked in the root `CHROMEWEBSTORE.md`. The September 7 release notes below are historical; they do not establish upload, reviewer access, deployment or publication status for this candidate.
+
 Prepared September 7, 2026. Candidate version: **0.7.1**. The owner previously uploaded 0.7.0 with extension ID `ladoemfclhhepfomibkdblodgnhceefm`; replace it with this reduced-permission package. Production website and API allowlists accept the same ID. This replacement has not been uploaded or submitted by the agent.
 
 The owner has requested early review submission. Complete reviewer access and the submission requirements below, then submit with deferred publishing while the remaining website and paid-launch work continues. Full public billing acceptance is not a prerequisite for this sequence when reviewers can already use every advertised extension feature without making a purchase.

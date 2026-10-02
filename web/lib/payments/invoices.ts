@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/lib/brand';
 import type Stripe from 'stripe';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
@@ -26,7 +27,7 @@ export async function handlePaidInvoice(invoice: Stripe.Invoice) {
     [team] = await db.select().from(teams).where(eq(teams.stripeSubscriptionId, subscriptionId)).limit(1);
     if (!team) {
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      if (session || subscription.metadata?.reachardTeamId) throw new Error('Reachard invoice is awaiting account mapping.');
+      if (session || subscription.metadata?.reachardTeamId) throw new Error(`${BRAND_NAME} invoice is awaiting account mapping.`);
       return;
     }
   }
@@ -37,7 +38,7 @@ export async function handlePaidInvoice(invoice: Stripe.Invoice) {
     if (locked.stripeSubscriptionId !== subscriptionId) return null;
     const [owner] = await tx.select({ userId: teamMembers.userId }).from(teamMembers)
       .where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.role, 'owner'))).limit(1);
-    if (!owner) throw new Error('Reachard invoice account has no owner.');
+    if (!owner) throw new Error(`${BRAND_NAME} invoice account has no owner.`);
     await tx.execute(sql`select pg_advisory_xact_lock(${owner.userId}::bigint)`);
     const [initial] = await tx.select().from(creditLedger).where(and(
       eq(creditLedger.action, 'subscription.initial_grant'), sql`${creditLedger.metadata}->>'subscriptionId' = ${subscriptionId}`

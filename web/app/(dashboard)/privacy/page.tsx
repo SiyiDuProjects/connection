@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 pb-20 pt-28 text-foreground">
       <article className="legal-copy">
-        <p className="text-sm font-semibold text-muted">Last updated September 13, 2026</p>
+        <p className="text-sm font-semibold text-muted">Last updated September 20, 2026</p>
         <h1>{BRAND_NAME} Privacy Policy</h1>
         <p>
           {BRAND_NAME} helps job seekers identify relevant company contacts and prepare personalized outreach. This policy explains what the {BRAND_NAME} website and browser extension process and why.
@@ -29,6 +29,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           Authentication tokens and recent account status are stored in Chrome local storage. Configured {BRAND_NAME} URLs may use Chrome sync storage. The extension keeps current search results and drafts while its panel is open. To let you reopen a work email without paying another credit, our server retains the email you successfully unlocked, its contact identifier, and your account association until you delete your account. This is an unlock record; Reachard does not keep a sent-mail archive.
+        </p>
+        <p>
+          To recover interrupted requests and prevent duplicate charges, the extension also stores a hashed reference, a random retry identifier, and a timestamp on your device until the result is confirmed. These records do not contain the page text, contact details, or message body and are not synced between devices. Uninstalling the extension removes its local records.
         </p>
 
         <h2>Service providers</h2>

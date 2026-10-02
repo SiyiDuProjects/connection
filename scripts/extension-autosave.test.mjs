@@ -8,7 +8,7 @@ const start = source.indexOf('  async function saveCustomizeFromPanel()');
 const end = source.indexOf('  function normalizeCustomize(', start);
 assert.ok(start >= 0 && end > start);
 const api = vm.runInNewContext(`(() => {
-  let customizeTimer, customizeSave = null, customizeRevision = 0, savedCustomizeRevision = 0, disposed = false;
+  let customizeTimer, customizeSave = null, customizeRevision = 0, savedCustomizeRevision = 0, disposed = false, authEpoch = 0;
   const state = {emailCustomize: {tone:'warm'}, customizeError:''};
   const pending = [];
   const normalizeCustomize = value => ({...value});
@@ -17,6 +17,7 @@ const api = vm.runInNewContext(`(() => {
   const sendRuntimeMessage = message => new Promise(resolve => pending.push({message,resolve}));
   ${source.slice(start,end)}
   return {state, pending, save: saveCustomizeFromPanel,
+    switchAccount() { authEpoch++; customizeSave = null; customizeRevision++; savedCustomizeRevision = customizeRevision; state.emailCustomize = {tone:'warm'}; },
     change(tone) { state.emailCustomize = {tone}; customizeRevision++; return saveCustomizeFromPanel(); }
   };
 })()`, {window:{clearTimeout(){}}});
@@ -47,3 +48,19 @@ api.pending[3].resolve({ok:true,custom:{tone:'confident'}});
 assert.equal(await retry, true);
 assert.equal(api.state.customizeError, '');
 console.log('Autosave: serialized writes, latest selection, clean no-op, failure and retry passed.');
+
+const oldAccountSave = api.change('direct');
+const oldRequest = api.pending.at(-1);
+api.switchAccount();
+const newAccountSave = api.change('formal');
+const newRequest = api.pending.at(-1);
+oldRequest.resolve({ok:true,custom:{tone:'direct'}});
+assert.equal(await oldAccountSave, false, 'old account completion must not count as a new account save');
+assert.equal(api.state.emailCustomize.tone, 'formal');
+const count = api.pending.length;
+const sharedSave = api.save();
+assert.equal(api.pending.length, count, 'old completion must not detach the current in-flight save');
+newRequest.resolve({ok:true,custom:{tone:'formal'}});
+assert.equal(await newAccountSave, true);
+assert.equal(await sharedSave, true);
+console.log('Autosave: account switch discards old completions and preserves the new account queue.');

@@ -4,7 +4,7 @@ Chrome Extension + Express API + Next.js SaaS app for finding relevant company c
 
 ## Current Website and Local Preview
 
-`web/` is the single active web app. The approved homepage is **Opportunity starts with a conversation.**, with the landscape hero, black/white/gray surfaces, and blue actions. Homepage and Pricing share `web/components/reachard/design.tsx` and `web/app/marketing.css`.
+`web/` is the single active web app. The approved homepage is **Find the people behind the job you want.**, with a split hero, an automatically looping extension demonstration, black/white/gray surfaces, and blue actions. Homepage and Pricing share `web/components/reachard/design.tsx` and `web/app/marketing.css`.
 
 For local visual review, no database or Stripe credentials are required:
 
@@ -20,8 +20,9 @@ Retired design checkouts and recovery copies belong in `.archive/` and are not d
 ## Structure
 
 - `extension/`: Manifest V3 Chrome extension for supported job, company, and public professional-profile pages.
-- `server/`: Express API proxy that keeps contact provider credentials private and charges Contact Kit unlocks.
-- `web/`: Reachard web app with auth, Stripe billing, dashboard, Contact Kits, preferences, and extension tokens.
+- `server/`: Express API that keeps provider credentials private and enforces membership and included usage.
+- `web/`: Reachard web app with auth, Stripe billing, account activity, profile/preferences, and extension tokens.
+- `brand/`: one display-name configuration and icon master; generated web/server/extension bridges keep presentation consistent.
 
 The app uses a Postgres + Drizzle + cookie auth stack. It does not use Supabase.
 
@@ -82,7 +83,7 @@ RAPIDAPI_KEY=your-rapidapi-key
 RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
 ```
 
-For local development, email verification links are printed to the web server log if `EMAIL_FROM` and `RESEND_API_KEY` are not set. Production should configure both values so sign-up and resend flows can deliver verification email.
+Account creation and email recovery require a configured Resend sender and API key. Missing delivery configuration stops those operations; codes and links are never printed as a delivery fallback. Public page previews still work without credentials.
 
 AI drafts open through `mailto:` or a Gmail compose URL. The app does not require Gmail OAuth for v1 and does not track whether a draft was sent or replied to.
 
@@ -144,14 +145,14 @@ TREG_EMAIL_ENDPOINT=apollo.people.enrich
 CONTACT_SEARCH_CREDITS=0
 CONTACT_REVEAL_CREDITS=1
 EMAIL_DRAFT_CREDITS=0
-BETA_UNLIMITED_USAGE=true
+BETA_UNLIMITED_USAGE=false
 ```
 
-During private beta, `BETA_UNLIMITED_USAGE` defaults to enabled, so all authenticated users can search, reveal verified emails, and generate drafts without reducing their Contact Kit balance. API usage and provider cost telemetry are still recorded. Set `BETA_UNLIMITED_USAGE=false` to restore the configured per-action costs. The reveal uses the candidate's LinkedIn URL first and falls back to name plus company domain when needed.
+Membership enforcement defaults to enabled. Set `BETA_UNLIMITED_USAGE=false` explicitly in both deployments for launch. A separately authorized private beta can explicitly enable the bypass; provider costs still accrue. Search and drafts use zero app credits, while a verified work-email reveal uses one. The reveal uses the candidate's LinkedIn URL first and falls back to name plus company domain when needed.
 
 ## Production Access
 
-Production VPS access uses the shared local SSH handle documented in `/Users/bytedance/.codex/AGENTS.md`. Project-specific service, env, and Docker details are in `AGENTS.md`.
+Resolve production SSH access from the current host configuration. Project-specific service, environment, and Docker deployment details are in `AGENTS.md`; do not reuse an identity path from another computer.
 
 ## Chrome Extension
 
@@ -164,4 +165,10 @@ Production VPS access uses the shared local SSH handle documented in `/Users/byt
 
 The extension defaults to `https://contacts.reachard.co`. For local or staging use, the website supplies the API URL during connection through `NEXT_PUBLIC_API_BASE_URL` (localhost defaults to `http://localhost:8787`).
 
-During private beta, `ALLOW_ANY_EXTENSION_ID` defaults to enabled so unpacked builds with different valid Chrome extension IDs can connect after the user signs in. Before public launch, set `ALLOW_ANY_EXTENSION_ID=false` and set `ALLOWED_EXTENSION_IDS` to the final Chrome Web Store ID. Keep `NEXT_PUBLIC_CHROME_STORE_URL` empty during private beta; the website then shows `Join private beta` instead of pretending the extension is already installable. After publication, set it to the verified Chrome Web Store listing URL.
+During private beta, `ALLOW_ANY_EXTENSION_ID` defaults to enabled so unpacked builds with different valid Chrome extension IDs can connect after the user signs in. Before public launch, set `ALLOW_ANY_EXTENSION_ID=false` and set `ALLOWED_EXTENSION_IDS` to the final Chrome Web Store ID. Keep `NEXT_PUBLIC_CHROME_STORE_URL` empty during private beta; the website then links to setup instructions and beta access. After publication, set it to the verified Chrome Web Store listing URL.
+
+## Brand and launch package
+
+Change `name` in `brand/brand.json` for spelling or capitalization. Run `node scripts/sync-brand.mjs` to update all generated display text. Replace `brand/mark.png` for the graphic, then run `node scripts/build-brand-icons.mjs`, synchronize, and rebuild the extension. The image contains only the symbol; lettering remains editable text. Domain names, service identifiers, and stored account data are independent of display branding.
+
+The current Chrome store candidate, screenshots, listing copy, and exact checksums are in `artifacts/launch-20260907/store/`. See `extension/STORE_SUBMISSION.md` for reproducible build commands and reviewer instructions. Preparation does not imply a store submission or a production deployment.

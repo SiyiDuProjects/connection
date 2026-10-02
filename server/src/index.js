@@ -305,7 +305,7 @@ app.post("/api/email/draft", prepareIdempotentRequest("email.draft"), requireCre
 
 app.use(errorHandler);
 
-const server = app.listen(port, () => {
+const server = app.listen(port, process.env.HOST || '0.0.0.0', () => {
   console.log(`${BRAND_NAME} server listening on http://localhost:${port}`);
 });
 const idempotencyCleanupTimer = setInterval(() => {

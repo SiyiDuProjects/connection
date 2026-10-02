@@ -339,20 +339,19 @@ function schoolsMatch(education, preferredSchool) {
   const actual = normalizeSchool(education);
   const preferred = normalizeSchool(preferredSchool);
   if (!actual || !preferred) return false;
-  if (actual.includes(preferred) || preferred.includes(actual)) return true;
-
-  const actualTokens = new Set(actual.split(" ").filter((token) => token.length > 2));
-  const preferredTokens = preferred.split(" ").filter((token) => token.length > 2);
-  if (!preferredTokens.length) return false;
-  return preferredTokens.filter((token) => actualTokens.has(token)).length / preferredTokens.length >= 0.75;
+  if (actual === preferred) return true;
+  // A partial city/name is not evidence of a shared institution. Preserve
+  // "college" versus "university" and match the complete selected school.
+  if (preferred.split(' ').length < 2) return false;
+  return ` ${actual} `.includes(` ${preferred} `);
 }
 
 function normalizeSchool(value) {
   return String(value || "")
     .toLowerCase()
-    .replace(/university of california[,\s-]*berkeley/g, "uc berkeley")
+    .replace(/university of california[,\s-]*(?:at\s+)?berkeley/g, "uc berkeley")
     .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\b(the|university|college|school|of|at)\b/g, " ")
+    .replace(/\b(the|of|at)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

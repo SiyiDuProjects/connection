@@ -36,11 +36,9 @@ const uiSource = await readFile(new URL("../extension-ui/index.jsx", import.meta
 assert.deepEqual(manifest.content_scripts.map(script => script.js), [['brand.js', 'content.js'], ['web_bridge.js']]);
 assert.ok(manifest.permissions.includes('sidePanel'));
 assert.equal(manifest.side_panel.default_path, 'sidepanel.html');
-assert.equal(manifest.web_accessible_resources, undefined, 'native side panel needs no public iframe entry');
-assert.ok(!runtimeFiles[0].includes('createElement("iframe")'), 'do not replace the native panel with a webpage iframe');
-assert.ok(!runtimeFiles[0].includes('fc-sidebar-text'), 'launcher must contain only the Reachard mark');
-assert.match(contentStyles, /width: 56px;[\s\S]*height: 56px;/, 'launcher has a square footprint');
-assert.ok(contentStyles.includes('prefers-reduced-motion'), 'launcher attention respects reduced motion');
+assert.equal(manifest.web_accessible_resources, undefined, 'native side panel must not expose an embedded page');
+assert.ok(runtimeFiles[0].includes('reachard-job-action'), 'LinkedIn must have an in-page action');
+assert.ok(!runtimeFiles[0].includes('openEmbeddedPanel'), 'entry points must open the native panel');
 assert.ok(!contentStyles.includes('data-reachard-docked'));
 assert.ok(runtimeFiles[0].includes('OPEN_REACHARD_SIDE_PANEL'));
 assert.ok(runtimeText.includes('chrome.sidePanel.open'));

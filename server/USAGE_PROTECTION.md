@@ -46,13 +46,19 @@ before any manual release. Do not automatically release timeout holds.
 
 Treg receives `X-Treg-Route-Max-Cost`: $0.0005 per requested search result or
 $0.05 per reveal. Its current list prices are $0.00038/result and $0.026/enrichment.
-OpenAI is restricted to the official gpt-5.6-luna Responses endpoint, 96 KB of
-serialized text context, 4,096 output tokens, and pricing at least $0.20/$0.02/$1.20
+OpenAI is restricted to the official gpt-6-luna Responses endpoint, 96 KB of
+serialized text context, 4,096 output tokens, and pricing at least $0.10/$0.01/$0.50
 per million input/cached/output tokens. Reservations include prompt/schema framing
 headroom. OpenAI costs are token-based estimates; provider pricing changes require
 review. An observed charge above its reservation records the actual cost and
 blocks further calls that day. This is not a cap on other apps using the same keys
 or infrastructure bills. Unsupported legacy providers are blocked while enabled.
+
+When deploying the GPT-6 Luna upgrade, update the existing server environment's
+`OPENAI_MODEL=gpt-6-luna` and input/cached/output pricing overrides to
+`0.10`/`0.01`/`0.50`, then recreate the Docker container. Existing environment
+values override code defaults; syncing `.env.example` alone does not migrate them.
+Pricing source: https://developers.openai.com/api/docs/models/gpt-6-luna
 
 80% budget admission and overrun/unknown/settlement events are logged without
 request content. Health reports configuration/schema readiness, not remaining funds.

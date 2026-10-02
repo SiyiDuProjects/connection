@@ -1,21 +1,25 @@
 {
   "private": true,
   "scripts": {
+    "predev": "node scripts/sync-brand.mjs",
     "dev": "next dev --turbopack",
+    "prepreview": "node scripts/sync-brand.mjs",
     "preview": "node scripts/preview.mjs",
+    "test:local": "node scripts/local-test.mjs",
+    "prebuild": "node scripts/sync-brand.mjs",
     "build": "next build",
     "start": "next start",
     "test:resume": "node --experimental-strip-types --test scripts/resume-text.test.mjs",
     "test:email": "node --test scripts/email-verification.test.mjs",
+    "test:password-reset": "node --test scripts/password-reset.test.mjs",
     "test:billing": "node --test scripts/billing.test.mjs scripts/public-pricing.test.cjs",
+    "check:brand": "node ../scripts/sync-brand.mjs --check",
     "check:billing": "node scripts/check-billing-readiness.mjs",
     "db:setup": "npx tsx lib/db/setup.ts",
     "db:seed": "npx tsx lib/db/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio",
-    "test:trial": "node --test scripts/free-trial.test.mjs",
-    "test:auth-rate-limit": "node --test scripts/auth-rate-limit.test.mjs"
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@gravity-ui/icons": "^2.22.0",
@@ -41,8 +45,8 @@
     "bcryptjs": "^3.0.2",
     "clsx": "^2.1.1",
     "dotenv": "^16.5.0",
-    "drizzle-kit": "^0.31.1",
-    "drizzle-orm": "0.45.2",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.45.2",
     "embla-carousel": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
     "jose": "^6.0.11",
@@ -53,7 +57,7 @@
     "motion": "^12.38.0",
     "next": "15.5.24",
     "pdfjs-dist": "^6.3.289",
-    "postcss": "8.5.23",
+    "postcss": "^8.5.28",
     "postgres": "^3.4.5",
     "react": "19.1.7",
     "react-aria": "3.52.0",
@@ -76,8 +80,21 @@
     "typescript": "^5.8.3",
     "zod": "^3.24.4"
   },
+  "pnpm": {
+    "overrides": {
+      "esbuild@<0.25.0": "0.25.4",
+      "tar@<7.5.22": "7.5.22",
+      "qs@<6.16.0": "6.16.0",
+      "shell-quote@<1.9.0": "1.9.0",
+      "postcss@<8.5.28": "8.5.28",
+      "sharp@<0.35.4": "0.35.4",
+      "nanoid@>=3 <3.3.18": "3.3.18",
+      "browserslist@<4.28.7": "4.28.7"
+    }
+  },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "0.2.11",
     "jszip": "^3.10.1"
   }
 }

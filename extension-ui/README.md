@@ -4,9 +4,6 @@ This is the React/HeroUI source for the native browser side panel in `../extensi
 `sidepanel.html` owns the UI. The page content script reads the current job/company
 and provides a small launcher; it does not insert a panel or cover the website.
 The browser toolbar icon and page launcher open the same native Side Panel.
-The square page launcher shows the Reachard logo and appears automatically on
-supported pages. It draws attention briefly, then stays still. Opening the native
-panel requires clicking the launcher or toolbar icon; there is no iframe panel.
 The panel follows the active tab in its own window and keeps results with their
 originating tab/role, including when requests finish after a tab switch.
 The three steps share a restrained blue action color, neutral text, and the bundled
@@ -58,14 +55,8 @@ In Chrome or Edge, open the Extensions page, enable Developer mode, choose
 Load unpacked, and select the repository's `extension/` directory. If already
 loaded, click Reload on Reachard and refresh the job page. Click the Reachard
 toolbar icon or the small page launcher. The browser controls the side, width,
-and close button. The current package requires Chrome 141 or later. It uses
-`storage`, `sidePanel`, `activeTab` and `scripting`. Supported job sites get the
-page reader automatically; other sites grant temporary page access on a toolbar
-click. It does not request persistent access to all sites.
-
-The usage footer reads the API's explicit `credits.unlimited` boolean. A plan
-name never grants unlimited use: legacy Plus accounts keep their numeric balance.
-Null or missing balances are unknown, not zero. Signing out clears both values.
+and close button. The current package requires Chrome 141 or later and uses
+only `storage` and `sidePanel` API permissions.
 
 ## Local UI verification
 
@@ -81,8 +72,6 @@ or live provider responses. It makes no paid contact requests.
 Optional states: `?state=signed-out`, `?state=empty`, `?state=error`,
 `?state=save-error`, `?state=slow-save`, `?state=no-context`, `?state=long-contact`,
 `?state=long-company` (10 sample contacts plus salary/date fixtures).
-Quota states: `?state=plus`, `?state=legacy-plus`, `?state=trial`, and
-`?state=no-credits`. These fixtures do not make paid provider calls.
 Fixtures are outside `extension/` and are not shipped.
 
 React Aria's Shadow DOM event flag must remain enabled. Select and tooltip

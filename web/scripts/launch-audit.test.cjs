@@ -33,13 +33,15 @@ const overrides = {
   'next/navigation': { redirect: url => { const error = new Error('redirect'); error.url = url; throw error; } },
 };
 function load(file) {
+  if (path.extname(file) === '.json') return JSON.parse(fs.readFileSync(file, 'utf8'));
   if (modules.has(file)) return modules.get(file).exports;
   const mod = { exports: {} }; modules.set(file, mod);
-  const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
+  const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
   const localRequire = spec => {
     if (Object.hasOwn(overrides, spec)) return overrides[spec];
-    if (spec.startsWith('@/')) return load(path.join(root, spec.slice(2) + '.ts'));
-    if (spec.startsWith('.')) return load(path.resolve(path.dirname(file), spec + '.ts'));
+    const target = spec.endsWith('.json') ? spec : spec + '.ts';
+    if (spec.startsWith('@/')) return load(path.join(root, target.slice(2)));
+    if (spec.startsWith('.')) return load(path.resolve(path.dirname(file), target));
     return projectRequire(spec);
   };
   new Function('require', 'module', 'exports', source)(localRequire, mod, mod.exports);
@@ -115,11 +117,15 @@ test('billing redirects to the existing portal and exposes a safe retry on provi
   const result = await billing.openBillingPortal({}, new FormData());
   assert.match(result.error, /temporarily unavailable/); assert.doesNotMatch(result.error, /provider-secret/);
 });
-test('retired metadata lookups never spend provider credits and preserve manual entry', async () => {
+test('school lookup uses the bundled directory, bounds input and never calls a provider', async () => {
   process.env.RAPIDAPI_KEY = 'fixture-only'; let calls = 0;
   global.fetch = async (_url, options) => { calls++; assert.ok(options.signal); throw new Error('provider-secret'); };
-  const failed = await school.GET(new Request('https://reachard.co/api/metadata/schools?q=Berkeley'));
-  assert.equal(failed.status, 410); assert.match((await failed.json()).error, /Enter the name yourself/);
+  const found = await school.GET(new Request('https://reachard.co/api/metadata/schools?q=Berkeley'));
+  assert.equal(found.status, 200);
+  const results = (await found.json()).schools;
+  assert.ok(results.some(row => row.domain === 'berkeley.edu'));
+  assert.ok(results.length > 0 && results.length <= 20);
+  assert.equal((await school.GET(new Request('https://reachard.co/api/metadata/schools?q=a'))).status, 400);
   const invalid = await school.GET(new Request('https://reachard.co/api/metadata/schools?q=' + 'a'.repeat(161)));
   assert.equal(invalid.status, 400); assert.equal(calls, 0);
 });

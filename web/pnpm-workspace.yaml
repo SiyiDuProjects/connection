@@ -8,9 +8,9 @@ allowBuilds:
 # Pin transitive security fixes until the upstream packages raise their ranges.
 overrides:
   'esbuild@<0.25.0': 0.25.4
-  'tar@<7.5.21': 7.5.21
-  'postcss@<8.5.23': 8.5.23
-  'nanoid@<3.3.18': 3.3.18
+  'tar@<7.5.22': 7.5.22
+  'postcss@<8.5.28': 8.5.28
+  'nanoid@>=3 <3.3.18': 3.3.18
   'browserslist@<4.28.7': 4.28.7
   'shell-quote@<1.9.0': 1.9.0
   'sharp@<0.35.4': 0.35.4

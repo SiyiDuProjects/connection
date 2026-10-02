@@ -3,7 +3,7 @@ import { after, beforeEach, test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
 import ts from 'typescript';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -24,12 +24,22 @@ const overrides = {
     return (await database.execute(query)).rows;
   } } },
 };
-const module = { exports: {} };
-const source = ts.transpileModule(readFileSync(resolve(root, 'lib/auth/rate-limit.ts'), 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
-}).outputText;
-new Function('require','module','exports',source)(name => overrides[name] || require(name), module, module.exports);
-const { consumeAuthLimit, checkCredentialRateLimit, reserveAccountEmailDelivery } = module.exports;
+const modules = new Map();
+function load(file) {
+  if (modules.has(file)) return modules.get(file).exports;
+  const module = { exports: {} }; modules.set(file, module);
+  const source = ts.transpileModule(readFileSync(file, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+  }).outputText;
+  const localRequire = name => {
+    if (Object.hasOwn(overrides, name)) return overrides[name];
+    if (name.startsWith('.')) return load(resolve(dirname(file), name + '.ts'));
+    return require(name);
+  };
+  new Function('require','module','exports',source)(localRequire, module, module.exports);
+  return module.exports;
+}
+const { consumeAuthLimit, checkCredentialRateLimit, reserveAccountEmailDelivery } = load(resolve(root, 'lib/auth/rate-limit.ts'));
 beforeEach(async () => {
   await pg.exec('truncate auth_rate_limits');
   process.env.AUTH_SECRET = secret;

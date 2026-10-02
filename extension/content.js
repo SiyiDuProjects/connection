@@ -3,6 +3,7 @@
   const ROOT_ID = "fc-linkedin-root";
   const PANEL_ID = "fc-linkedin-panel";
   const BUTTON_ID = "fc-linkedin-button";
+  const INLINE_ID = 'reachard-job-action';
   const CLEANUP_KEY = "__fcLinkedInCleanup";
   const AUTH_LISTENER_KEY = "__fcLinkedInAuthListener";
   const BUTTON_REFRESH_DELAY_MS = 250;
@@ -124,6 +125,7 @@
       if (context?.type && isSupportedContext(context)) {
         return normalizePageContext(context, adapter.label);
       }
+      if (location.hostname === 'www.linkedin.com') return null;
     }
     return null;
   }
@@ -201,19 +203,36 @@
   }
 
   function isLinkedInJobPage() {
-    if (location.pathname.startsWith("/jobs/view/")) return true;
-    if (location.pathname.startsWith("/jobs/collections/")) return true;
-    if (location.pathname.startsWith("/jobs/search-results/")) {
-      return new URLSearchParams(location.search).has("currentJobId");
-    }
-    if (location.pathname.startsWith("/jobs/search/")) {
-      return new URLSearchParams(location.search).has("currentJobId");
-    }
-    return false;
+    return /^\/jobs\/(?:view|collections|search|search-results)(?:\/|$)/.test(location.pathname);
+  }
+
+  function visibleElement(element) {
+    return element && element.getClientRects().length > 0 && !element.closest('[aria-hidden="true"]');
+  }
+
+  function linkedInJobParts() {
+    const main = document.querySelector('main') || document.body;
+    const apply = Array.from(main.querySelectorAll('a,button')).find(element => visibleElement(element) &&
+      (/^(Apply on company website|Apply to |Easy Apply)/i.test(element.getAttribute('aria-label') || '') || element.matches('.jobs-apply-button')));
+    let card = apply?.parentElement;
+    while (card && card !== main && !(card.querySelector('h1, .job-details-jobs-unified-top-card__job-title, a[href*="/jobs/view/"]') && card.querySelector('a[href*="/company/"], [aria-label^="Company,"]'))) card = card.parentElement;
+    if (!card || card === main) card = Array.from(main.querySelectorAll('.job-details-jobs-unified-top-card, .jobs-unified-top-card, .top-card-layout')).find(visibleElement) || null;
+    // Never use the first job link in the results column as the selected role.
+    let detail = card;
+    while (detail && detail !== main && !Array.from(detail.querySelectorAll('h2,h3')).some(h => /^About the job$/i.test(cleanText(h.textContent)))) detail = detail.parentElement;
+    if (!detail || detail === main) detail = card?.closest('.jobs-search__job-details--container, .jobs-details, .job-view-layout') || card;
+    return { card, detail, apply };
   }
 
   function getLinkedInJobContext() {
-    const title = textFrom([
+    const { card, detail } = linkedInJobParts();
+    if (!card) return null;
+    const read = selectors => textFrom(selectors, card);
+    const selectedId = new URLSearchParams(location.search).get('currentJobId') || location.pathname.match(/\/jobs\/view\/(\d+)/)?.[1];
+    const titleLink = card.querySelector('a[href*="/jobs/view/"]');
+    const displayedId = titleLink?.getAttribute('href')?.match(/\/jobs\/view\/(\d+)/)?.[1];
+    if (selectedId && displayedId && selectedId !== displayedId) return null;
+    const title = read([
       ".job-details-jobs-unified-top-card__job-title",
       ".jobs-unified-top-card__job-title",
       ".job-details-jobs-unified-top-card__title",
@@ -222,7 +241,7 @@
       "h1"
     ]);
 
-    const companyName = textFrom([
+    const companyName = read([
       ".job-details-jobs-unified-top-card__company-name a",
       ".job-details-jobs-unified-top-card__company-name",
       ".jobs-unified-top-card__company-name a",
@@ -231,8 +250,8 @@
       ".top-card-layout__second-subline a",
       'a[href*="/company/"][href*="/life/"] p a',
       'a[href*="/company/"][href*="/life/"]'
-    ]) || companyNameFromAriaLabel();
-    const companyLinkedInUrl = document.querySelector([
+    ]) || companyNameFromAriaLabel(card);
+    const companyLinkedInUrl = card.querySelector([
       ".job-details-jobs-unified-top-card__company-name a",
       ".jobs-unified-top-card__company-name a",
       ".topcard__org-name-link",
@@ -240,12 +259,12 @@
       'a[href*="/company/"][href*="/life/"]'
     ].join(", "))?.href || "";
 
-    const locationText = textFrom([
+    const locationText = read([
       ".job-details-jobs-unified-top-card__primary-description-container",
       ".jobs-unified-top-card__primary-description-container",
       ".topcard__flavor-row .topcard__flavor--bullet",
       ".top-card-layout__second-subline"
-    ]);
+    ]).split('·')[0].trim() || Array.from(card.querySelectorAll('p')).map(p => cleanText(p.textContent)).find(text => /·.*(?:ago|applicant|clicked apply)/i.test(text))?.split('·')[0].trim() || '';
 
     return {
       type: PAGE_TYPES.LINKEDIN_JOB,
@@ -253,7 +272,7 @@
       companyLinkedInUrl,
       jobTitle: title,
       jobLocation: locationText,
-      jobDescription: getJobDescription(),
+      jobDescription: getJobDescription(detail),
       pageTitle: [companyName, title].filter(Boolean).join(" - ")
     };
   }
@@ -389,10 +408,19 @@
       lastPublishedContext = signature;
       chrome.runtime.sendMessage({ type: "REACHARD_PAGE_CHANGED" }).catch(() => {});
     }
-    if (!context) {
+    const jobPage = location.hostname === 'www.linkedin.com' && isLinkedInJobPage();
+    if (!context && !jobPage) {
+      document.getElementById(ROOT_ID)?.remove();
+      document.getElementById(INLINE_ID)?.remove();
+      document.getElementById(PANEL_ID)?.remove();
+      return;
+    }
+
+    if (jobPage && context && mountInlineAction()) {
       document.getElementById(ROOT_ID)?.remove();
       return;
     }
+    document.getElementById(INLINE_ID)?.remove();
 
     const existing = document.getElementById(BUTTON_ID);
     if (existing && document.body.contains(existing)) {
@@ -415,7 +443,7 @@
     button.setAttribute("aria-label", buttonLabel(context));
     button.setAttribute("title", buttonLabel(context));
     button.innerHTML = `
-      <span class="fc-sidebar-logo" aria-hidden="true"><img src="${globalThis.ReachardBrand.markDataUrl}" width="32" height="32" alt="" /></span>
+      <span class="fc-sidebar-logo" aria-hidden="true"><img src="${globalThis.ReachardBrand.markDataUrl}" width="32" height="32" alt="" draggable="false" /></span>
     `;
     button.addEventListener("click", (event) => {
       if (root.dataset.fcSuppressClick === "true") {
@@ -428,37 +456,78 @@
     });
 
     root.appendChild(button);
+    const open = document.getElementById(PANEL_ID);
+    root.hidden = Boolean(open && !open.hidden);
     document.body.appendChild(root);
     loadSidebarPosition(root);
     makeSidebarDraggable(root, button);
   }
 
+  function mountInlineAction() {
+    const { card, apply } = linkedInJobParts();
+    if (!card || !apply || !card.contains(apply)) return false;
+    let row = apply.parentElement;
+    while (row && row !== card && !row.querySelector('button[aria-label*="Save"], button[aria-label*="Saved"], .jobs-save-button')) row = row.parentElement;
+    if (!row || row === card) row = apply.parentElement;
+    let action = document.getElementById(INLINE_ID);
+    if (action?.parentElement === row) return true;
+    action?.remove();
+    action = document.createElement('span');
+    action.id = INLINE_ID;
+    action.style.cssText = 'display:inline-flex;align-items:center;flex-shrink:0;margin:4px 8px 4px 0;vertical-align:middle;';
+    const shadow = action.attachShadow({mode:'open'});
+    shadow.innerHTML = `<style>:host{font-family:Arial,sans-serif}button{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:8px 16px;border:1px solid #007aff;border-radius:24px;background:#eef6ff;color:#005bc4;font:600 14px/1.3 Arial,sans-serif;cursor:pointer;white-space:nowrap}button:hover{background:#dcecff}button:focus-visible{outline:3px solid #007aff;outline-offset:3px}img{width:22px;height:22px}</style><button type="button" aria-label="Find people with Reachard"><img src="${globalThis.ReachardBrand.markDataUrl}" alt="" />Find people</button>`;
+    shadow.querySelector('button').addEventListener('click', openPanel);
+    row.appendChild(action);
+    return true;
+  }
+
   function openPanel() {
     chrome.runtime.sendMessage({ type: 'OPEN_REACHARD_SIDE_PANEL' }).then(result => {
-      if (!result?.ok) console.warn(`Could not open ${BRAND_NAME}`, result?.error);
-    }).catch(error => console.warn(`Could not open ${BRAND_NAME}`, error.message));
+      if (!result?.ok) showOpenError();
+    }).catch(showOpenError);
   }
-  function textFrom(selectors) {
+  function showOpenError() {
+    const host = document.getElementById(INLINE_ID)?.shadowRoot || document.getElementById(ROOT_ID);
+    if (!host || host.querySelector('[role="status"]')) return;
+    const message = document.createElement('span');
+    message.setAttribute('role', 'status');
+    message.textContent = 'Reload this page, or open Reachard from the Chrome toolbar.';
+    message.style.cssText = 'display:block;max-width:240px;padding:8px;background:white;color:#333;font:12px/1.5 Arial,sans-serif;';
+    host.appendChild(message);
+  }
+  function textFrom(selectors, root = document) {
     for (const selector of selectors) {
-      const element = document.querySelector(selector);
+      const element = root?.querySelector(selector);
       const text = element?.textContent?.replace(/\s+/g, " ").trim();
       if (text) return text;
     }
     return "";
   }
 
-  function getJobDescription() {
-    return textFrom([
+  function getJobDescription(root = document) {
+    for (const selector of [
       ".jobs-description__content",
       ".jobs-box__html-content",
       ".jobs-description-content__text",
       ".description__text",
       ".show-more-less-html__markup"
-    ]);
+    ]) {
+      const element = root?.querySelector(selector);
+      if (element) return cleanMultiline(element.innerText || element.textContent);
+    }
+    const heading = Array.from(root?.querySelectorAll('h2,h3') || []).find(h => /^About the job$/i.test(cleanText(h.textContent)));
+    let section = heading?.parentElement;
+    while (section && section !== root?.parentElement) {
+      const description = section.querySelector('[data-testid="expandable-text-box"]');
+      if (description) return cleanMultiline(description.innerText || description.textContent).replace(/\s*…?\s*more\s*$/i, '');
+      section = section.parentElement;
+    }
+    return '';
   }
 
-  function companyNameFromAriaLabel() {
-    const companyElement = document.querySelector('[aria-label^="Company,"]');
+  function companyNameFromAriaLabel(root = document) {
+    const companyElement = root.querySelector('[aria-label^="Company,"]');
     const label = companyElement?.getAttribute("aria-label") || "";
     return label.replace(/^Company,\s*/i, "").replace(/\.$/, "").trim();
   }
@@ -672,7 +741,7 @@
   }
 
   function buttonLabel(context) {
-    return context.type === PAGE_TYPES.LINKEDIN_PERSON ? t("emailWithReachard") : t("findWithReachard");
+    return context?.type === PAGE_TYPES.LINKEDIN_PERSON ? t("emailWithReachard") : t("findWithReachard");
   }
 
   function t(key, values = {}) {
@@ -689,9 +758,11 @@
       if (message?.type === "GET_REACHARD_PAGE_CONTEXT") {
         sendResponse({ ok: true, pageContext: isReachardWebsite() ? null : getPageContext() });
       }
+
     };
     chrome.runtime.onMessage.addListener(window[AUTH_LISTENER_KEY]);
     document.getElementById(ROOT_ID)?.remove();
+    document.getElementById(INLINE_ID)?.remove();
     window.ReachardUI?.unmount(document.getElementById(PANEL_ID));
       document.getElementById(PANEL_ID)?.remove();
 
@@ -710,19 +781,20 @@
       if (observer || !shouldWatchDynamicPage()) return;
       observer = new MutationObserver((mutations) => {
         const hasPageMutation = mutations.some((mutation) => {
-          const target = mutation.target;
-          if (target?.closest?.(`#${ROOT_ID}, #${PANEL_ID}`)) return false;
+          const target = mutation.target.nodeType === Node.TEXT_NODE ? mutation.target.parentElement : mutation.target;
+          if (target?.closest?.(`#${ROOT_ID}, #${PANEL_ID}, #${INLINE_ID}`)) return false;
+          if (mutation.type === 'characterData' || mutation.type === 'attributes') return true;
           return Array.from(mutation.addedNodes || []).some((node) => {
             if (node.nodeType !== Node.ELEMENT_NODE) return true;
-            return !node.closest?.(`#${ROOT_ID}, #${PANEL_ID}`);
+            return !node.closest?.(`#${ROOT_ID}, #${PANEL_ID}, #${INLINE_ID}`);
           }) || Array.from(mutation.removedNodes || []).some((node) => {
             if (node.nodeType !== Node.ELEMENT_NODE) return true;
-            return node.id !== ROOT_ID && node.id !== PANEL_ID;
+            return node.id !== ROOT_ID && node.id !== PANEL_ID && node.id !== INLINE_ID;
           });
         });
         if (hasPageMutation) scheduleEnsureButton();
       });
-      observer.observe(document.body, { childList: true, subtree: true });
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['href', 'aria-label', 'aria-selected'] });
     };
     startObserverIfNeeded();
 
@@ -731,10 +803,13 @@
       if (location.href !== lastUrl) {
         lastUrl = location.href;
         document.getElementById(ROOT_ID)?.remove();
+        document.getElementById(INLINE_ID)?.remove();
         startObserverIfNeeded();
         scheduleEnsureButton();
       }
+      if (shouldWatchDynamicPage()) scheduleEnsureButton();
     }, 1500);
+    window.addEventListener('resize', scheduleEnsureButton);
 
     window[CLEANUP_KEY] = () => {
       observer?.disconnect();
@@ -744,7 +819,9 @@
         window[AUTH_LISTENER_KEY] = null;
       }
       window.clearInterval(intervalId);
+      window.removeEventListener('resize', scheduleEnsureButton);
       document.getElementById(ROOT_ID)?.remove();
+      document.getElementById(INLINE_ID)?.remove();
       window.ReachardUI?.unmount(document.getElementById(PANEL_ID));
       document.getElementById(PANEL_ID)?.remove();
     };

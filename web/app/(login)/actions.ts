@@ -32,6 +32,7 @@ import { changeAuthenticatedPassword } from '@/lib/auth/password-reset';
 import { newPasswordSchema } from '@/lib/auth/password-policy';
 import { checkCredentialRateLimit } from '@/lib/auth/rate-limit';
 import { safeAuthRedirect } from '@/lib/auth/verification-code';
+import { isLocalTestEmail } from '@/lib/auth/local-test-policy';
 import {
   validatedAction,
   validatedActionWithUser
@@ -144,6 +145,7 @@ const signUpSchema = z.object({
 export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   const { password, inviteId, ref } = data;
   const email = data.email.toLowerCase();
+  const localTestAccount = isLocalTestEmail(email);
   const limited = await checkCredentialRateLimit(email, true);
   if (limited) return { error: limited, email, ref };
 
@@ -168,7 +170,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     return { error: 'Invalid or expired invitation.', email, ref };
   }
 
-  try { requireEmailDelivery(); } catch {
+  try { if (!localTestAccount) requireEmailDelivery(); } catch {
     return { error: 'Email verification is temporarily unavailable. Please try again later.', email, ref };
   }
 
@@ -218,7 +220,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
         .values({
           email,
           passwordHash,
-          emailVerifiedAt: null,
+          emailVerifiedAt: localTestAccount ? new Date() : null,
           role: userRole
         } satisfies NewUser)
         .returning();
@@ -269,6 +271,11 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     return { error: 'Failed to create account. Please try again.', email, ref };
   }
 
+  if (localTestAccount) {
+    await setSession(createdUser);
+    const destination = formData.get('redirect');
+    redirect(typeof destination === 'string' && isInternalRedirect(destination) ? destination : '/dashboard');
+  }
   return continueToVerification(createdUser, formData);
 });
 

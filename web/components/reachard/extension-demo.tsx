@@ -1,7 +1,8 @@
 'use client';
+import { BRAND_MARK_PATH, BRAND_NAME } from '@/lib/brand';
 
 import { Avatar, Button } from '@heroui/react';
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Chrome, Copy, Mail, MapPin, MoreHorizontal, Orbit, Pause, Play, Search, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Chrome, Copy, Mail, MapPin, MoreHorizontal, Pause, Play, Search, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 // Presentation-only adaptation of extension-ui/index.jsx: current role → people
@@ -99,7 +100,7 @@ export function ExtensionDemo() {
   const status = scene === 'role' ? 'A role worth exploring' : scene === 'search' ? 'Finding your people' : scene === 'people' ? 'A reason to reach out' : draftReady ? 'Your next conversation starts here' : 'Finding the words';
 
   return (
-    <figure ref={container} className="rh-demo" data-scene={scene} data-paused={paused || reducedMotion} aria-label="Illustrative Reachard extension demo: open a job, find relevant people and draft a personal email.">
+    <figure ref={container} className="rh-demo" data-scene={scene} data-paused={paused || reducedMotion} aria-label={`Illustrative ${BRAND_NAME} extension demo: open a job, find relevant people and draft a personal email.`}>
       <div className="rh-collage" aria-hidden="true">
         <img className="rh-art rh-art-blue" src="/images/home/blue-texture.webp" alt="" width="1086" height="1448" fetchPriority="high" />
         <img className="rh-art rh-art-coast" src="/images/home/hero-background.png" alt="" width="1659" height="948" />
@@ -108,7 +109,7 @@ export function ExtensionDemo() {
           <div className="rh-job-body"><span className="rh-job-brand">stripe<span>Careers <ArrowRight size={12} /></span></span><p className="rh-job-kicker">Design · San Francisco</p><h3>Product<br />Designer</h3><p>Help build the next generation<br />of financial tools.</p><div className="rh-job-pills"><span>Full time</span><span>Design</span></div><div className="rh-job-rule" /><h4>About the team</h4><p>We make complex things feel simple.<br />Join a team designing for millions<br />of ambitious businesses.</p><div className="rh-job-apply">Apply for this role <ArrowRight size={13} /></div></div>
         </div>
         <div className="rh-extension">
-          <header className="rh-extension-header"><span><Orbit size={23} strokeWidth={1.8} />reachard</span><span className="rh-extension-tools"><MoreHorizontal size={17} /><X size={15} /></span></header>
+          <header className="rh-extension-header"><span><img src={BRAND_MARK_PATH} width={23} height={23} alt="" />{BRAND_NAME}</span><span className="rh-extension-tools"><MoreHorizontal size={17} /><X size={15} /></span></header>
           <div ref={body} className="rh-extension-body">
             <div className="rh-demo-scene rh-role-scene" data-active={scene === 'role' || scene === 'search'}>
               <span className="rh-panel-label">Current role</span><h3>Product Designer</h3><p className="rh-panel-company">Stripe <span><MapPin size={12} />San Francisco</span></p><span className="rh-view-job">View job <ArrowRight size={14} /></span>
@@ -129,7 +130,7 @@ export function ExtensionDemo() {
               <svg width="18" height="28.5" viewBox="0 0 12 19" fill="none" style={{ transform: clicking ? 'scale(.96)' : 'scale(1)' }}><path d="m6.148 18.473 1.863-1.003 1.615-.839-2.568-4.816h4.332l-11.379-11.408v16.015l3.316-3.221z" fill="#fff" /><path d="m6.431 17 1.765-.941-2.775-5.202h3.604l-8.025-8.043v11.188l2.53-2.442z" fill="#000" /></svg>
             </div>}
           </div>
-          <div className="rh-extension-bottom"><span><Check size={12} />You choose when to send.</span><Orbit size={14} /></div>
+          <div className="rh-extension-bottom"><span><Check size={12} />You choose when to send.</span><img src={BRAND_MARK_PATH} width={14} height={14} alt="" /></div>
         </div>
         <div className="rh-live-caption"><span className="rh-caption-icon">{scene === 'draft' ? <Mail size={17} /> : scene === 'people' ? <Sparkles size={17} /> : <Search size={17} />}</span><span key={status}>{status}</span></div>
       </div>

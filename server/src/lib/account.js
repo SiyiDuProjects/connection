@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import postgres from "postgres";
 
-const sql = process.env.POSTGRES_URL ? postgres(process.env.POSTGRES_URL) : null;
+const sql = process.env.POSTGRES_URL ? postgres(process.env.POSTGRES_URL,
+  process.env.REACHARD_LOCAL_TEST === '1' && process.env.NODE_ENV === 'development' ? { max: 1, prepare: false } : {}) : null;
 
 export function isAccountDbConfigured() {
   return Boolean(sql);

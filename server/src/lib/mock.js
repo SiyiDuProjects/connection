@@ -1,5 +1,5 @@
 export function searchMockContacts(job) {
-  const domain = job.companyDomain || domainFromCompany(job.companyName);
+  const domain = 'example.test';
   return [
     {
       id: "mock-jane",
@@ -44,7 +44,7 @@ export function searchMockContacts(job) {
 }
 
 export function revealMockEmail(contact) {
-  return contact.email || contact.mockEmail || `${slug(contact.name || "contact")}@${domainFromCompany(contact.companyName)}`;
+  return `${slug(contact.name || "contact")}@example.test`;
 }
 
 function domainFromCompany(companyName) {

@@ -28,12 +28,15 @@ jobs:
           npm run test:hunter
           npm run test:rapidapi
           npm run test:treg
+          npm run test:search-quality
+          npm run test:country
           npm run test:usage-guard
           npm run test:entitlements
           npm run test:spend-budget
           npm run test:email
           npm run test:intelligence
           npm run test:intelligence:large
+          node src/lib/contact-photo.test-fixtures.js
 
   extension:
     runs-on: ubuntu-latest
@@ -44,11 +47,14 @@ jobs:
           node-version: "22"
       - name: Check extension JavaScript
         run: |
+          node scripts/sync-brand.mjs --check
+          node --test scripts/brand.test.mjs
           node --check extension/content.js
           node --check extension/service_worker.js
           node --check extension/web_bridge.js
           node scripts/check-extension.mjs
-          for fixture in scripts/extension-*.test.mjs; do node "$fixture"; done
+          node --test scripts/extension-*.test.mjs
+          node scripts/prepare-chrome-store.mjs artifacts/chrome-store-ci
 
   web:
     runs-on: ubuntu-latest
@@ -79,7 +85,9 @@ jobs:
       - run: node scripts/check-ui-boundaries.mjs
       - run: pnpm test:billing
       - run: pnpm test:email
-      - run: node --test --test-concurrency=1 scripts/auth-session.test.mjs scripts/password-reset.test.mjs scripts/account-security.test.cjs
+      - run: pnpm test:password-reset
+      - run: node --test scripts/auth-session.test.mjs
       - run: node --test --test-concurrency=1 scripts/free-trial.test.mjs scripts/auth-rate-limit.test.mjs scripts/launch-audit.test.cjs
       - run: node --test scripts/dashboard.test.mjs
+      - run: node --test scripts/account-security.test.cjs
       - run: pnpm build

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Reachard",
   "description": "Find company contacts from job pages, company sites, and LinkedIn profiles.",
-  "version": "0.7.4",
+  "version": "0.7.6",
   "minimum_chrome_version": "141",
   "permissions": [
     "storage",
@@ -13,7 +13,11 @@
   "host_permissions": [
     "https://reachard.co/*",
     "https://www.reachard.co/*",
-    "https://contacts.reachard.co/*"
+    "https://contacts.reachard.co/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
+    "http://localhost:8787/*",
+    "http://127.0.0.1:8787/*"
   ],
   "background": {
     "service_worker": "service_worker.js"
@@ -43,7 +47,9 @@
     {
       "matches": [
         "https://reachard.co/*",
-        "https://www.reachard.co/*"
+        "https://www.reachard.co/*",
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*"
       ],
       "js": [
         "web_bridge.js"
@@ -54,7 +60,9 @@
   "externally_connectable": {
     "matches": [
       "https://reachard.co/*",
-      "https://www.reachard.co/*"
+      "https://www.reachard.co/*",
+      "http://localhost:3000/*",
+      "http://127.0.0.1:3000/*"
     ]
   },
   "icons": {

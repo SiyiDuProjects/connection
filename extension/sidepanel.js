@@ -508,13 +508,15 @@ window.ReachardController = { start() {
     customizeTimer = null;
     if (customizeSave) return customizeSave;
     if (savedCustomizeRevision === customizeRevision) return true;
+    const epoch = authEpoch;
     // Serialize writes so a slower, older request cannot overwrite the latest choice.
-    customizeSave = (async () => {
-      while (!disposed && savedCustomizeRevision !== customizeRevision) {
+    const save = (async () => {
+      while (!disposed && epoch === authEpoch && savedCustomizeRevision !== customizeRevision) {
         const revision = customizeRevision;
         const submitted = normalizeCustomize(state.emailCustomize);
         try {
           const response = await sendRuntimeMessage({ type: "SET_EMAIL_CUSTOMIZE", payload: submitted });
+          if (epoch !== authEpoch) return false;
           if (!response?.ok) throw new Error(response?.error || t("couldNotSaveCustom"));
           savedCustomizeRevision = revision;
           if (revision === customizeRevision) {
@@ -522,15 +524,17 @@ window.ReachardController = { start() {
             state.customizeError = "";
           }
         } catch (error) {
+          if (epoch !== authEpoch) return false;
           if (revision !== customizeRevision) continue;
           state.customizeError = error.message || t("couldNotSaveCustom");
           return false;
         }
       }
-      return savedCustomizeRevision === customizeRevision;
+      return epoch === authEpoch && savedCustomizeRevision === customizeRevision;
     })();
-    try { return await customizeSave; }
-    finally { customizeSave = null; renderPanel(); }
+    customizeSave = save;
+    try { return await save; }
+    finally { if (customizeSave === save) customizeSave = null; renderPanel(); }
   }
 
   function normalizeCustomize(value) {
@@ -603,6 +607,8 @@ window.ReachardController = { start() {
   };
   async function refreshAccountState() {
     invalidateAccount();
+    // Detach the prior account's save; its completion cannot update this account.
+    customizeSave = null;
     window.clearTimeout(customizeTimer);
     state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
     customizeRevision++;

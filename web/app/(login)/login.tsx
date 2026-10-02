@@ -11,7 +11,7 @@ import type { ActionState } from '@/lib/auth/middleware';
 import { Brand, ThemeSwitch } from '@/components/reachard/design';
 
 // Both existing auth URLs render the same form; keep their callers compatible.
-export function Login(_props: { mode?: 'signin' | 'signup' } = {}) {
+export function Login({ localTest = false }: { mode?: 'signin' | 'signup'; localTest?: boolean } = {}) {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,11 +49,11 @@ export function Login(_props: { mode?: 'signin' | 'signup' } = {}) {
             <Link href="/forgot-password" className="-mt-2 text-right text-sm text-muted underline">Forgot password?</Link>
             {state?.error && <Alert status="danger"><Alert.Indicator/><Alert.Content><Alert.Description>{state.error}</Alert.Description></Alert.Content></Alert>}
             <Button type="submit" size="lg" fullWidth variant="primary" isDisabled={pending}>{pending ? <Loader2 className="animate-spin" size={18}/> : null}{pending ? 'One moment…' : 'Continue'}{!pending && <ArrowRight size={18}/>}</Button>
-            <p className="text-center text-xs text-muted">New here? Verify your email to try 3 free email unlocks. No card required.</p>
+            <p className="text-center text-xs text-muted">{localTest ? 'Use any @reachard.test email. No verification code needed in this local test.' : 'New here? Verify your email to try 3 free email unlocks. No card required.'}</p>
           </Form>
         </Card.Content>
       </Card>
-      <p className="hu-auth-legal">By continuing, you agree to our<br/><Link href="/terms">Terms of Service</Link> and <Link href="/privacy">Privacy Policy</Link>.</p>
+      {localTest ? <p className="hu-auth-legal">Local testing only. This creates a disposable test account.</p> : <p className="hu-auth-legal">By continuing, you agree to our<br/><Link href="/terms">Terms of Service</Link> and <Link href="/privacy">Privacy Policy</Link>.</p>}
     </div>
     <footer className="hu-auth-bottom"><span>© 2026 {BRAND_NAME}</span><Link href="/"><ArrowLeft size={14}/>Back home</Link></footer>
   </main>;

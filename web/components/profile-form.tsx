@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Alert, Button, Description, FieldError, Fieldset, Form, Input, Label, ListBox, Select, Separator, TextArea, TextField } from '@heroui/react';
 import { SettingsRow } from '@/components/settings-row';
+import { SchoolField } from '@/components/school-field';
 import { DropZone } from '@heroui-pro/react';
 import { extractResumeText, getResumeTextErrorKey, RESUME_FILE_ACCEPT } from '@/lib/resume-text';
 import { translate as t } from '@/lib/i18n';
@@ -14,7 +15,7 @@ export type ProfileValues = {
   outreachLength: 'short' | 'concise' | 'detailed';
   outreachGoal: 'advice' | 'referral' | 'intro'; outreachStyleNotes: string;
   defaultSearchPreferences: {
-    school?: { label: string; linkedinId: string };
+    school?: { label: string; linkedinId?: string; directoryId?: string };
     region?: { label: string; linkedinGeoId: string };
   };
 };
@@ -35,7 +36,7 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
     setStatus('');
     setValues(current => ({ ...current, [key]: value,
       ...((key === 'school' || key === 'region') ? {
-        defaultSearchPreferences: { ...current.defaultSearchPreferences, [key]: undefined },
+        defaultSearchPreferences: { ...current.defaultSearchPreferences, [key]: value === current[key] ? current.defaultSearchPreferences[key as 'school' | 'region'] : undefined },
       } : {}),
     }));
   }
@@ -74,14 +75,13 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
           <Fieldset.Legend className="sr-only">Personal information</Fieldset.Legend>
           <Fieldset.Group className="gap-5">
             <TextField fullWidth isRequired name="name" maxLength={100} value={values.name} onChange={value => update('name', value)}>
-              <Label className="sr-only">Full name</Label><Input autoComplete="name" placeholder="Your name" /><FieldError />
+              <Label>Full name</Label><Input autoComplete="name" placeholder="Your name" /><FieldError />
             </TextField>
             <div className={onboarding ? "grid gap-3" : "grid gap-3 lg:grid-cols-2"}>
               {(onboarding ? ['school'] as const : ['school', 'region'] as const).map(kind => <div className="min-w-0" key={kind}>
-                <TextField fullWidth isRequired={kind === 'school'} name={kind} maxLength={160} value={values[kind]} onChange={value => update(kind, value)}>
-                  <Label className="sr-only">{kind === 'school' ? 'School or affiliation' : 'Region'}</Label>
-                  <Input placeholder={kind === 'school' ? 'School or organization' : 'City or region'} /><FieldError />
-                </TextField>
+                {kind === 'school' ? <SchoolField value={values.school} onChange={value => update('school', value)} onSelect={school => setValues(current => ({ ...current, school: school.label, defaultSearchPreferences: { ...current.defaultSearchPreferences, school: { label: school.label, directoryId: school.id } } }))} /> : <TextField fullWidth name="region" maxLength={160} value={values.region} onChange={value => update('region', value)}>
+                  <Label>Region</Label><Input placeholder="City or region" /><FieldError />
+                </TextField>}
               </div>)}
             </div>
           </Fieldset.Group>
@@ -93,14 +93,15 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
           <Fieldset.Legend className="sr-only">Background and resume</Fieldset.Legend>
           <Fieldset.Group className="gap-5">
             <DropZone className="w-full">
-              <DropZone.Area isDisabled={disabled} onDrop={async event => {
+              {!values.resumeContext && <DropZone.Area isDisabled={disabled} onDrop={async event => {
                 const file = event.items.find(item => item.kind === 'file');
                 if (file?.kind === 'file') await importResume(await file.getFile());
               }}>
                 <DropZone.Icon /><DropZone.Label>{importing ? 'Reading your resume…' : 'Drop your resume here'}</DropZone.Label>
                 <DropZone.Description>PDF, DOCX or text. Your resume is used to personalize drafts.</DropZone.Description>
                 <DropZone.Trigger isDisabled={disabled}>{values.resumeFileName ? 'Replace resume' : 'Choose a file'}</DropZone.Trigger>
-              </DropZone.Area>
+              </DropZone.Area>}
+              {values.resumeContext && <DropZone.Trigger isDisabled={disabled}>Replace resume</DropZone.Trigger>}
               <DropZone.Input accept={RESUME_FILE_ACCEPT} onSelect={files => void importResume(files[0])} />
               {values.resumeContext && <DropZone.FileList><DropZone.FileItem status="complete">
                 <DropZone.FileFormatIcon format={values.resumeFileName.split('.').pop()?.toUpperCase() || 'FILE'} color="blue" />
@@ -109,7 +110,7 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
               </DropZone.FileItem></DropZone.FileList>}
             </DropZone>
             <TextField fullWidth name="senderProfile" isRequired={!values.resumeContext.trim()} maxLength={2000} value={values.senderProfile} onChange={value => update('senderProfile', value)}>
-              <Label>A little about you</Label><TextArea rows={4} placeholder="What are you studying or working on, and what would you like to do next?" /><FieldError />
+              <Label>A little about you{values.resumeContext ? ' (optional)' : ''}</Label><TextArea rows={3} placeholder="What are you studying or working on, and what would you like to do next?" /><FieldError />
             </TextField>
           </Fieldset.Group>
         </Fieldset>

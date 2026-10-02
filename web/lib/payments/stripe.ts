@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '@/lib/brand';
 import Stripe from 'stripe';
 import { createHash } from 'node:crypto';
 import { redirect } from 'next/navigation';
@@ -115,7 +116,7 @@ export async function createCustomerPortalSession(team: Team) {
   if (!configuration) {
     configuration = await stripe.billingPortal.configurations.create({
       metadata: { reachardPolicy: policyId },
-      business_profile: { headline: 'Manage your Reachard membership' },
+      business_profile: { headline: `Manage your ${BRAND_NAME} membership` },
       features: {
         subscription_update: { enabled: true, default_allowed_updates: ['price'], products,
           proration_behavior: 'always_invoice',
@@ -167,7 +168,7 @@ export async function cancelSubscriptionAtPeriodEnd(subscriptionId: string) {
 export async function resolveSubscriptionPlan(subscription: Stripe.Subscription) {
   const price = subscription.items.data[0]?.price;
   if (!price || subscription.items.data.length !== 1 || subscription.items.data[0].quantity !== 1 || !isMonthlyPrice(price)) {
-    throw new Error('Subscription must contain exactly one monthly Reachard membership.');
+    throw new Error(`Subscription must contain exactly one monthly ${BRAND_NAME} membership.`);
   }
   const productValue = typeof price.product === 'string'
     ? await stripe.products.retrieve(price.product)
@@ -182,7 +183,7 @@ export async function resolveSubscriptionPlan(subscription: Stripe.Subscription)
 }
 
 export async function resolveCheckoutPlan(priceId: string) {
-  if (!priceId) throw new Error('A valid Reachard price is required.');
+  if (!priceId) throw new Error(`A valid ${BRAND_NAME} price is required.`);
 
   const price = await stripe.prices.retrieve(priceId, { expand: ['product'] });
   const productValue = typeof price.product === 'string'
@@ -192,12 +193,12 @@ export async function resolveCheckoutPlan(priceId: string) {
   const plan = getReachardPlanByName(product.name);
 
   if (!plan || !product.active || !price.active || !isMonthlyPrice(price)) {
-    throw new Error('This Stripe price is not an active Reachard monthly plan.');
+    throw new Error(`This Stripe price is not an active ${BRAND_NAME} monthly plan.`);
   }
 
   const canonicalPriceId = await canonicalPriceIdForPlan(plan, product);
   if (price.id !== canonicalPriceId) {
-    throw new Error('This Stripe price is not the configured price for this Reachard plan.');
+    throw new Error(`This Stripe price is not the configured price for this ${BRAND_NAME} plan.`);
   }
 
   if (price.currency !== 'usd' || price.unit_amount !== (plan.key === 'base' ? 900 : 1900)) {

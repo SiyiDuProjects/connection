@@ -27,6 +27,9 @@
     "helmet": "^8.0.0",
     "postgres": "^3.4.5"
   },
+  "overrides": {
+    "qs": "6.16.0"
+  },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8"
   },

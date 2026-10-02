@@ -1,20 +1,19 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import useSWR, { mutate } from 'swr';
-import { Avatar, Button, Dropdown, Label, buttonVariants } from '@heroui/react';
+import { mutate } from 'swr';
+import { Avatar, Button, Dropdown, Label } from '@heroui/react';
 import { signOut } from '@/app/(login)/actions';
 import { ExtensionSessionBridge, clearExtensionSessionBeforeSignOut } from '@/components/extension-session-bridge';
 import { PageHeader, ThemeSwitch } from '@/components/reachard/design';
+import { AccountEntry } from '@/components/account-entry';
+import { useCurrentUser } from '@/lib/auth/use-current-user';
 
-type HeaderUser = { id?: number; name: string | null; email: string };
-const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export function AppHeader({ hideOnDashboard = false, className }: { hideOnDashboard?: boolean; className?: string }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { data: user } = useSWR<HeaderUser | null>('/api/user', fetcher);
+  const { data: user } = useCurrentUser();
   async function handleSignOut() {
     await clearExtensionSessionBeforeSignOut();
     await signOut();
@@ -24,7 +23,7 @@ export function AppHeader({ hideOnDashboard = false, className }: { hideOnDashbo
   if (hideOnDashboard && pathname.startsWith('/dashboard')) return null;
   return <>
     {user && <ExtensionSessionBridge user={user} />}
-    <PageHeader className={className} actions={<><ThemeSwitch />{user ? <Dropdown>
+    <PageHeader className={className} actions={<><ThemeSwitch /><AccountEntry />{user ? <Dropdown>
       <Button variant="ghost" aria-label="Account menu">
         <Avatar size="sm" color="accent"><Avatar.Fallback>{(user.name || user.email).slice(0, 1).toUpperCase()}</Avatar.Fallback></Avatar>
       </Button>
@@ -33,6 +32,6 @@ export function AppHeader({ hideOnDashboard = false, className }: { hideOnDashbo
         <Dropdown.Item id="settings" href="/dashboard/general" textValue="Settings"><Label>Settings</Label></Dropdown.Item>
         <Dropdown.Item id="sign-out" variant="danger" textValue="Log out" onAction={() => void handleSignOut()}><Label>Log out</Label></Dropdown.Item>
       </Dropdown.Menu></Dropdown.Popover>
-    </Dropdown> : <Link className={buttonVariants({ variant: 'secondary' })} href="/sign-up">Get started</Link>}</>} />
+    </Dropdown> : null}</>} />
   </>;
 }

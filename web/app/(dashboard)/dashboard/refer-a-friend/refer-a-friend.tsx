@@ -1,4 +1,5 @@
 'use client';
+import { BRAND_NAME } from '@/lib/brand';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -46,7 +47,7 @@ export default function ReferAFriend({ preview = false }: { preview?: boolean })
       <div className="space-y-3">
         <div className="flex size-11 items-center justify-center rounded-2xl bg-accent/10 text-accent"><Gift className="size-5" aria-hidden="true" /></div>
         <h2 className="text-2xl font-semibold tracking-tight">Good things are worth sharing.</h2>
-        <p className="max-w-xl text-sm leading-6 text-muted">Invite a friend to Reachard. When they subscribe, you get one month free.</p>
+        <p className="max-w-xl text-sm leading-6 text-muted">Invite a friend to {BRAND_NAME}. When they subscribe, you get one month free.</p>
       </div>
       <Card>
         <Card.Header><Card.Title>Your referral link</Card.Title><Card.Description>Share it with a friend who could use a way in.</Card.Description></Card.Header>
@@ -71,7 +72,7 @@ export default function ReferAFriend({ preview = false }: { preview?: boolean })
         <h3 className="font-semibold">How it works</h3>
         <ol className="list-decimal space-y-2 pl-5 text-muted">
           <li>Your friend signs up through your link.</li>
-          <li>They purchase a Reachard subscription.</li>
+          <li>They purchase a {BRAND_NAME} subscription.</li>
           <li>You receive one month of your plan as credit toward future bills.</li>
         </ol>
         <p className="text-xs leading-5 text-muted">Only friends you invite directly count. If you don’t have an active plan yet, your reward waits until you subscribe.</p>

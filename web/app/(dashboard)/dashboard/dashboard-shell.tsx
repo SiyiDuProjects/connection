@@ -11,11 +11,11 @@ import { DashboardFrame } from '@/components/dashboard-frame';
 import { ExtensionSessionBridge, clearExtensionSessionBeforeSignOut } from '@/components/extension-session-bridge';
 import { signOut } from '@/app/(login)/actions';
 import { DashboardSidebar, type SidebarAccount } from './dashboard-sidebar';
-import { ExtensionInstallLink } from '@/components/extension-install-link';
+import { ExtensionNextStep } from '@/components/extension-next-step';
 
 const titles: Record<string, string> = {
   '/dashboard': 'Dashboard', '/dashboard/recent-outreach': 'Recent activity',
-  '/dashboard/general': 'Settings',
+  '/dashboard/general': 'Settings', '/dashboard/billing': 'Billing',
   '/dashboard/refer-a-friend': 'Refer a Friend',
   '/dashboard/profile': 'My profile',
   '/dashboard/admin': 'Administration'
@@ -45,7 +45,7 @@ export function DashboardShell({ account, children }: { account: SidebarAccount;
     <ExtensionSessionBridge user={account.user} />
     <DashboardFrame title={titles[pathname] || 'Workspace'}
       sidebar={<DashboardSidebar account={liveAccount || account} pathname={pathname} signingOut={signingOut} onSignOut={() => void handleSignOut()} />}
-      actions={<><Link href="/getting-started" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>Quick start</Link><ExtensionInstallLink label="Add to Chrome" size="sm" /></>}>
+      actions={<><Link href="/getting-started" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>Quick start</Link><ExtensionNextStep compact /></>}>
       {error ? <Alert status="danger" className="mx-5 mt-4"><Alert.Indicator /><Alert.Content><Alert.Description>{error}</Alert.Description></Alert.Content></Alert> : null}
       {children}
     </DashboardFrame>

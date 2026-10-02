@@ -2,6 +2,7 @@
   const WEB_SOURCE = "reachard-web";
   const EXTENSION_SOURCE = "reachard-extension-bridge";
   const SESSION_MESSAGE_TYPES = new Set([
+    "GET_EXTENSION_PRESENCE",
     "GET_EXTENSION_SESSION_STATUS",
     "CONNECT_EXTENSION_TOKEN",
     "CLEAR_EXTENSION_SESSION",

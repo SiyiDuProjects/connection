@@ -20,10 +20,10 @@ try {
   delete process.env.PROVIDER_DAILY_BUDGET_USD;
   process.env.OPENAI_API_KEY = "fixture-key-never-send";
   process.env.OPENAI_BASE_URL = "https://api.openai.com";
-  process.env.OPENAI_MODEL = "gpt-5.6-luna";
-  process.env.OPENAI_INPUT_USD_PER_MILLION = "0.20";
-  process.env.OPENAI_CACHED_INPUT_USD_PER_MILLION = "0.02";
-  process.env.OPENAI_OUTPUT_USD_PER_MILLION = "1.20";
+  delete process.env.OPENAI_MODEL;
+  delete process.env.OPENAI_INPUT_USD_PER_MILLION;
+  delete process.env.OPENAI_CACHED_INPUT_USD_PER_MILLION;
+  delete process.env.OPENAI_OUTPUT_USD_PER_MILLION;
 
   let request;
   globalThis.fetch = async (input, init = {}) => {
@@ -67,7 +67,7 @@ try {
   });
 
   assert.equal(request.url, "https://api.openai.com/v1/responses");
-  assert.equal(request.body.model, "gpt-5.6-luna");
+  assert.equal(request.body.model, "gpt-6-luna");
   assert.equal(request.body.store, false);
   assert.equal(request.body.max_output_tokens, 4096);
   const aiInput = JSON.parse(request.body.input);
@@ -85,9 +85,9 @@ try {
   assert.deepEqual(internalCost, {
     source: "openai",
     provider: "openai",
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     billing: "estimated",
-    costMicroUsd: 524,
+    costMicroUsd: 232,
     inputTokens: 1000,
     cachedInputTokens: 200,
     outputTokens: 300,
@@ -135,7 +135,7 @@ try {
   }), { status: 200 });
   const unparseable = await createDraft({name:'Fixture'}, {companyName:'Fixture'});
   assert.equal(unparseable.ai.used, false);
-  assert.equal(getDraftInternalCost(unparseable).costMicroUsd, 524, 'a billed response keeps its usage even if output parsing fails');
+  assert.equal(getDraftInternalCost(unparseable).costMicroUsd, 232, 'a billed response keeps its usage even if output parsing fails');
   assert.equal(getDraftInternalCost(unparseable).responseId, 'resp_parse_failure');
   assert.equal(diagnostics.at(-1).httpStatus, 200);
   assert.equal(diagnostics.at(-1).errorName, 'SyntaxError');

@@ -135,9 +135,9 @@ async function createAiDraft(contact, job, settings, request, attempt) {
   const bytes = Buffer.byteLength(payload, 'utf8');
   if (bytes > 96_000) throw new Error('Draft context is too large for the configured generation limit.');
   const rates = openAiPricing(openAiModel(), 0);
-  if (providerBudgetEnabled() && (openAiModel() !== 'gpt-5.6-luna'
+  if (providerBudgetEnabled() && (openAiModel() !== 'gpt-6-luna'
     || openAiResponsesUrl() !== `${DEFAULT_OPENAI_BASE_URL}/v1/responses`
-    || rates.input < 0.20 || rates.cachedInput < 0.02 || rates.output < 1.20)) {
+    || rates.input < 0.10 || rates.cachedInput < 0.01 || rates.output < 0.50)) {
     throw new Error('This AI model has no configured provider budget ceiling.');
   }
   // Text token count cannot exceed its UTF-8 byte count. Include the entire
@@ -367,7 +367,7 @@ function truncate(value, maxLength) {
 }
 
 function openAiModel() {
-  return process.env.OPENAI_MODEL || "gpt-5.6-luna";
+  return process.env.OPENAI_MODEL || "gpt-6-luna";
 }
 
 function openAiInternalCost(response = {}) {
@@ -406,11 +406,11 @@ function openAiInternalCost(response = {}) {
 }
 
 function openAiPricing(model, inputTokens) {
-  const isLuna = model === "gpt-5.6-luna";
+  const isLuna = model === "gpt-6-luna";
   const longContext = inputTokens > 272_000;
-  const input = nonNegativeNumber(process.env.OPENAI_INPUT_USD_PER_MILLION, isLuna ? 0.20 : 0);
-  const cachedInput = nonNegativeNumber(process.env.OPENAI_CACHED_INPUT_USD_PER_MILLION, isLuna ? 0.02 : 0);
-  const output = nonNegativeNumber(process.env.OPENAI_OUTPUT_USD_PER_MILLION, isLuna ? 1.20 : 0);
+  const input = nonNegativeNumber(process.env.OPENAI_INPUT_USD_PER_MILLION, isLuna ? 0.10 : 0);
+  const cachedInput = nonNegativeNumber(process.env.OPENAI_CACHED_INPUT_USD_PER_MILLION, isLuna ? 0.01 : 0);
+  const output = nonNegativeNumber(process.env.OPENAI_OUTPUT_USD_PER_MILLION, isLuna ? 0.50 : 0);
   return {
     input: input * (longContext ? 2 : 1),
     cachedInput: cachedInput * (longContext ? 2 : 1),

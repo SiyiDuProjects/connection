@@ -5,6 +5,7 @@ import { users, userSettings } from '@/lib/db/schema';
 import { getSettings, getUser } from '@/lib/db/queries';
 import { getOnboardingStatus } from '@/lib/onboarding';
 import { recordProductEvent } from '@/lib/product-events';
+import { schoolById } from '@/lib/schools';
 
 const settingsSchema = z.object({
   name: z.string().max(100).optional(),
@@ -24,7 +25,8 @@ const settingsSchema = z.object({
   defaultSearchPreferences: z.object({
     school: z.object({
       label: z.string().max(160),
-      linkedinId: z.string().max(40)
+      linkedinId: z.string().max(40).optional(),
+      directoryId: z.string().max(320).optional()
     }).optional(),
     region: z.object({
       label: z.string().max(160),
@@ -134,7 +136,9 @@ function normalizeSearchPreferences(value: z.infer<typeof settingsSchema>['defau
   }
   const preferences = value as z.infer<typeof settingsSchema>['defaultSearchPreferences'];
   return {
-    school: preferences?.school?.label && preferences.school.linkedinId
+    school: preferences?.school?.directoryId && schoolById(preferences.school.directoryId)
+      ? { label: schoolById(preferences.school.directoryId)!.label, directoryId: preferences.school.directoryId }
+      : preferences?.school?.label && preferences.school.linkedinId
       ? {
           label: clean(preferences.school.label),
           linkedinId: clean(preferences.school.linkedinId)

@@ -1,4 +1,5 @@
 'use client';
+import { BRAND_NAME } from '@/lib/brand';
 
 // Official HeroUI v3 InputOTP Form Example and compound Card anatomy.
 // https://heroui.com/docs/react/components/input-otp
@@ -76,6 +77,6 @@ export function ResendVerificationForm({ email: initialEmail, error, redirectTo 
         <Card.Footer className="hu-auth-card-footer"><p><Link href="/sign-in">Back to log in</Link></p></Card.Footer>
       </Card>
     </div>
-    <footer className="hu-auth-bottom"><span>© 2026 Reachard</span><Link href="/"><ArrowLeft size={14}/>Back home</Link></footer>
+    <footer className="hu-auth-bottom"><span>© 2026 {BRAND_NAME}</span><Link href="/"><ArrowLeft size={14}/>Back home</Link></footer>
   </main>;
 }

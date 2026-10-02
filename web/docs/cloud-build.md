@@ -29,4 +29,12 @@ must still stop the build for review.
 No local environment variables are needed for the existing preview setup.
 Do not commit downloaded library files or private template reference copies.
 
+Display branding is generated from `brand/brand.json`. In a full checkout,
+web development and build commands synchronize it automatically. A Vercel
+upload containing only `web/` uses the included generated `web/lib/brand.ts`;
+it does not require changing the project's Root Directory or including the
+extension runtime. Repository CI verifies the generated files before release.
+When changing the brand, run `node scripts/sync-brand.mjs` from the repository
+root and include all generated changes in the release.
+
 Reference: https://docs.collectui.pro/hpsetup/usage

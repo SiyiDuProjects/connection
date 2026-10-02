@@ -11,6 +11,8 @@ type UserState = {
 type ExtensionMessageResponse = {
   ok?: boolean;
   hasToken?: boolean;
+  userId?: number;
+  sessionState?: 'connected' | 'signed-out' | 'unavailable';
   extensionId?: string;
   error?: string;
 };
@@ -36,7 +38,7 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
       });
       if (cancelled) return;
       if (!existing?.ok) return;
-      if (existing.hasToken) {
+      if (existing.sessionState === 'connected' && existing.userId === userId) {
         syncedUserId.current = userId;
         return;
       }
@@ -85,10 +87,25 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
       }
     }
 
-    syncExtensionSession().catch(() => {});
+    let syncing = false;
+    const sync = async () => {
+      if (syncing || syncedUserId.current === userId) return;
+      syncing = true;
+      try { await syncExtensionSession(); } finally { syncing = false; }
+    };
+    const onReady = (event: MessageEvent) => {
+      if (event.source === window && event.data?.source === 'reachard-extension-bridge' && event.data.type === 'READY') void sync();
+    };
+    void sync();
+    window.addEventListener('focus', sync);
+    window.addEventListener('message', onReady);
+    const retry = window.setInterval(sync, 15000);
 
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', sync);
+      window.removeEventListener('message', onReady);
+      window.clearInterval(retry);
     };
   }, [pathname, user?.id]);
 

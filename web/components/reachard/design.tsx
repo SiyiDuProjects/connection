@@ -1,11 +1,13 @@
 'use client';
-import { Button, Tooltip, buttonVariants } from '@heroui/react';
-import { ArrowUpRight, Moon, Sun, Orbit } from 'lucide-react';
+import { BRAND_MARK_PATH, BRAND_NAME } from '@/lib/brand';
+import { Button, Tooltip } from '@heroui/react';
+import { Moon, Sun } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
+import { AccountEntry } from '@/components/account-entry';
 
 export function Brand({ compact = false }: { compact?: boolean }) {
-  return <Link href="/" className="rd-brand" aria-label="Reachard home"><Orbit size={25} strokeWidth={1.8} />{!compact && <span>reachard</span>}</Link>;
+  return <Link href="/" className="rd-brand" aria-label={`${BRAND_NAME} home`}><img src={BRAND_MARK_PATH} width={25} height={25} alt="" />{!compact && <span>{BRAND_NAME}</span>}</Link>;
 }
 export function ThemeSwitch() {
   const [dark, setDark] = useState(false);
@@ -18,5 +20,5 @@ export function PageHeader({ actions, className = '' }: { actions: ReactNode; cl
   return <header className={`rd-header ${className}`}><Brand /><nav aria-label="Main navigation"><Link href="/#how-it-works">How it works</Link><Link href="/pricing">Pricing</Link></nav><div className="rd-header-actions">{actions}</div></header>;
 }
 export function MarketingHeader() {
-  return <PageHeader actions={<><ThemeSwitch /><Link className={buttonVariants({ variant: 'secondary' })} href="/sign-up">Get started <ArrowUpRight size={14} /></Link></>} />;
+  return <PageHeader actions={<><ThemeSwitch /><AccountEntry /></>} />;
 }

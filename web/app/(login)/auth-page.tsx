@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { signedInDestination } from '@/lib/auth/entry-destination';
 import { Login } from './login';
 import { ContinueCheckout } from './continue-checkout';
+import { localTestEnabled } from '@/lib/auth/local-test-policy';
 
 export type AuthSearchParams = { redirect?: string; priceId?: string; inviteId?: string; ref?: string };
 
@@ -21,5 +22,5 @@ export async function AuthPage({ mode, searchParams }: {
       redirect(signedInDestination(params.redirect));
     }
   }
-  return <Suspense><Login key={mode} mode={mode} /></Suspense>;
+  return <Suspense><Login key={mode} mode={mode} localTest={localTestEnabled()} /></Suspense>;
 }

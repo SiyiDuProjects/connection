@@ -1,4 +1,5 @@
 'use client';
+import { BRAND_MARK_PATH, BRAND_NAME } from '@/lib/brand';
 
 import Link from 'next/link';
 import { Avatar, Button } from '@heroui/react';
@@ -25,14 +26,14 @@ export function DashboardSidebar({ account, pathname, onSignOut, signingOut }: {
   onSignOut?: () => void;
   signingOut?: boolean;
 }) {
-  const name = account?.settings?.senderName || account?.user?.name || 'Reachard';
+  const name = account?.settings?.senderName || account?.user?.name || BRAND_NAME;
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('');
   function contents(prefix: string) {
     return (
       <>
         <Sidebar.Header>
           <div className="flex min-w-0 items-center gap-3 px-1 py-2">
-            <Avatar className="size-9"><Avatar.Image src="/images/brand/reachard-logo-mark.png" alt="Reachard" /><Avatar.Fallback>{initials}</Avatar.Fallback></Avatar>
+            <Avatar className="size-9"><Avatar.Image src={BRAND_MARK_PATH} alt={BRAND_NAME} /><Avatar.Fallback>{initials}</Avatar.Fallback></Avatar>
             <div className="min-w-0"><p className="truncate text-sm font-medium">{name}</p><p className="text-xs text-muted">{account?.user ? 'Your workspace' : 'Your outreach workspace'}</p></div>
           </div>
         </Sidebar.Header>
@@ -62,9 +63,9 @@ export function DashboardSidebar({ account, pathname, onSignOut, signingOut }: {
             <Avatar size="sm"><Avatar.Fallback>{initials}</Avatar.Fallback></Avatar>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{name}</p>
-              <p className="truncate text-xs text-muted">{account?.user?.email || 'Reachard account'}</p>
+              <p className="truncate text-xs text-muted">{account?.user?.email || `${BRAND_NAME} account`}</p>
             </div>
-          </div>{onSignOut ? <Button size="sm" variant="ghost" fullWidth isDisabled={signingOut} onPress={onSignOut}><LogOut className="size-4" />{signingOut ? 'Logging out…' : 'Log out all devices'}</Button> : null}</> : <Link href="/sign-in" className="px-2 py-3 text-sm font-medium">Sign in to Reachard</Link>}
+          </div>{onSignOut ? <Button size="sm" variant="ghost" fullWidth isDisabled={signingOut} onPress={onSignOut}><LogOut className="size-4" />{signingOut ? 'Logging out…' : 'Log out all devices'}</Button> : null}</> : <Link href="/sign-in" className="px-2 py-3 text-sm font-medium">Sign in to {BRAND_NAME}</Link>}
         </Sidebar.Footer>
       </>
     );

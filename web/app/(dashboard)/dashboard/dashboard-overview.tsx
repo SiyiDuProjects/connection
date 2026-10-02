@@ -2,7 +2,7 @@
 import { BRAND_NAME } from '@/lib/brand';
 
 import { useMemo, useState } from 'react';
-import { ExtensionInstallLink } from '@/components/extension-install-link';
+import { ExtensionNextStep } from '@/components/extension-next-step';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { ArrowsRotateLeft } from '@gravity-ui/icons';
@@ -57,6 +57,6 @@ export function DashboardOverviewContent({ account, preview, error, loading, ref
       </Tabs.List></Tabs.ListContainer></Tabs>
       <SearchField aria-label="Search activity" className="w-full sm:w-60" value={search} onChange={setSearch}><SearchField.Group><SearchField.SearchIcon /><SearchField.Input placeholder="Company, role or activity…" /><SearchField.ClearButton /></SearchField.Group></SearchField>
     </div>
-    {loading ? <div className="flex justify-center py-10"><Spinner aria-label="Loading activity" /></div> : rows.length ? <DataGrid aria-label="Outreach history" columns={columns} contentClassName="min-w-[640px]" data={rows} getRowId={row => String(row.id)} sortDescriptor={sort} onSortChange={setSort} /> : !error ? <EmptyState><EmptyState.Header><EmptyState.Title>{search || filter !== 'all' ? 'No matching activity' : 'Prepare your first message'}</EmptyState.Title><EmptyState.Description>{preview ? 'Sign in to see your own activity.' : search || filter !== 'all' ? 'Try another search or switch to All.' : `Open a job or company page in desktop Chrome, then open ${BRAND_NAME} to find people and prepare a draft.`}</EmptyState.Description></EmptyState.Header><EmptyState.Content>{search || filter !== 'all' ? <Button variant="secondary" onPress={() => { setSearch(''); setFilter('all'); }}>Clear filters</Button> : <><ExtensionInstallLink size="sm" /><Link href="/getting-started" className="text-sm text-accent underline">How to prepare your first draft</Link></>}</EmptyState.Content></EmptyState> : null}
+    {loading ? <div className="flex justify-center py-10"><Spinner aria-label="Loading activity" /></div> : rows.length ? <DataGrid aria-label="Outreach history" columns={columns} contentClassName="min-w-[640px]" data={rows} getRowId={row => String(row.id)} sortDescriptor={sort} onSortChange={setSort} /> : !error ? <EmptyState><EmptyState.Header><EmptyState.Title>{search || filter !== 'all' ? 'No matching activity' : 'Prepare your first message'}</EmptyState.Title><EmptyState.Description>{preview ? 'Sign in to see your own activity.' : search || filter !== 'all' ? 'Try another search or switch to All.' : `Open a job or company page in desktop Chrome, then open ${BRAND_NAME} to find people and prepare a draft.`}</EmptyState.Description></EmptyState.Header><EmptyState.Content>{search || filter !== 'all' ? <Button variant="secondary" onPress={() => { setSearch(''); setFilter('all'); }}>Clear filters</Button> : <><ExtensionNextStep /><Link href="/getting-started" className="text-sm text-accent underline">How to prepare your first draft</Link></>}</EmptyState.Content></EmptyState> : null}
   </div>;
 }

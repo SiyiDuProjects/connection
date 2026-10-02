@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { headers } from 'next/headers';
 import { sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
+import { isLocalTestEmail } from './local-test-policy';
 
 export async function consumeAuthLimit(scope: string, identity: string, maximum: number, seconds: number) {
   const secret = process.env.AUTH_SECRET;
@@ -16,6 +17,7 @@ export async function consumeAuthLimit(scope: string, identity: string, maximum:
 }
 
 export async function checkCredentialRateLimit(email: string, signup = false) {
+  if (isLocalTestEmail(email)) return null;
   const requestHeaders = await headers();
   // Vercel overwrites this request header at its trusted edge. On other hosts
   // do not trust caller-supplied forwarding headers; use the shared fallback.

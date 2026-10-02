@@ -1,4 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "pnpm install --frozen-lockfile && npx -y hpsetup@4.7.1 react --auto && node scripts/check-pro-install.mjs"
+  "installCommand": "pnpm install --frozen-lockfile && npx -y hpsetup@4.7.1 react --auto && node scripts/check-pro-install.mjs",
+  "ignoreCommand": "node scripts/skip-deploy.mjs"
 }

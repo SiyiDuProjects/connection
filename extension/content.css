@@ -57,25 +57,26 @@
   background: #007aff;
   border: 0;
   border-radius: 12px 0 0 12px;
-  box-shadow: 0 6px 20px rgba(0, 73, 160, 0.2);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.26);
   color: #fff;
   cursor: pointer;
   display: inline-flex;
-  justify-content: center;
   width: 56px;
   height: 56px;
-  min-width: 56px;
   min-height: 56px;
+  min-width: 56px;
   padding: 12px;
   touch-action: none;
-  animation: fc-launcher-arrive 240ms ease-out, fc-launcher-attention 1200ms 240ms ease-in-out 2;
 }
 
 .fc-sidebar-button:hover {
-  background: #0066d6;
+  background: #0069df;
 }
 
-.fc-sidebar-button:focus-visible { outline: 3px solid #fff; outline-offset: -5px; }
+.fc-sidebar-button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: -5px;
+}
 
 .fc-sidebar-entry-dragging .fc-sidebar-button {
   cursor: grabbing;
@@ -84,12 +85,17 @@
 .fc-sidebar-logo {
   align-items: center;
   display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
   height: 32px;
   justify-content: center;
   width: 32px;
 }
 
-.fc-sidebar-logo img { display: block; width: 32px; height: 32px; max-width: none; filter: brightness(0) invert(1); }
-@keyframes fc-launcher-arrive { from { transform: translateX(100%); } to { transform: translateX(0); } }
-@keyframes fc-launcher-attention { 50% { box-shadow: 0 0 0 5px rgba(0, 122, 255, 0.18), 0 6px 20px rgba(0, 73, 160, 0.2); } }
-@media (prefers-reduced-motion: reduce) { .fc-sidebar-button { animation: none; } }
+.fc-sidebar-logo img {
+  display: block;
+  width: 32px;
+  height: 32px;
+  filter: brightness(0) invert(1);
+  pointer-events: none;
+}

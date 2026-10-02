@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="-1 -1 26 26"><!-- Derived from Lucide Orbit
+ISC License
+
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+--><g fill="none" stroke="#252729" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M20.37111 9.63052 A8.7 8.7 0 0 1 8.18617 19.81951"/><path d="M3.62889 14.36948 A8.7 8.7 0 0 1 15.81383 4.18049"/><circle cx="12" cy="12" r="3.25" fill="none"/><circle cx="19.53442" cy="7.65" r="2.15" fill="none"/><circle cx="4.46558" cy="16.35" r="2.15" fill="none"/></g></svg>

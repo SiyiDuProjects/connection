@@ -156,7 +156,7 @@ function Extension({ model, actions, portal }) {
             const busy = model.revealing.has(id) || model.drafting.has(id);
             const name = contact.name || 'Relevant contact';
             const usefulReasons = (contact.reasons || []).filter(reason => !/^(Company match|Verified company domain|Matched the provider's current-company filter|(?:Senior IC|Manager|Director|Head|VP|C-suite|Founder) fit)$/i.test(reason));
-            const expanded = expandedId === null ? index === 0 : expandedId === id;
+            const expanded = expandedId === id;
             return <article className="ep-person" key={id} aria-label={name} data-expanded={expanded}>
               <div className="ep-person-header">
                 <Button variant="ghost" className="ep-person-toggle" aria-expanded={expanded} aria-controls={`person-details-${index}`} onPress={() => setExpandedId(expanded ? '' : id)}>
@@ -165,17 +165,17 @@ function Extension({ model, actions, portal }) {
                   <ChevronDown width={16} className="ep-person-chevron" />
                 </Button>
               </div>
+              {usefulReasons[0] && <p className="ep-person-match">{usefulReasons[0]}</p>}
               <div className="ep-person-detail" id={`person-details-${index}`} hidden={!expanded}>
-                {usefulReasons[0] && <p className="ep-person-match">{usefulReasons[0]}</p>}
                 <div className="ep-person-meta">
                 {/^https?:\/\//i.test(contact.linkedinUrl || '') && <Tooltip><Button isIconOnly variant="ghost" size="sm" aria-label={`View ${name} on LinkedIn`} onPress={() => actions.openUrl(contact.linkedinUrl)}><ArrowUpRight width={16} /></Button><Tooltip.Content UNSTABLE_portalContainer={portal}>View LinkedIn profile</Tooltip.Content></Tooltip>}
                 {contact.location && <p className="ep-person-location"><MapPin width={13} />{contact.location}</p>}
                 </div>
                 {contact.education && <p className="ep-person-education">{contact.education}</p>}
-                {usefulReasons.length > 1 && <details className="ep-person-more"><summary>More about this match</summary>{usefulReasons.slice(1).map((reason, reasonIndex) => <p key={reasonIndex}>{reason}</p>)}</details>}
+                {usefulReasons.length > 1 && <div className="ep-person-more">{usefulReasons.slice(1).map((reason, reasonIndex) => <p key={reasonIndex}>{reason}</p>)}</div>}
+              </div>
                 {email && <div className="ep-revealed"><span><Check width={14} />{email}</span></div>}
                 <div className="ep-person-footer"><Button variant="secondary" className="ep-reveal" isPending={busy} isDisabled={busy} onPress={() => { setCopyStatus(''); if (draft) { setDraftId(id); return; } setPendingDraft({id, source:context.sourceUrl}); if (email) void actions.draft(id); else void actions.reveal(id); }}>{busy ? <Spinner size="sm" color="current" /> : draft ? <PaperPlane width={16} /> : <Envelope width={16} />}{busy ? model.drafting.has(id) ? 'Writing your draft…' : 'Finding email…' : draft ? 'Open draft' : email ? 'Write email' : 'Get email & draft'}<ArrowRight width={16} /></Button></div>
-              </div>
             </article>;
           })}
         </>}

@@ -20,7 +20,7 @@ export async function buildContactSearchPlan(job) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: process.env.OPENAI_MODEL || "gpt-5.6-luna",
+          model: process.env.OPENAI_MODEL || "gpt-6-luna",
           instructions: instructions(),
           input: buildInput(job),
           text: {
@@ -133,7 +133,7 @@ function normalizePlan(value, fallback) {
     positiveSignals: normalizeQueries(value.positiveSignals).map(functionalQuery).slice(0, 8),
     negativeSignals: normalizeQueries(value.negativeSignals).slice(0, 8),
     jobLocation: clean(value.jobLocation) || fallback.jobLocation,
-    ai: { used: true, provider: "openai", model: process.env.OPENAI_MODEL || "gpt-5.6-luna" }
+    ai: { used: true, provider: "openai", model: process.env.OPENAI_MODEL || "gpt-6-luna" }
   };
 }
 

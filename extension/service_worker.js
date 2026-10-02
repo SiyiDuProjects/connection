@@ -5,8 +5,46 @@ const DEFAULT_WEB_BASE_URL = "https://reachard.co";
 const SUPPORTED_URLS = ["https://*/*", "http://*/*"];
 const API_UNREACHABLE_ERROR = "Could not reach the contacts API. Check connection settings.";
 const SESSION_EXPIRED_ERROR = "Session expired. Sign in again.";
-const pendingIdempotencyKeys = new Map();
 let customizeWriteQueue = Promise.resolve();
+// These queues serialize live work only. Credentials and retry records are durable.
+let sessionStorageQueue = Promise.resolve();
+let requestStorageQueue = Promise.resolve();
+
+function withSessionStorage(operation) {
+  const result = sessionStorageQueue.then(operation, operation);
+  sessionStorageQueue = result.catch(() => {});
+  return result;
+}
+
+function withRequestStorage(operation) {
+  const result = requestStorageQueue.then(operation, operation);
+  requestStorageQueue = result.catch(() => {});
+  return result;
+}
+
+async function readSession() {
+  return withSessionStorage(async () => {
+    await migrateSensitiveStorageUnlocked();
+    const [local, settings] = await Promise.all([
+      chrome.storage.local.get(['extensionApiToken', 'accountStatus']),
+      chrome.storage.sync.get(['apiBaseUrl', 'webBaseUrl'])
+    ]);
+    const webBaseUrl = normalizeWebBaseUrl(settings.webBaseUrl);
+    return { token: String(local.extensionApiToken || '').trim(), account: local.accountStatus,
+      webBaseUrl, apiBaseUrl: normalizeApiBaseUrl(settings.apiBaseUrl, webBaseUrl) };
+  });
+}
+
+function sessionChanged() {
+  return { ok: false, status: 409, error: 'Your account changed. Please try again.' };
+}
+
+async function sessionIsCurrent(session) {
+  return withSessionStorage(async () => {
+    const current = await chrome.storage.local.get(['extensionApiToken']);
+    return Boolean(session.token) && current.extensionApiToken === session.token;
+  });
+}
 
 chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false}).catch(error => console.warn(error.message));
 
@@ -79,9 +117,13 @@ async function resolvePanelSender(message, sender) {
 
 async function handleMessage(message, sender) {
   if (message?.type === "SET_EMAIL_CUSTOMIZE") {
+    // Capture before joining the save queue, not when a delayed task executes.
+    const session = readSession();
+    // Attach a rejection handler now even if an earlier save is still pending.
+    session.catch(() => {});
     // The final close/pagehide save cannot overtake an older preference write.
     customizeWriteQueue = customizeWriteQueue.catch(() => {}).then(async () =>
-      setEmailCustomize(message.payload || {}, await resolvePanelSender(message, sender))
+      setEmailCustomize(message.payload || {}, await resolvePanelSender(message, sender), await session)
     );
     return customizeWriteQueue;
   }
@@ -91,6 +133,8 @@ async function handleMessage(message, sender) {
       return { ok: true };
     case "GET_EXTENSION_SESSION_STATUS":
       return getLocalSessionStatus(sender);
+    case "GET_EXTENSION_PRESENCE":
+      return getExtensionPresence(sender);
     case "CONNECT_EXTENSION_TOKEN":
       return connectExtensionSession(message.payload || {}, sender);
     case "CLEAR_EXTENSION_SESSION":
@@ -132,6 +176,7 @@ async function handleExternalMessage(message, sender) {
   if (message?.type === "GET_EXTENSION_SESSION_STATUS") {
     return getLocalSessionStatus(sender);
   }
+  if (message?.type === "GET_EXTENSION_PRESENCE") return getExtensionPresence(sender);
 
   if (message?.type === "CLEAR_EXTENSION_SESSION") {
     return clearExtensionSession(sender, { requireAllowedWebsite: true });
@@ -156,34 +201,50 @@ async function connectExtensionSession(message, sender) {
 
   const webBaseUrl = normalizeWebBaseUrl(message.webBaseUrl);
   const apiBaseUrl = normalizeApiBaseUrl(message.apiBaseUrl, webBaseUrl);
-  await Promise.all([
-    chrome.storage.local.set({ extensionApiToken: token }),
-    chrome.storage.sync.set({ apiBaseUrl, webBaseUrl })
-  ]);
+  await withSessionStorage(async () => {
+    await chrome.storage.local.remove(['accountStatus']);
+    await chrome.storage.sync.remove(['extensionApiToken', 'accountStatus']);
+    await chrome.storage.sync.set({ apiBaseUrl, webBaseUrl });
+    await chrome.storage.local.set({ extensionApiToken: token });
+  });
   await notifySupportedTabsAccountUpdated();
   await returnToSourceTab(message.returnTo, sender);
   return { ok: true };
 }
 
-async function getLocalSessionStatus(sender) {
+function getExtensionPresence(sender) {
   if (!sender.url || !isAllowedWebsite(sender.url)) {
     return { ok: false, error: "Website origin is not allowed." };
   }
+  return { ok: true, installed: true, extensionId: chrome.runtime.id, version: chrome.runtime.getManifest().version };
+}
 
-  const token = await getExtensionApiToken();
+async function getLocalSessionStatus(sender) {
+  const presence = getExtensionPresence(sender);
+  if (!presence.ok) return presence;
+
+  const session = await readSession();
+  const { token, apiBaseUrl } = session;
   if (!token) {
-    return { ok: true, hasToken: false, extensionId: chrome.runtime.id };
+    return { ...presence, hasToken: false, sessionState: 'signed-out' };
   }
 
-  const response = await safeFetch(`${await getApiBaseUrl()}/api/account`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  let response;
+  try {
+    response = await safeFetch(`${apiBaseUrl}/api/account`, {
+      headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(2500)
+    });
+  } catch { return { ...presence, hasToken: true, sessionState: 'unavailable' }; }
+  if (!await sessionIsCurrent(session)) return { ...presence, hasToken: true, sessionState: 'unavailable' };
   if (response.status === 401) {
-    await removeSensitiveSession();
-    return { ok: true, hasToken: false, extensionId: chrome.runtime.id };
+    if (!await removeSensitiveSession(token)) return { ...presence, hasToken: true, sessionState: 'unavailable' };
+    return { ...presence, hasToken: false, sessionState: 'signed-out' };
   }
 
-  return { ok: true, hasToken: true, extensionId: chrome.runtime.id };
+  const account = response.ok ? await response.json().catch(() => null) : null;
+  const userId = Number(account?.user?.id);
+  if (!account?.ok || !Number.isSafeInteger(userId) || userId <= 0) return { ...presence, hasToken: true, sessionState: 'unavailable' };
+  return { ...presence, hasToken: true, sessionState: 'connected', userId };
 }
 
 async function clearExtensionSession(sender, options = {}) {
@@ -197,6 +258,10 @@ async function clearExtensionSession(sender, options = {}) {
 }
 
 async function migrateSensitiveStorage() {
+  return withSessionStorage(migrateSensitiveStorageUnlocked);
+}
+
+async function migrateSensitiveStorageUnlocked() {
   const [legacy, current] = await Promise.all([
     chrome.storage.sync.get(["extensionApiToken", "accountStatus"]),
     chrome.storage.local.get(["extensionApiToken", "accountStatus"])
@@ -212,11 +277,16 @@ async function migrateSensitiveStorage() {
   await chrome.storage.sync.remove(["extensionApiToken", "accountStatus"]);
 }
 
-async function removeSensitiveSession() {
-  await Promise.all([
-    chrome.storage.local.remove(["extensionApiToken", "accountStatus"]),
-    chrome.storage.sync.remove(["extensionApiToken", "accountStatus"])
-  ]);
+async function removeSensitiveSession(expectedToken) {
+  return withSessionStorage(async () => {
+    const current = await chrome.storage.local.get(['extensionApiToken']);
+    if (expectedToken !== undefined && current.extensionApiToken !== expectedToken) return false;
+    await Promise.all([
+      chrome.storage.local.remove(["extensionApiToken", "accountStatus"]),
+      chrome.storage.sync.remove(["extensionApiToken", "accountStatus"])
+    ]);
+    return true;
+  });
 }
 
 async function returnToSourceTab(value, sender) {
@@ -299,8 +369,9 @@ function normalizeApiBaseUrl(value, webBaseUrl) {
   return url;
 }
 
-async function getAccountStatus(sender) {
-  const [baseUrl, token] = await Promise.all([getApiBaseUrl(), getExtensionApiToken()]);
+async function getAccountStatus(sender, session = null) {
+  session ||= await readSession();
+  const { apiBaseUrl: baseUrl, token } = session;
   if (!token) {
     return { ok: false, status: 401, error: "Sign in on the website.", action: await loginAction(sender) };
   }
@@ -313,9 +384,10 @@ async function getAccountStatus(sender) {
   }
 
   const payload = await safeJson(response);
+  if (!await sessionIsCurrent(session)) return sessionChanged();
   if (!response.ok) {
     if (response.status === 401) {
-      await removeSensitiveSession();
+      await removeSensitiveSession(token);
       return { ok: false, status: 401, error: SESSION_EXPIRED_ERROR, action: await loginAction(sender) };
     }
 
@@ -326,20 +398,53 @@ async function getAccountStatus(sender) {
     return { ok: false, status: response.status, error, action };
   }
 
-  await chrome.storage.local.set({ accountStatus: payload });
+  const cached = await withSessionStorage(async () => {
+    const current = await chrome.storage.local.get(['extensionApiToken']);
+    if (current.extensionApiToken !== token) return false;
+    await chrome.storage.local.set({ accountStatus: payload });
+    return true;
+  });
+  if (!cached) return sessionChanged();
   return { ok: true, account: payload };
 }
 
 async function postJson(path, body, sender) {
-  const [baseUrl, token] = await Promise.all([getApiBaseUrl(), getExtensionApiToken()]);
+  const session = await readSession();
+  const { apiBaseUrl: baseUrl, token } = session;
   if (!token) {
     return { ok: false, status: 401, error: "Sign in on the website.", action: await loginAction(sender) };
   }
 
+  // A verified account ID survives token renewal without sharing another user's retries.
+  let userId = Number(session.account?.user?.id);
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    const result = await getAccountStatus(sender, session);
+    if (!result.ok) return result;
+    userId = Number(result.account?.user?.id);
+  }
+  if (!Number.isSafeInteger(userId) || userId <= 0) return { ok: false, status: 0, error: 'Could not verify your account. Please try again.' };
   const url = `${baseUrl}${path}`;
-  const requestFingerprint = `${path}:${JSON.stringify(body || {})}`;
-  const idempotencyKey = pendingIdempotencyKeys.get(requestFingerprint) || crypto.randomUUID();
-  pendingIdempotencyKeys.set(requestFingerprint, idempotencyKey);
+  const fingerprint = JSON.stringify([baseUrl, userId, path, body || {}]);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fingerprint));
+  const storageKey = `pendingRequest:${Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')}`;
+  const request = await withRequestStorage(async () => {
+    const stored = await chrome.storage.local.get([storageKey]);
+    if (stored[storageKey]) return stored[storageKey];
+    const record = { key: crypto.randomUUID(), createdAt: Date.now() };
+    await chrome.storage.local.set({ [storageKey]: record });
+    return record;
+  });
+  // The server retains replay results for seven days. Never silently create a
+  // new charge for an unknown outcome beyond that window.
+  if (Date.now() - request.createdAt > 6 * 86400000) {
+    return { ok: false, status: 409, error: 'An earlier request could not be confirmed. Contact support before retrying this operation.' };
+  }
+  if (!await sessionIsCurrent(session)) return sessionChanged();
+  const idempotencyKey = request.key;
+  const forgetRequest = () => withRequestStorage(async () => {
+    const stored = await chrome.storage.local.get([storageKey]);
+    if (stored[storageKey]?.key === idempotencyKey) await chrome.storage.local.remove([storageKey]);
+  });
   const response = await safeFetch(url, {
     method: "POST",
     headers: {
@@ -356,7 +461,7 @@ async function postJson(path, body, sender) {
   const payload = await safeJson(response);
   if (!response.ok) {
     if (response.status === 401) {
-      await removeSensitiveSession();
+      await removeSensitiveSession(token);
     }
     const action = payload.action || (response.status === 401
       ? await loginAction(sender)
@@ -368,9 +473,8 @@ async function postJson(path, body, sender) {
       : response.status === 402
         ? "No Contact Kits left. Upgrade or wait for your next monthly grant."
         : "Try again shortly.";
-    if (response.status < 500 && response.status !== 409) {
-      pendingIdempotencyKeys.delete(requestFingerprint);
-    }
+    // Keep ambiguous responses (including proxy errors and truncated bodies).
+    if ([400, 402, 403, 404, 422, 428, 429].includes(response.status) && payload.ok === false) await forgetRequest();
     return {
       ok: false,
       status: response.status,
@@ -381,16 +485,14 @@ async function postJson(path, body, sender) {
       action
     };
   }
-  pendingIdempotencyKeys.delete(requestFingerprint);
+  if (payload.ok !== true) return { ok: false, status: 0, error: 'The response was incomplete. Please retry to recover the result.' };
+  if (!await sessionIsCurrent(session)) return sessionChanged();
+  await forgetRequest();
   return payload;
 }
 
 async function getExtensionApiToken() {
-  const stored = await chrome.storage.local.get(["extensionApiToken"]);
-  if (stored.extensionApiToken) return String(stored.extensionApiToken).trim();
-  await migrateSensitiveStorage();
-  const migrated = await chrome.storage.local.get(["extensionApiToken"]);
-  return String(migrated.extensionApiToken || "").trim();
+  return (await readSession()).token;
 }
 
 async function getEmailCustomize(sender) {
@@ -404,13 +506,13 @@ async function getEmailCustomize(sender) {
   };
 }
 
-async function setEmailCustomize(payload, sender) {
+async function setEmailCustomize(payload, sender, session) {
   const custom = normalizeCustomize(payload);
   const response = await webJson("/api/settings/custom", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(custom)
-  }, sender);
+  }, sender, session);
   if (!response.ok) return response;
   return {
     ok: true,
@@ -418,12 +520,14 @@ async function setEmailCustomize(payload, sender) {
   };
 }
 
-async function webJson(path, options, sender) {
-  const [baseUrl, token] = await Promise.all([getWebBaseUrl(), getExtensionApiToken()]);
+async function webJson(path, options, sender, session = null) {
+  session ||= await readSession();
+  const { webBaseUrl: baseUrl, token } = session;
   if (!token) {
     return { ok: false, status: 401, error: "Sign in on the website.", action: await loginAction(sender) };
   }
 
+  if (!await sessionIsCurrent(session)) return sessionChanged();
   const response = await safeFetch(`${baseUrl}${path}`, {
     ...options,
     headers: {
@@ -436,9 +540,10 @@ async function webJson(path, options, sender) {
   }
 
   const payload = await safeJson(response);
+  if (!await sessionIsCurrent(session)) return sessionChanged();
   if (!response.ok) {
     if (response.status === 401) {
-      await removeSensitiveSession();
+      await removeSensitiveSession(token);
     }
     return {
       ok: false,

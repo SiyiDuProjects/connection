@@ -1,0 +1,27 @@
+body { display: flex; flex-direction: column; }
+.embedded-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 44px;
+  box-sizing: border-box;
+  padding: 0 10px 0 18px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+  font: 600 13px "Segoe UI", system-ui, sans-serif;
+}
+.embedded-header button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #4b5563;
+  cursor: pointer;
+}
+.embedded-header button:hover { background: #f3f4f6; }
+.embedded-header button:focus-visible { outline: 2px solid #007aff; }
+#fc-linkedin-panel { flex: 1; min-height: 0; height: auto; }
