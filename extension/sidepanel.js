@@ -223,7 +223,7 @@ window.ReachardController = { start() {
   }
 
   async function runSearch() {
-    if (!canUseAccount()) return;
+    if (!canUseAccount() || state.loading) return;
     const epoch = authEpoch;
     const operationState = state;
     operationState.loading = true;
@@ -231,8 +231,6 @@ window.ReachardController = { start() {
     operationState.error = "";
     operationState.prompt = null;
     operationState.action = null;
-    operationState.contacts = [];
-    operationState.drafts.clear();
     renderPanel();
 
     try {
@@ -241,7 +239,7 @@ window.ReachardController = { start() {
       }
 
       if (operationState.pageContext.type === PAGE_TYPES.LINKEDIN_PERSON) {
-        operationState.contacts = [contactFromPersonContext(operationState.pageContext)];
+        replaceContacts(operationState, [contactFromPersonContext(operationState.pageContext)]);
         return;
       }
 
@@ -260,14 +258,22 @@ window.ReachardController = { start() {
       if (epoch !== authEpoch) return;
       if (!response?.ok) throw apiError(response, t("couldNotFindContacts"));
       setCredits(response, operationState);
-      operationState.contacts = response.contacts || [];
+      replaceContacts(operationState, response.contacts || []);
     } catch (error) {
       if (epoch !== authEpoch) return;
       applyError(error, t("couldNotFindContacts"), operationState);
     } finally {
-      operationState.loading = false;
+      if (epoch === authEpoch) operationState.loading = false;
       renderPanel();
     }
+  }
+
+  function replaceContacts(target, contacts) {
+    // A successful search replaces the result generation. Failed searches keep
+    // existing work, and operations tied to the previous array cannot write back.
+    target.contacts = contacts;
+    target.revealed.clear(); target.revealing.clear();
+    target.drafts.clear(); target.drafting.clear();
   }
 
   async function loadPanelData() {
@@ -290,7 +296,7 @@ window.ReachardController = { start() {
     state.accountNotice = "";
     try {
       const response = await sendRuntimeMessage({ type: "GET_EMAIL_CUSTOMIZE" });
-      if (customizeRevision !== revision || epoch !== authEpoch) return;
+      if (disposed || customizeRevision !== revision || epoch !== authEpoch) return;
       if (!response?.ok) {
         state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
         state.customizeError = response?.status === 401 ? "" : response?.error || t("couldNotLoadCustom");
@@ -299,9 +305,8 @@ window.ReachardController = { start() {
       state.emailCustomize = normalizeCustomize(response.custom);
       // Preferences are not proof of a valid account session.
     } catch (error) {
-      if (epoch !== authEpoch) return;
-      state.emailCustomize = { ...DEFAULT_EMAIL_CUSTOMIZE };
-      state.accountError = error.message || t("couldNotLoadCustom");
+      if (disposed || customizeRevision !== revision || epoch !== authEpoch) return;
+      state.customizeError = error.message || t("couldNotLoadCustom");
     }
   }
 
@@ -387,6 +392,8 @@ window.ReachardController = { start() {
     if (!canUseAccount()) return;
     const epoch = authEpoch;
     const operationState = state;
+    const contacts = operationState.contacts;
+    const isCurrent = () => !disposed && epoch === authEpoch && operationState.contacts === contacts;
     const contact = findContact(contactId, operationState);
     if (!contact) return;
     if (operationState.revealed.has(contactId) || contact.email || operationState.revealing.has(contactId)) return;
@@ -402,16 +409,16 @@ window.ReachardController = { start() {
         type: "CONTACTS_REVEAL",
         payload: { contact, pageContext: operationState.pageContext }
       }, operationState.sourceTabId);
-      if (epoch !== authEpoch) return;
+      if (!isCurrent()) return;
       if (!response?.ok) throw apiError(response, t("couldNotUnlock"));
       setCredits(response, operationState);
       operationState.revealed.set(contactId, response.email);
       await draftEmail(contactId, operationState);
     } catch (error) {
-      if (epoch !== authEpoch) return;
+      if (!isCurrent()) return;
       applyError(error, t("couldNotUnlock"), operationState);
     } finally {
-      operationState.revealing.delete(contactId);
+      if (isCurrent()) operationState.revealing.delete(contactId);
       renderPanel();
     }
   }
@@ -419,8 +426,12 @@ window.ReachardController = { start() {
   async function draftEmail(contactId, operationState = state) {
     if (!canUseAccount()) return;
     const epoch = authEpoch;
+    const contacts = operationState.contacts;
+    const isCurrent = () => !disposed && epoch === authEpoch && operationState.contacts === contacts;
     const contact = findContact(contactId, operationState);
-    if (!contact) return;
+    if (!contact || operationState.drafting.has(contactId)) return;
+    const originalDraft = operationState.drafts.get(contactId);
+    const pageContext = effectivePageContext(operationState);
 
     const email = operationState.revealed.get(contactId) || contact.email;
     if (!email) {
@@ -439,23 +450,25 @@ window.ReachardController = { start() {
 
     try {
       if (!await saveCustomizeFromPanel()) throw new Error(operationState.customizeError || t("couldNotSaveCustom"));
-      if (epoch !== authEpoch || !canUseAccount()) return;
+      if (!isCurrent() || !canUseAccount()) return;
       const response = await sendRuntimeMessage({
         type: "EMAIL_DRAFT",
         payload: {
           contact: { ...contact, email },
-          pageContext: effectivePageContext(operationState)
+          pageContext
         }
       }, operationState.sourceTabId);
-      if (epoch !== authEpoch) return;
+      if (!isCurrent()) return;
       if (!response?.ok) throw apiError(response, t("couldNotDraft"));
       setCredits(response, operationState);
-      operationState.drafts.set(contactId, response);
+      // An edit made during regeneration belongs to the user, even if the
+      // generated reply arrives later.
+      if (operationState.drafts.get(contactId) === originalDraft) operationState.drafts.set(contactId, response);
     } catch (error) {
-      if (epoch !== authEpoch) return;
+      if (!isCurrent()) return;
       applyError(error, t("couldNotDraft"), operationState);
     } finally {
-      operationState.drafting.delete(contactId);
+      if (isCurrent()) operationState.drafting.delete(contactId);
       renderPanel();
     }
   }

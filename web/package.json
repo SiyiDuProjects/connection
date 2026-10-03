@@ -12,6 +12,7 @@
     "test:resume": "node --experimental-strip-types --test scripts/resume-text.test.mjs",
     "test:email": "node --test scripts/email-verification.test.mjs",
     "test:password-reset": "node --test scripts/password-reset.test.mjs",
+    "test:settings": "node --test scripts/settings.test.mjs scripts/profile-recovery.test.mjs",
     "test:billing": "node --test scripts/billing.test.mjs scripts/public-pricing.test.cjs",
     "check:brand": "node ../scripts/sync-brand.mjs --check",
     "check:billing": "node scripts/check-billing-readiness.mjs",

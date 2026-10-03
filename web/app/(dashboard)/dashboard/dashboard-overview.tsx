@@ -11,9 +11,9 @@ import { DataGrid, EmptyState, type DataGridColumn, type DataGridSortDescriptor 
 import { actionNames, type DashboardAccount, type DashboardUsage } from '@/lib/dashboard';
 
 export async function fetchDashboardAccount(url: string): Promise<DashboardAccount> {
-  const response = await fetch(url);
-  const payload = await response.json();
-  if (!response.ok || !payload.ok) throw new Error(payload.error || 'Could not load your account.');
+  const response = await fetch(url, { cache: 'no-store' });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload?.ok) throw Object.assign(new Error(payload?.error || 'Could not load your account.'), { status: response.status });
   return payload;
 }
 

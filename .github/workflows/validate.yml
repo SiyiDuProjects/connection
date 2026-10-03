@@ -49,6 +49,7 @@ jobs:
         run: |
           node scripts/sync-brand.mjs --check
           node --test scripts/brand.test.mjs
+          node --test scripts/local-env.test.mjs
           node --check extension/content.js
           node --check extension/service_worker.js
           node --check extension/web_bridge.js
@@ -86,8 +87,9 @@ jobs:
       - run: pnpm test:billing
       - run: pnpm test:email
       - run: pnpm test:password-reset
-      - run: node --test scripts/auth-session.test.mjs
+      - run: node --test scripts/auth-session.test.mjs scripts/extension-sync.test.mjs
       - run: node --test --test-concurrency=1 scripts/free-trial.test.mjs scripts/auth-rate-limit.test.mjs scripts/launch-audit.test.cjs
       - run: node --test scripts/dashboard.test.mjs
       - run: node --test scripts/account-security.test.cjs
+      - run: pnpm test:settings
       - run: pnpm build

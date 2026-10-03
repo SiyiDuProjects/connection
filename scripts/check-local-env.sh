@@ -57,6 +57,13 @@ fi
 
 if [ -d "$repo_root/web/node_modules" ]; then
   ok "web/node_modules exists"
+  if command -v node >/dev/null 2>&1; then
+    if node "$repo_root/web/scripts/check-pro-install.mjs" >/dev/null 2>&1; then
+      ok "HeroUI Pro version, component entry point and CSS match the reviewed installation"
+    else
+      warn "HeroUI Pro is missing, incomplete or mismatched. Run: cd web && node scripts/check-pro-install.mjs. See web/docs/cloud-build.md for the authorized installation channel."
+    fi
+  fi
 else
   warn "web dependencies are missing. Run: cd web && corepack pnpm install"
 fi

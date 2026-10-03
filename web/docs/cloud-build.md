@@ -26,6 +26,16 @@ pnpm's dependency isolation. Reachard does not use the changed HoverCard
 content-state API. Keep the exact Pro version guard: a future installer update
 must still stop the build for review.
 
+After restoring local dependencies, run `./scripts/check-local-env.sh` from the
+repository root, or `node scripts/check-pro-install.mjs` from `web/` for the
+specific Pro diagnostic. Check the installed package's own version and entry
+points: a pnpm directory named `@heroui-pro+react@1.0.0-beta.9` can still contain
+an older licensed runtime copied during migration. Do not change the manifest,
+lockfile or version guard to make that older copy pass. Restore the reviewed
+licensed runtime through the existing CollectUI channel, then rerun the check
+and build. A successful build against another installed version does not verify
+the reviewed dependency set.
+
 No local environment variables are needed for the existing preview setup.
 Do not commit downloaded library files or private template reference copies.
 

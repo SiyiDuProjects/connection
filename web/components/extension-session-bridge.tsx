@@ -38,6 +38,9 @@ export function ExtensionSessionBridge({ user }: { user: UserState | null | unde
       });
       if (cancelled) return;
       if (!existing?.ok) return;
+      // A timeout, provider outage or concurrent session change is not a sign-out.
+      // Keep the current credential and let the next focus/timer check retry.
+      if (existing.sessionState === 'unavailable') return;
       if (existing.sessionState === 'connected' && existing.userId === userId) {
         syncedUserId.current = userId;
         return;

@@ -1,6 +1,6 @@
 # Reachard Chrome Web Store submission pack
 
-Current local candidate: **0.7.6**, September 20, 2026. Account-switch protection, stale-session response handling and durable request recovery were repaired. Current metadata and privacy changes are tracked in the root `CHROMEWEBSTORE.md`. The September 7 release notes below are historical; they do not establish upload, reviewer access, deployment or publication status for this candidate.
+Current local candidate: **0.7.7**, October 2, 2026. Drafts survive failed searches and late generation responses; replaced contacts and account changes reject stale results; late preference responses cannot overwrite newer edits. Current metadata and verification boundaries are tracked in the root `CHROMEWEBSTORE.md`. Generate the current ZIP with `node scripts/prepare-chrome-store.mjs artifacts/release-20261002`. The September 7 release notes below are historical; they do not establish upload, reviewer access, deployment or publication status for this candidate.
 
 Prepared September 7, 2026. Candidate version: **0.7.1**. The owner previously uploaded 0.7.0 with extension ID `ladoemfclhhepfomibkdblodgnhceefm`; replace it with this reduced-permission package. Production website and API allowlists accept the same ID. This replacement has not been uploaded or submitted by the agent.
 

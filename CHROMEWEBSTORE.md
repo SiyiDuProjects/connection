@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — Reachard
 
-Last updated: 2026-09-20. Local candidate: 0.7.6. Not uploaded or published by this repair.
+Last updated: 2026-10-02. Local candidate: 0.7.7. Not uploaded or published by this repair.
 
 ## Listing
 
@@ -36,8 +36,9 @@ Publisher identity, visibility, regions, current reviewer account validity and l
 
 | Version | Date | Changes | Status |
 | --- | --- | --- | --- |
+| 0.7.7 | 2026-10-02 | Preserves edited drafts after failed searches and late generation responses; isolates results across contact replacement and account changes; ignores stale preference responses. | Local candidate |
 | 0.7.6 | 2026-09-20 | Keeps account preferences isolated during account switching; protects a new login from old responses; safely retries interrupted requests. | Local candidate |
 
 ## Verification
 
-See `artifacts/audit-20260920/REMEDIATION.md` for current test, build, dependency and isolated-browser results. This is not evidence of store submission, production payment acceptance or live provider testing.
+For 0.7.7, run `node --test scripts/extension-*.test.mjs` and `node scripts/check-extension.mjs`. The release package and file hashes are generated in `artifacts/release-20261002/` with `node scripts/prepare-chrome-store.mjs artifacts/release-20261002`. These checks use local fixtures; signed-in browser workflows, store submission, production payment acceptance and live providers are not validated by them. Historical 0.7.6 verification remains in `artifacts/audit-20260920/REMEDIATION.md`.

@@ -34,7 +34,7 @@ On macOS or Linux, run this from the repo root after cloning:
 ./scripts/check-local-env.sh
 ```
 
-The script checks whether Node.js, npm, corepack/pnpm, `.env` files, and installed dependencies are present. On macOS, install Node.js with Homebrew if needed:
+The script checks whether Node.js, npm, corepack/pnpm, `.env` files, and installed dependencies are present. It also verifies the installed HeroUI Pro version and its component/CSS entry points; an existing `node_modules` directory alone is not sufficient. See [cloud builds](web/docs/cloud-build.md) if this check fails after restoring dependencies. On macOS, install Node.js with Homebrew if needed:
 
 ```bash
 brew install node

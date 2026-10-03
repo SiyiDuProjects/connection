@@ -57,6 +57,24 @@ test('a current-session 401 still clears the invalid credential', async () => {
   await w.getAccountStatus(sender); assert.equal(local.extensionApiToken, undefined);
 });
 
+for (const change of ['reconnect', 'sign-out']) {
+  test(`presence cannot report an old account when ${change} happens while reading the response`, async () => {
+    const local = state(), reading = deferred(), payload = deferred();
+    const w = worker(local, async () => ({ ok: true, status: 200, async json() {
+      reading.resolve(); return payload.promise;
+    } }));
+    const pending = w.getLocalSessionStatus(sender);
+    await reading.promise;
+    if (change === 'reconnect') await connect(w);
+    else await w.clearExtensionSession(sender, { requireAllowedWebsite: true });
+    payload.resolve(account(42));
+    const result = await pending;
+    assert.equal(result.sessionState, 'unavailable');
+    assert.equal(result.userId, undefined);
+    assert.equal(local.extensionApiToken, change === 'reconnect' ? 'new-fixture-token' : undefined);
+  });
+}
+
 test('queued preferences are canceled when the account changes', async () => {
   const local = state(), first = deferred(), writes = [];
   const w = worker(local, async (_url, options) => {

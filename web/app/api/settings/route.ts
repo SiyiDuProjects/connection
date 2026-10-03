@@ -91,7 +91,13 @@ export async function POST(request: Request) {
     updatedAt: new Date()
   };
 
-  await db.transaction(async (tx) => {
+  // Only submitted fields participate in the conflict update. A concurrent
+  // partial save must not write this request's older snapshot over other fields.
+  const updates = Object.fromEntries(Object.entries(values).filter(([key]) =>
+    key === 'updatedAt' || (key !== 'userId' && Object.prototype.hasOwnProperty.call(payload, key))
+  ));
+
+  const savedSettings = await db.transaction(async (tx) => {
     if (has('name') && name && name !== user.name) {
       await tx
         .update(users)
@@ -99,17 +105,19 @@ export async function POST(request: Request) {
         .where(eq(users.id, user.id));
     }
 
-    await tx
+    const [saved] = await tx
       .insert(userSettings)
       .values(values)
       .onConflictDoUpdate({
         target: userSettings.userId,
-        set: values
-      });
+        set: updates
+      })
+      .returning();
+    return saved;
   });
 
   const updatedUser = { name: has('name') && name ? name : user.name };
-  if (!wasOnboardingComplete && getOnboardingStatus(updatedUser, values).complete) {
+  if (!wasOnboardingComplete && getOnboardingStatus(updatedUser, savedSettings).complete) {
     await recordProductEvent(user.id, 'onboarding.completed');
   }
 

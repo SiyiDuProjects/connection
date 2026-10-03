@@ -242,6 +242,8 @@ async function getLocalSessionStatus(sender) {
   }
 
   const account = response.ok ? await response.json().catch(() => null) : null;
+  // Reading the body can outlive a sign-out or a replacement connection.
+  if (!await sessionIsCurrent(session)) return { ...presence, hasToken: true, sessionState: 'unavailable' };
   const userId = Number(account?.user?.id);
   if (!account?.ok || !Number.isSafeInteger(userId) || userId <= 0) return { ...presence, hasToken: true, sessionState: 'unavailable' };
   return { ...presence, hasToken: true, sessionState: 'connected', userId };
