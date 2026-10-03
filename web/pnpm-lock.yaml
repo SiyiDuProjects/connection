@@ -7,12 +7,12 @@ settings:
 overrides:
   esbuild@<0.25.0: 0.25.4
   tar@<7.5.22: 7.5.22
-  qs@<6.16.0: 6.16.0
-  shell-quote@<1.9.0: 1.9.0
   postcss@<8.5.28: 8.5.28
-  sharp@<0.35.4: 0.35.4
   nanoid@>=3 <3.3.18: 3.3.18
   browserslist@<4.28.7: 4.28.7
+  shell-quote@<1.9.0: 1.9.0
+  sharp@<0.35.4: 0.35.4
+  qs@<6.16.0: 6.16.0
 
 importers:
 
@@ -196,6 +196,9 @@ importers:
       '@electric-sql/pglite-socket':
         specifier: 0.2.11
         version: 0.2.11(@electric-sql/pglite-age@0.0.9(@electric-sql/pglite@0.5.8))(@electric-sql/pglite-pg_hashids@0.0.9(@electric-sql/pglite@0.5.8))(@electric-sql/pglite-pg_ivm@0.0.9(@electric-sql/pglite@0.5.8))(@electric-sql/pglite-pg_textsearch@0.0.10(@electric-sql/pglite@0.5.8))(@electric-sql/pglite-pg_uuidv7@0.0.9(@electric-sql/pglite@0.5.8))(@electric-sql/pglite-pgtap@0.0.9(@electric-sql/pglite@0.5.8))(@electric-sql/pglite-pgvector@0.0.9(@electric-sql/pglite@0.5.8))(@electric-sql/pglite@0.5.8)
+      hpsetup:
+        specifier: 4.7.1
+        version: 4.7.1
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
@@ -2006,6 +2009,10 @@ packages:
 
   heroui-pro@1.0.0-beta.12:
     resolution: {integrity: sha512-NrgBHqRTjB5Hszyg6KfmoC/medQsakaDCR9+LBccod/pufZ1OZT53DUck7wHcHlKr2Rb9unh+VMZqPcS51Qz3A==}
+    hasBin: true
+
+  hpsetup@4.7.1:
+    resolution: {integrity: sha512-tQUplUdJ3ydIDreimIPK+nXGQUAI8D7JvY6H3ffIdsbwoImNnh6dkT7ifwiaDL7wJCC1sI6Z4cOE00Z6W+vVxA==}
     hasBin: true
 
   html-url-attributes@3.0.1:
@@ -4514,6 +4521,14 @@ snapshots:
       tar: 7.5.22
     optionalDependencies:
       '@zowe/secrets-for-zowe-sdk': 8.29.4
+
+  hpsetup@4.7.1:
+    dependencies:
+      '@clack/prompts': 1.1.0
+      chalk: 5.6.2
+      find-up: 7.0.0
+      semver: 7.7.2
+      tar: 7.5.22
 
   html-url-attributes@3.0.1: {}
 

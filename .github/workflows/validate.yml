@@ -80,8 +80,9 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: node --test scripts/pro-install.test.mjs
       - name: Install Pro components through CollectUI
-        run: npx -y hpsetup@4.7.1 react --auto
+        run: node scripts/install-reviewed-pro.mjs
       - run: node scripts/check-pro-install.mjs
       - run: node scripts/check-ui-boundaries.mjs
       - run: pnpm test:billing

@@ -13,19 +13,25 @@ The CollectUI personal token is for MCP/Skills, not package installation. Never
 put either credential in source, documentation, or an install command. The
 workflow and `vercel.json` use environment variables without embedded values.
 
-Both builds install the frozen dependency lockfile, run hpsetup in CI mode, then
-verify the Pro component entry point, CSS, and exact version. CI mode also keeps
-hpsetup from generating local Vercel configuration containing a key. If the
-installer selects a newer component version, verification stops the release
-until that upgrade is reviewed and tested.
+Both builds install the frozen dependency lockfile, then run
+`node scripts/install-reviewed-pro.mjs`. This invokes the exact-version download
+function from the pinned `hpsetup@4.7.1` dependency with `HEROUI_KEY` and its CI
+flag. The CLI's automatic upgrade-to-latest path is not invoked. The downloaded
+archive must pass the existing exact-version, component and CSS checks in a
+temporary directory before it is copied into the application. The wrapper does
+not rewrite package.json, the lockfile, or Vercel configuration. Missing keys,
+unexpected versions and incomplete archives fail the build; no older-version
+fallback is accepted.
 
 The manual GitHub Actions workflow `Verify reviewed Pro distribution` checks
 whether the existing CollectUI channel can still deliver exact beta.9. It uses
 the versioned download function shipped in `hpsetup@4.7.1` with the repository's
 existing `HEROUI_KEY`, checks package metadata and runtime entry files, and
-does not deploy or publish the downloaded package. This diagnostic avoids the
-CLI's automatic upgrade to latest; it does not change the production installer
-or replace full tests and a build against the reviewed version.
+does not deploy or publish the downloaded package. This diagnostic confirmed
+beta.9 availability in run `37087626023`; it does not replace full tests and a
+build against the reviewed version. Both the probe and production wrapper use
+the helper's internal module, so its `4.7.1` dependency pin must only change
+after reviewing that interface.
 
 The reviewed dependency set is Pro `1.0.0-beta.9` with HeroUI React/styles
 `3.2.5`. The beta.9 release raises those peer minimums and adds React Aria,
