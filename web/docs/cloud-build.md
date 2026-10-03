@@ -19,6 +19,14 @@ hpsetup from generating local Vercel configuration containing a key. If the
 installer selects a newer component version, verification stops the release
 until that upgrade is reviewed and tested.
 
+The manual GitHub Actions workflow `Verify reviewed Pro distribution` checks
+whether the existing CollectUI channel can still deliver exact beta.9. It uses
+the versioned download function shipped in `hpsetup@4.7.1` with the repository's
+existing `HEROUI_KEY`, checks package metadata and runtime entry files, and
+does not deploy or publish the downloaded package. This diagnostic avoids the
+CLI's automatic upgrade to latest; it does not change the production installer
+or replace full tests and a build against the reviewed version.
+
 The reviewed dependency set is Pro `1.0.0-beta.9` with HeroUI React/styles
 `3.2.5`. The beta.9 release raises those peer minimums and adds React Aria,
 React Stately, and interaction peers, which are explicitly declared here for
