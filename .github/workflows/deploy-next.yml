@@ -33,6 +33,23 @@ jobs:
         run: |
           test -n "$HEROUI_KEY"
           docker build --secret id=heroui_key,env=HEROUI_KEY --build-arg RELEASE_SHA="$GITHUB_SHA" -f web/Dockerfile -t "reachard:$GITHUB_SHA" .
+      - name: Verify the final container without production credentials
+        run: |
+          set -euo pipefail
+          trap 'docker rm -f reachard_image_smoke >/dev/null 2>&1 || true' EXIT
+          docker run -d --name reachard_image_smoke --network host --memory 512m --memory-swap 768m \
+            -e PORT=18787 -e AUTH_SECRET=isolated-image-check-secret-at-least-32-characters \
+            -e BASE_URL=https://reachard.co -e POSTGRES_URL=postgresql://mock:mock@127.0.0.1:1/mock \
+            -e STRIPE_SECRET_KEY=sk_test_disabled -e STRIPE_WEBHOOK_SECRET=whsec_disabled \
+            -e CONTACT_PROVIDER=mock -e APOLLO_MOCK=true "reachard:$GITHUB_SHA"
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:18787/live >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18787/live
+          curl --fail --silent -H 'Host: reachard.co' http://127.0.0.1:18787/ >/dev/null
+          curl --fail --silent -H 'Host: reachard.co' http://127.0.0.1:18787/sign-in >/dev/null
+          test "$(curl --silent -o /dev/null -w '%{http_code}' http://127.0.0.1:18787/api/extension/account)" = 401
       - name: Configure existing deployment identity
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}

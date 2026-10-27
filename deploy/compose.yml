@@ -4,6 +4,9 @@ services:
     container_name: reachard
     restart: unless-stopped
     network_mode: host
+    mem_limit: 512m
+    memswap_limit: 768m
+    pids_limit: 256
     env_file:
       - ${REACHARD_ENV_FILE:-/opt/reachard/runtime.env}
     environment:

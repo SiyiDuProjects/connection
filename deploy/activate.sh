@@ -17,7 +17,7 @@ fi
 cleanup() { docker rm -f "$candidate" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 # Stage on a different loopback port. Both public hostnames continue using the old process.
-docker run -d --name "$candidate" --label co.reachard.role=candidate --network host \
+docker run -d --name "$candidate" --label co.reachard.role=candidate --network host --memory 512m --memory-swap 768m --pids-limit 256 \
   --env-file "$root/runtime.env" -e HOSTNAME=127.0.0.1 -e PORT=18787 --init "$image" >/dev/null
 healthy() {
   for attempt in $(seq 1 30); do

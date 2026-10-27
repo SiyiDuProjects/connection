@@ -9,6 +9,9 @@ rate limits and circuit breakers remain shared. Do not scale to multiple
 instances without moving those admission controls to a shared coordinator.
 
 The runtime binds to `127.0.0.1:8787` behind the existing Cloudflare Tunnel.
+The shared VPS uses a 512 MiB memory limit (768 MiB including swap) per candidate
+and release container. Check observed usage before increasing limits or adding
+instances. Builds run on GitHub, not on the shared VPS.
 Keep both `reachard.co` and `contacts.reachard.co`. Installed extensions can keep
 using their old URLs. `/api/account` selects the extension contract for Bearer
 authentication or the contacts hostname; cookie-authenticated website requests
