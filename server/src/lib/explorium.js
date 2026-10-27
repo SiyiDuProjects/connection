@@ -51,7 +51,7 @@ export async function revealExploriumEmail(contact) {
 }
 
 async function exploriumPost(path, payload, options = {}) {
-  const response = await fetchWithTimeout(`${EXPLORIUM_BASE_URL}${path}`, {
+  const { response, data } = await fetchJsonWithTimeout(`${EXPLORIUM_BASE_URL}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -63,7 +63,6 @@ async function exploriumPost(path, payload, options = {}) {
     timeoutMs: process.env.EXPLORIUM_TIMEOUT_MS || 15_000
   });
 
-  const data = await response.json().catch(() => ({}));
   if (response.status === 422 && options.retryPayload) {
     console.error("Explorium 422 response:", formatExploriumError(response, data));
     return exploriumPost(path, options.retryPayload);
@@ -301,4 +300,4 @@ function requireExploriumKey() {
     throw error;
   }
 }
-import { fetchWithTimeout } from "./http.js";
+import { fetchJsonWithTimeout } from "./http.js";

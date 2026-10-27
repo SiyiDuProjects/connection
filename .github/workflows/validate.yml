@@ -25,6 +25,7 @@ jobs:
       - name: Check server and provider fixtures
         run: |
           find src -name '*.js' -print0 | xargs -0 -n1 node --check
+          npm run test:http
           npm run test:hunter
           npm run test:rapidapi
           npm run test:treg

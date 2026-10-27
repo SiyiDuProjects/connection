@@ -5,6 +5,7 @@ import test from 'node:test';
 import { createProviderUsageGuard, createRateLimiter } from './usage-guard.js';
 import { fail, ok, publicError } from './http.js';
 import { hasActionAccess } from './membership-policy.js';
+import { fingerprintRequest } from './account.js';
 
 const deferred = () => {
   let resolve;
@@ -14,7 +15,7 @@ const deferred = () => {
 
 function fixtureServer({ env = {}, search = async () => [{ name: 'Fixture Person' }],
   reveal = async () => 'person@example.com', remaining = 20, unlimited = false,
-  status = 'active', previouslyRevealed = null } = {}) {
+  status = 'active', previouslyRevealed = null, onboarding = () => ({ complete: true }), billingError } = {}) {
   const routes = new Map();
   const access = [];
   const claims = new Map();
@@ -44,29 +45,31 @@ function fixtureServer({ env = {}, search = async () => [{ name: 'Fixture Person
       if (!['alice', 'bob', 'charlie'].includes(token)) throw publicError('Invalid token', 401);
       return { id: token };
     },
-    getBillingStateForUser: async () => ({ status, periodEnd: Math.floor(Date.now() / 1000) + 3600, remaining, unlimited }),
+    getBillingStateForUser: async () => { if (billingError?.()) throw new Error('Billing unavailable'); return { status, periodEnd: Math.floor(Date.now() / 1000) + 3600, remaining, unlimited }; },
     getCreditBalance: async () => remaining,
     getPreviouslyRevealedContact: async () => previouslyRevealed,
     getContactKey: () => 'linkedin:/in/fixture',
     publicCredits: state => ({ remaining: state.unlimited ? null : state.remaining, unlimited: state.unlimited }),
     consumeFreeTrialOperation: async () => true, hasRevealedEmail: async () => true,
-    getOnboardingForUser: async () => ({ complete: true }), getUserSettings: async () => ({}),
+    getOnboardingForUser: async () => onboarding(), getUserSettings: async () => ({}),
     getAccountSummary: async () => ({}), isAccountDbConfigured: () => true,
     checkAccountDb: async () => {}, closeAccountDb: async () => {}, pruneApiIdempotencyKeys: async () => {},
     claimApiRequest: async (value) => {
       const key = claimKey(value);
       const stored = claims.get(key);
+      const hash = fingerprintRequest(value.request);
+      if (stored && stored.hash !== hash) return { status: 'conflict' };
       if (stored?.status === 'replay' || stored?.status === 'processing') return stored;
-      claims.set(key, { status: 'processing' });
+      claims.set(key, { status: 'processing', hash });
       return { status: 'claimed' };
     },
     chargeAndLogApiUsage: async (value) => {
       charges += 1;
       chargedAmounts.push(value.amount);
-      claims.set(claimKey(value), { status: 'replay', response: value.response });
+      claims.set(claimKey(value), { ...claims.get(claimKey(value)), status: 'replay', response: value.response });
       return { ok: true, response: value.response };
     },
-    failApiRequest: async (value) => { claims.delete(claimKey(value)); }, logApiUsage: async () => {},
+    failApiRequest: async (value) => { const stored = claims.get(claimKey(value)); if (stored?.status === 'processing') stored.status = 'failed'; }, logApiUsage: async () => {},
     searchContacts: async (...args) => { calls += 1; operationCalls.search += 1; return search(...args); }, rankContacts: (people) => people,
     revealEmail: async (...args) => { operationCalls.reveal += 1; return reveal(...args); },
     createDraft: async () => { operationCalls.draft += 1; return { subject: 'Hello', body: 'Draft' }; },
@@ -285,4 +288,54 @@ test('client validation failures do not trip a circuit; failed probes reopen it'
   await assert.rejects(guard.run('search', 2, async () => 'blocked'), { status: 503 });
   time += 1000;
   assert.equal(await guard.run('search', 2, async () => 'recovered'), 'recovered');
+});
+
+
+test('invalid search, reveal and draft requests release processing for immediate same-payload retries', async () => {
+  for (const path of ['/api/contacts/search', '/api/contacts/reveal', '/api/email/draft']) {
+    const fixture = fixtureServer();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      assert.equal((await fixture.request({ path, body: {} })).status, 400, path);
+    }
+    assert.deepEqual(fixture.operationCalls, { search: 0, reveal: 0, draft: 0 });
+    assert.equal(fixture.charges(), 0);
+  }
+});
+
+test('onboarding rejection can be retried with the same request after the profile is completed', async () => {
+  for (const path of ['/api/contacts/search', '/api/contacts/reveal', '/api/email/draft']) {
+    let complete = false;
+    const fixture = fixtureServer({ onboarding: () => ({ complete, missingFields: [] }) });
+    const request = { path, body: { companyName: 'Example', contact: { name: 'Fixture', email: 'fixture@example.com' } } };
+    assert.equal((await fixture.request(request)).status, 428);
+    assert.equal((await fixture.request(request)).status, 428);
+    assert.equal(fixture.charges(), 0);
+    complete = true;
+    assert.equal((await fixture.request(request)).status, 200);
+    assert.equal(fixture.charges(), 1);
+  }
+});
+
+test('changed payload never replays or overwrites the original result', async () => {
+  const fixture = fixtureServer({ search: async context => [{ companyName: context.companyName }] });
+  const first = await fixture.request({ body: { companyName: 'First' } });
+  assert.equal(first.status, 200);
+  const conflict = await fixture.request({ body: { companyName: 'Second' } });
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.body.code, 'idempotency_conflict');
+  assert.equal(conflict.body.contacts, undefined);
+  const replay = await fixture.request({ body: { companyName: 'First' } });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.idempotentReplay, true);
+  assert.equal(fixture.calls(), 1);
+  assert.equal(fixture.charges(), 1);
+});
+
+test('an eligibility lookup failure releases the claim for a later retry', async () => {
+  let unavailable = true;
+  const fixture = fixtureServer({ billingError: () => unavailable });
+  assert.equal((await fixture.request()).status, 500);
+  unavailable = false;
+  assert.equal((await fixture.request()).status, 200);
+  assert.equal(fixture.charges(), 1);
 });

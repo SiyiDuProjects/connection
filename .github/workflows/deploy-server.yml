@@ -41,6 +41,7 @@ jobs:
 
       - name: Run ranking regression fixtures
         run: |
+          npm run test:http
           npm run test:hunter
           npm run test:rapidapi
           npm run test:treg

@@ -34,7 +34,7 @@ export async function requestPasswordReset(_previous: ActionState, data: FormDat
 
 export async function confirmPasswordReset(_previous: ActionState, data: FormData): Promise<ActionState> {
   const parsed = resetSchema.safeParse(Object.fromEntries(data));
-  if (!parsed.success) return { error: parsed.error.errors[0]?.message || 'Use a valid reset link and a password with at least 8 characters.' };
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message || 'Use a valid reset link and a password with at least 8 characters.' };
   if (parsed.data.password !== parsed.data.confirmPassword) return { error: 'Your passwords do not match.' };
   const result = await resetPassword(parsed.data.token, parsed.data.password);
   if (!result) return { error: 'This reset link is invalid or has expired. Request a new link.', invalidLink: true };

@@ -159,6 +159,17 @@ corepack pnpm db:migrate && corepack pnpm build
 
 For production teams, a separate migration GitHub Action is cleaner than running migrations inside every web build.
 
+### Security and request-safety fixes (2026-10-26)
+
+Treat migration and application deployment as separate release steps. Back up the production database and preserve the current container image before applying the additive migration below.
+
+Before deploying the updated contacts service, apply `0020_idempotency_request_hash` using the existing web migration runner. It adds a nullable request digest column without rewriting historical responses. The updated health check requires this column. Keep it when rolling back the application; the previous service ignores it.
+
+New requests bind each idempotency key to a canonical SHA-256 digest of its JSON body. Different payloads return HTTP 409 without replaying old data or invoking a provider. Failed validation releases the processing state so the same payload can retry immediately. Historical rows without a digest cannot establish payload identity: they return `idempotency_unverifiable` without replay or paid work, and must be reconciled before repeating an uncertain operation. Never manufacture a digest from the old partial request summaries.
+
+Run `npm run test:http`, `npm run test:usage-guard`, and `npm run test:entitlements` as well as the existing provider fixtures before release. The HTTP tests use loopback only and cover compressed-body rejection and a stalled upstream body. Full web builds must still use the reviewed HeroUI Pro beta.9 distribution; do not bypass its version guard.
+
+
 ## Deploy User
 
 Create a deploy user and add its SSH public key:

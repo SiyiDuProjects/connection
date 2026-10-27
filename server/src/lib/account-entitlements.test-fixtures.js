@@ -9,10 +9,9 @@ import { hasActionAccess, hasUnlimitedAllowance } from './membership-policy.js';
 const pg = new PGlite();
 const migrations = new URL('../../../web/lib/db/migrations/', import.meta.url);
 const journal = JSON.parse(readFileSync(new URL('meta/_journal.json', migrations), 'utf8'));
-for (const entry of journal.entries.filter(entry => entry.idx <= 18)) {
+for (const entry of journal.entries) {
   await pg.exec(readFileSync(new URL(`${entry.tag}.sql`, migrations), 'utf8'));
 }
-await pg.exec(readFileSync(new URL('0019_plan_entitlements.sql', migrations), 'utf8'));
 function tagged(client) {
   const query = (strings, ...values) => client.query(strings.reduce((text, part, i) => text + (i ? `$${i}` : '') + part, ''), values).then(result => result.rows);
   query.begin = callback => pg.transaction(tx => callback(tagged(tx)));
@@ -207,4 +206,65 @@ test('same-person updated emails remain separate unlocks and never cross account
   await reveal('other-user-address', 'other-work@example.com', 2, 'apollo:same-person');
   assert.equal((await account.getPreviouslyRevealedContact(2, { apolloId: 'same-person' })).email, 'other-work@example.com');
   assert.equal((await account.getPreviouslyRevealedContact(1, { apolloId: 'same-person' })).email, 'new-work@example.com');
+});
+
+
+test('request digests canonicalize object keys while preserving payload types and array order', () => {
+  assert.equal(account.fingerprintRequest({ b: 2, a: { y: 2, x: 1 } }), account.fingerprintRequest({ a: { x: 1, y: 2 }, b: 2 }));
+  assert.notEqual(account.fingerprintRequest({ a: [1, 2] }), account.fingerprintRequest({ a: [2, 1] }));
+  assert.notEqual(account.fingerprintRequest({ a: 1 }), account.fingerprintRequest({ a: '1' }));
+});
+
+test('same-key different-payload conflicts in processing, failed, stale and succeeded states', async () => {
+  await grant();
+  const value = { userId: 1, action: 'contacts.search', idempotencyKey: 'bound', request: { companyName: 'First' } };
+  assert.equal((await account.claimApiRequest(value)).status, 'claimed');
+  for (const status of ['processing', 'failed', 'succeeded']) {
+    await pg.query(`update api_idempotency_keys set status=$1, response=$2, updated_at=now()-interval '10 minutes'`, [status, JSON.stringify({ contacts: ['original'] })]);
+    const before = (await pg.query('select * from api_idempotency_keys')).rows[0];
+    assert.equal((await account.claimApiRequest({ ...value, request: { companyName: 'Second' } })).status, 'conflict');
+    assert.deepEqual((await pg.query('select * from api_idempotency_keys')).rows[0], before);
+  }
+  const replay = await account.claimApiRequest(value);
+  assert.equal(replay.status, 'replay');
+  assert.deepEqual(replay.response, { contacts: ['original'] });
+});
+
+test('matching failed requests retry immediately and simultaneous claims admit only one operation', async () => {
+  const value = { userId: 1, action: 'contacts.search', idempotencyKey: 'retry', request: { companyName: 'First' } };
+  const claims = await Promise.all(Array.from({ length: 6 }, () => account.claimApiRequest(value)));
+  assert.equal(claims.filter(r => r.status === 'claimed').length, 1);
+  assert.equal(claims.filter(r => r.status === 'processing').length, 5);
+  await account.failApiRequest({ ...value, error: 'validation_failed' });
+  assert.equal((await account.claimApiRequest(value)).status, 'claimed');
+});
+
+test('historical requests without a payload digest are never replayed or rerun', async () => {
+  for (const status of ['processing', 'failed', 'succeeded']) {
+    const key = `legacy-${status}`;
+    await pg.query(`insert into api_idempotency_keys(user_id,action,idempotency_key,status,updated_at) values(1,$1,$2,$3,now()-interval '10 minutes')`, ['contacts.search', key, status]);
+    assert.equal((await account.claimApiRequest({ userId: 1, action: 'contacts.search', idempotencyKey: key, request: { companyName: 'Unknown' } })).status, 'unverifiable');
+    assert.equal((await pg.query('select status from api_idempotency_keys where idempotency_key=$1', [key])).rows[0].status, status);
+  }
+});
+
+test('health requires the additive request-digest migration', async () => {
+  assert.equal(await account.checkAccountDb(), true);
+  await pg.exec('alter table api_idempotency_keys rename column request_hash to request_hash_missing');
+  try { await assert.rejects(account.checkAccountDb(), /migrations/); }
+  finally { await pg.exec('alter table api_idempotency_keys rename column request_hash_missing to request_hash'); }
+});
+
+
+test('processing expiry uses database time under different session timezones', async () => {
+  try {
+    for (const zone of ['UTC', 'America/Los_Angeles']) {
+      await pg.exec(`set timezone to '${zone}'`);
+      const value = { userId: 1, action: 'contacts.search', idempotencyKey: `timezone-${zone}`, request: {} };
+      assert.equal((await account.claimApiRequest(value)).status, 'claimed');
+      assert.equal((await account.claimApiRequest(value)).status, 'processing');
+      await pg.query("update api_idempotency_keys set updated_at=now()-interval '6 minutes' where idempotency_key=$1", [value.idempotencyKey]);
+      assert.equal((await account.claimApiRequest(value)).status, 'claimed');
+    }
+  } finally { await pg.exec("set timezone to 'UTC'"); }
 });

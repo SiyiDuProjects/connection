@@ -1,5 +1,5 @@
 import { buildPeopleSearchPlan } from "./contact-intelligence.js";
-import { fetchWithTimeout } from "./http.js";
+import { fetchJsonWithTimeout } from "./http.js";
 
 const APOLLO_BASE_URL = "https://api.apollo.io/api/v1";
 const revealCache = new Map();
@@ -89,7 +89,7 @@ async function apolloPost(path, payload) {
   const url = new URL(`${APOLLO_BASE_URL}${path}`);
   appendQueryParams(url.searchParams, payload);
 
-  const response = await fetchWithTimeout(url, {
+  const { response, data } = await fetchJsonWithTimeout(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -102,7 +102,6 @@ async function apolloPost(path, payload) {
     timeoutMs: process.env.APOLLO_TIMEOUT_MS || 15_000
   });
 
-  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(data.error || data.message || `Apollo request failed with ${response.status}`);
     error.status = response.status >= 500 ? 502 : response.status;

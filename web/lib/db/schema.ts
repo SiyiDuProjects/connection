@@ -294,6 +294,7 @@ export const apiIdempotencyKeys = pgTable(
       .references(() => users.id),
     action: text('action').notNull(),
     key: varchar('idempotency_key', { length: 120 }).notNull(),
+    requestHash: varchar('request_hash', { length: 64 }),
     status: varchar('status', { length: 20 }).notNull().default('processing'),
     response: jsonb('response').notNull().default({}),
     error: text('error'),

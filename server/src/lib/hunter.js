@@ -1,4 +1,4 @@
-import { fetchWithTimeout } from "./http.js";
+import { fetchJsonWithTimeout } from "./http.js";
 
 const HUNTER_BASE_URL = "https://api.hunter.io/v2";
 const revealCache = new Map();
@@ -107,7 +107,7 @@ async function hunterGet(path, params) {
   }
   url.searchParams.set("max_duration", String(Math.max(3, Math.min(20, Number(process.env.HUNTER_MAX_DURATION || 10)))));
 
-  const response = await fetchWithTimeout(url, {
+  const { response, data } = await fetchJsonWithTimeout(url, {
     headers: {
       "Accept": "application/json",
       "Authorization": `Bearer ${process.env.HUNTER_API_KEY}`
@@ -117,7 +117,6 @@ async function hunterGet(path, params) {
     timeoutMs: process.env.HUNTER_TIMEOUT_MS || 15_000
   });
 
-  const data = await response.json().catch(() => ({}));
   if (response.ok) return data;
 
   if (response.status === 404 || response.status === 451) return { data: {} };

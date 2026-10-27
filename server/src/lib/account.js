@@ -15,6 +15,8 @@ export async function checkAccountDb() {
       to_regclass('public.credit_ledger')::text as credit_ledger,
       to_regclass('public.api_usage')::text as api_usage,
       to_regclass('public.api_idempotency_keys')::text as api_idempotency_keys,
+      exists (select 1 from information_schema.columns where table_schema = 'public'
+        and table_name = 'api_idempotency_keys' and column_name = 'request_hash') as request_hash_ready,
       to_regclass('public.free_trial_claims')::text as free_trial_claims,
       to_regclass('public.auth_rate_limits')::text as auth_rate_limits,
       to_regclass('public.contact_email_unlocks')::text as contact_email_unlocks,
@@ -23,7 +25,7 @@ export async function checkAccountDb() {
       to_regprocedure('public.consume_free_trial_operation(integer,text)')::text as consume_free_trial_operation
   `;
   if (!row?.credit_ledger || !row?.api_usage || !row?.api_idempotency_keys
-    || !row?.free_trial_claims || !row?.auth_rate_limits || !row?.contact_email_unlocks || !row?.get_account_entitlement
+    || !row?.request_hash_ready || !row?.free_trial_claims || !row?.auth_rate_limits || !row?.contact_email_unlocks || !row?.get_account_entitlement
     || !row?.ensure_free_trial || !row?.consume_free_trial_operation) {
     throw new Error("Required account database migrations have not been applied.");
   }
@@ -261,13 +263,27 @@ export function getContactKey(contact) {
   return '';
 }
 
-export async function claimApiRequest({ userId, action, idempotencyKey }) {
+// Hash the JSON payload with stable object-key ordering; keep array order and
+// types significant. The database stores only the digest, not extra personal data.
+export function fingerprintRequest(request) {
+  const canonical = value => {
+    if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
+    if (value !== null && typeof value === 'object') {
+      return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}';
+    }
+    return JSON.stringify(value);
+  };
+  return hashToken(canonical(request ?? {}));
+}
+
+export async function claimApiRequest({ userId, action, idempotencyKey, request = {} }) {
   ensureConfigured();
 
   return sql.begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(hashtext(${`${userId}:${action}:${idempotencyKey}`}))`;
     const rows = await tx`
-      select status, response, updated_at
+      select status, response, request_hash,
+        updated_at < now() - interval '5 minutes' as stale
       from api_idempotency_keys
       where user_id = ${userId}
         and action = ${action}
@@ -276,6 +292,7 @@ export async function claimApiRequest({ userId, action, idempotencyKey }) {
       for update
     `;
     const existing = rows[0];
+    const requestHash = fingerprintRequest(request);
 
     if (!existing) {
       // A pruned response must not let the same request key collide with a
@@ -285,18 +302,23 @@ export async function claimApiRequest({ userId, action, idempotencyKey }) {
           and status = 'success' limit 1`;
       if (completed) return { status: 'expired' };
       await tx`
-        insert into api_idempotency_keys (user_id, action, idempotency_key, status)
-        values (${userId}, ${action}, ${idempotencyKey}, 'processing')
+        insert into api_idempotency_keys (user_id, action, idempotency_key, status, request_hash)
+        values (${userId}, ${action}, ${idempotencyKey}, 'processing', ${requestHash})
       `;
       return { status: "claimed" };
     }
+
+    // Pre-migration rows cannot prove which payload produced a result. Do not
+    // replay or re-run ambiguous work, including stale processing/failed rows.
+    if (!existing.request_hash) return { status: 'unverifiable' };
+    if (existing.request_hash !== requestHash) return { status: 'conflict' };
 
     if (existing.status === "succeeded") {
       return { status: "replay", response: existing.response || {} };
     }
 
-    const stale = new Date(existing.updated_at).getTime() < Date.now() - 5 * 60 * 1000;
-    if (existing.status === "processing" && !stale) {
+    // Compare timestamps in PostgreSQL using the stored clock and timezone.
+    if (existing.status === "processing" && !existing.stale) {
       return { status: "processing" };
     }
 

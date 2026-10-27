@@ -4,7 +4,7 @@ import { contactPhotoUrl } from "./contact-photo.js";
 import { cleanDomain, normalizeCompanyName, inferFunction, FUNCTIONS } from "./contact-taxonomy.js";
 import { scoreCandidate } from "./contact-intelligence.js";
 import { jobCountries, personMatchesCountries } from "./contact-country.js";
-import { fetchWithTimeout, writeLog } from "./http.js";
+import { fetchJsonWithTimeout, writeLog } from "./http.js";
 import { withProviderBudget, providerBudgetEnabled } from './spend-budget.js';
 
 const DEFAULT_BASE_URL = "https://treg.to";
@@ -138,12 +138,12 @@ async function tregPost(endpoint, body, options) {
   const { response, data, actualMicroUsd } = await withProviderBudget({
     provider: 'treg', action: endpoint, customerId: options.customerId, maximumMicroUsd,
   }, async () => {
-    const response = await fetchWithTimeout(url.toString(), {
+    const { response, data } = await fetchJsonWithTimeout(url.toString(), {
       method: "POST",
       headers: { ...tregHeaders(options), ...(maximumMicroUsd ? { 'X-Treg-Route-Max-Cost': String(maximumMicroUsd / 1_000_000) } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {})
     }, { provider: `treg:${endpoint}`, timeoutMs: options.timeoutMs });
-    const data = await response.json().catch(() => ({}));
+
     const replayed = response.headers.get('x-treg-idempotent-replay') === 'true';
     // A replay header repeats the ORIGINAL cost, but the retry costs zero.
     // Missing receipt fields must not be treated as a free successful call.

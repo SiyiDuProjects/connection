@@ -1,6 +1,6 @@
 import { revealHunterEmail } from "./hunter.js";
 import { buildContactSearchPlan } from "./contact-search-plan.js";
-import { fetchWithTimeout } from "./http.js";
+import { fetchJsonWithTimeout } from "./http.js";
 
 const PEOPLE_HOST = process.env.RAPIDAPI_PEOPLE_HOST || "fresh-linkedin-scraper-api.p.rapidapi.com";
 const PEOPLE_BASE_URL = `https://${PEOPLE_HOST}`;
@@ -269,7 +269,7 @@ async function rapidApiGet(baseUrl, path, params, host) {
 
   const maxAttempts = Math.max(1, Number(process.env.RAPIDAPI_MAX_ATTEMPTS || 2));
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const response = await fetchWithTimeout(url, {
+    const { response, data } = await fetchJsonWithTimeout(url, {
       headers: {
         "Content-Type": "application/json",
         "x-rapidapi-host": host,
@@ -279,7 +279,7 @@ async function rapidApiGet(baseUrl, path, params, host) {
       provider: "rapidapi",
       timeoutMs: process.env.RAPIDAPI_TIMEOUT_MS || 15_000
     });
-    const data = await response.json().catch(() => ({}));
+
     const upstreamStatus = statusFromMessage(data.message || data.error);
     const failed = !response.ok || data.success === false || data.status === "ERROR";
 

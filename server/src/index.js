@@ -180,11 +180,11 @@ app.get("/api/account", async (req, res, next) => {
 app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), requireCredits("contacts.search", 0), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
-    if (!onboarding.complete) return fail(res, 428, `Complete your profile before using ${BRAND_NAME}.`, onboardingAction(onboarding));
+    if (!onboarding.complete) throw publicError(`Complete your profile before using ${BRAND_NAME}.`, 428, onboardingAction(onboarding));
     const settings = await getUserSettings(req.user.id);
     const context = normalizeContext(req.body?.pageContext || req.body, settings);
     if (!context.companyName && !context.companyDomain) {
-      return fail(res, 400, "Could not read the company name from this page.", {
+      throw publicError("Could not read the company name from this page.", 400, {
         action: { label: "Open page", url: context.sourceUrl || context.jobUrl || "https://www.linkedin.com/jobs/" },
         credits: { remaining: await getCreditBalance(req.user.id) }
       });
@@ -222,13 +222,13 @@ app.post("/api/contacts/search", prepareIdempotentRequest("contacts.search"), re
 app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), requireCredits("contacts.reveal", 1), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
-    if (!onboarding.complete) return fail(res, 428, `Complete your profile before using ${BRAND_NAME}.`, onboardingAction(onboarding));
+    if (!onboarding.complete) throw publicError(`Complete your profile before using ${BRAND_NAME}.`, 428, onboardingAction(onboarding));
     if (req.previouslyRevealedContact) {
       const completed = await chargeAndRecord(req, 'contacts.reveal', req.previouslyRevealedContact);
       return ok(res, completed.response);
     }
     const contact = normalizeRevealContact(req.body?.contact);
-    if (!contact) return fail(res, 400, "Choose a valid contact before revealing an email.");
+    if (!contact) throw publicError("Choose a valid contact before revealing an email.", 400);
 
     const providerRequest = {
       customerId: req.user.id,
@@ -276,13 +276,13 @@ app.post("/api/contacts/reveal", prepareIdempotentRequest("contacts.reveal"), re
 app.post("/api/email/draft", prepareIdempotentRequest("email.draft"), requireCredits("email.draft", 0), async (req, res, next) => {
   try {
     const onboarding = await getOnboardingForUser(req.user.id);
-    if (!onboarding.complete) return fail(res, 428, `Complete your profile before using ${BRAND_NAME}.`, onboardingAction(onboarding));
+    if (!onboarding.complete) throw publicError(`Complete your profile before using ${BRAND_NAME}.`, 428, onboardingAction(onboarding));
     const contact = req.body?.contact;
     const settings = await getUserSettings(req.user.id);
     const context = normalizeContext(req.body?.pageContext || req.body?.job || {}, settings);
 
     if (!contact?.email) {
-      return fail(res, 400, "Unlock this contact before drafting outreach.", {
+      throw publicError("Unlock this contact before drafting outreach.", 400, {
         credits: { remaining: await getCreditBalance(req.user.id) }
       });
     }
@@ -369,6 +369,7 @@ function requireCredits(action, amount) {
       req.creditCharge = { action, amount };
       next();
     } catch (error) {
+      await recordFailure(req, action, error).catch(() => {});
       next(error);
     }
   };
@@ -397,8 +398,11 @@ function prepareIdempotentRequest(action) {
       const claim = await claimApiRequest({
         userId: req.user.id,
         action,
-        idempotencyKey: req.idempotencyKey
+        idempotencyKey: req.idempotencyKey,
+        request: req.body || {}
       });
+      if (claim.status === 'conflict') return fail(res, 409, 'This Idempotency-Key belongs to a different request. Use a new key for a new operation.', { code: 'idempotency_conflict' });
+      if (claim.status === 'unverifiable') return fail(res, 409, 'This earlier request cannot be safely replayed. Contact support before repeating it.', { code: 'idempotency_unverifiable' });
       if (claim.status === "replay") {
         const billing = await getBillingStateForUser(req.user.id);
         return ok(res, { ...(claim.response || {}), credits: publicCredits(billing), idempotentReplay: true });
