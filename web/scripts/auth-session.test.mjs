@@ -145,3 +145,12 @@ test('auth landing rejects external redirects and auth-page loops', () => {
   }
   assert.equal(signedInDestination('/dashboard/profile?edit=1'), '/dashboard/profile?edit=1');
 });
+
+
+test('the old contacts domain preserves website redirects and query parameters', async () => {
+  for (const path of ['/pricing','/connect-extension']) {
+    const response=await middleware(new NextRequest(`https://contacts.reachard.co${path}?extensionId=fixture`));
+    assert.equal(response.status,302);
+    assert.equal(response.headers.get('location'),`https://reachard.co${path}?extensionId=fixture`);
+  }
+});

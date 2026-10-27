@@ -40,7 +40,7 @@ export default async function ConnectExtensionPage({
   }
 
   const webBaseUrl = process.env.NEXT_PUBLIC_WEB_BASE_URL || process.env.BASE_URL || 'http://localhost:3000';
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8787';
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || webBaseUrl;
   const blockedReason = getBlockedReason(extensionId);
 
   return (

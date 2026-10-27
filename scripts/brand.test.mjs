@@ -8,7 +8,7 @@ import test from 'node:test';
 test('one brand edit synchronizes all distributable names without changing service identities', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'reachard-brand-'));
   try {
-    for (const part of ['scripts', 'brand', 'web/lib', 'server/src/lib', 'extension-ui', 'extension/icons']) {
+    for (const part of ['scripts', 'brand', 'web/lib', 'web/lib/contacts', 'extension-ui', 'extension/icons']) {
       await mkdir(path.join(directory, part), { recursive: true });
     }
     for (const part of ['scripts/sync-brand.mjs', 'brand/brand.json', 'extension/manifest.json', 'extension/sidepanel.html', 'extension/icons/reachard.png']) {
@@ -20,7 +20,7 @@ test('one brand edit synchronizes all distributable names without changing servi
     await writeFile(configPath, JSON.stringify(config));
     const originalManifest = JSON.parse(await readFile(path.join(directory, 'extension/manifest.json'), 'utf8'));
     execFileSync(process.execPath, [path.join(directory, 'scripts/sync-brand.mjs')]);
-    for (const part of ['web/lib/brand.ts', 'server/src/lib/brand.js', 'extension-ui/brand.js', 'extension/brand.js', 'extension/sidepanel.html']) {
+    for (const part of ['web/lib/brand.ts', 'web/lib/contacts/brand.js', 'extension-ui/brand.js', 'extension/brand.js', 'extension/sidepanel.html']) {
       assert.ok((await readFile(path.join(directory, part), 'utf8')).includes(config.name), part);
     }
     const manifest = JSON.parse(await readFile(path.join(directory, 'extension/manifest.json'), 'utf8'));

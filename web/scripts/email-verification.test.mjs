@@ -40,8 +40,8 @@ function load(file) {
   const output = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const localRequire = specifier => {
     if (Object.hasOwn(overrides, specifier)) return overrides[specifier];
-    if (specifier.startsWith('@/')) return load(resolve(root, `${specifier.slice(2)}.ts`));
-    if (specifier.startsWith('.')) return load(resolve(dirname(file), `${specifier}.ts`));
+    if (specifier.startsWith('@/')) return load(resolve(root, /\.[cm]?[jt]s$/.test(specifier) ? specifier.slice(2) : `${specifier.slice(2)}.ts`));
+    if (specifier.startsWith('.')) return load(resolve(dirname(file), /\.[cm]?[jt]s$/.test(specifier) ? specifier : `${specifier}.ts`));
     return require(specifier);
   };
   new Function('require', 'module', 'exports', output)(localRequire, module, module.exports);

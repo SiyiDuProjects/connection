@@ -6,7 +6,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { PGlite } from '@electric-sql/pglite';
-import { hasActionAccess } from '../../server/src/lib/membership-policy.js';
+import { getOnboardingStatus } from '../lib/contacts/onboarding.js';
+import { hasActionAccess } from '../lib/contacts/membership-policy.js';
 
 // Actual migration functions and account SQL, with only the PostgreSQL
 // transport replaced. This never calls Stripe, email or contact providers.
@@ -25,12 +26,12 @@ function tagged(client) {
   return query;
 }
 process.env.POSTGRES_URL = 'postgresql://fixture/fixture';
-const accountSource = readFileSync(resolve(root, '../server/src/lib/account.js'), 'utf8');
+const accountSource = readFileSync(resolve(root, 'lib/contacts/account.js'), 'utf8');
 const compiled = ts.transpileModule(accountSource, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true,
 } }).outputText;
 const module = { exports: {} };
-new Function('require', 'module', 'exports', compiled)(name => name === 'postgres' ? () => tagged(pg) : require(name), module, module.exports);
+new Function('require', 'module', 'exports', compiled)(name => name === '../db/client.mjs' ? {getDatabaseClient:()=>tagged(pg)} : name === './onboarding.js' ? {getOnboardingStatus} : require(name), module, module.exports);
 const account = module.exports;
 beforeEach(async () => {
   await pg.exec(`TRUNCATE users, teams CASCADE;

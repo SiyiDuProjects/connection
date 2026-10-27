@@ -20,7 +20,9 @@
     "db:seed": "npx tsx lib/db/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test:contacts": "node --test lib/contacts/*.test-fixtures.js lib/contacts/*.large-fixtures.js",
+    "report:costs": "node scripts/report-internal-costs.mjs"
   },
   "dependencies": {
     "@gravity-ui/icons": "^2.22.0",

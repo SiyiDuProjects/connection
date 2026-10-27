@@ -15,7 +15,7 @@ for (const file of ['brand.js','content.js','content.css','service_worker.js','w
   const target = path.join(out, file); await mkdir(path.dirname(target), { recursive: true });
   if (file === 'service_worker.js') {
     const source = await readFile(path.join(root, 'extension', file), 'utf8');
-    await writeFile(target, source.replace('const DEFAULT_API_BASE_URL = "https://contacts.reachard.co";', 'const DEFAULT_API_BASE_URL = "http://127.0.0.1:8787";').replace('const DEFAULT_WEB_BASE_URL = "https://reachard.co";', 'const DEFAULT_WEB_BASE_URL = "http://127.0.0.1:3000";'));
+    await writeFile(target, source.replace('const DEFAULT_API_BASE_URL = "https://contacts.reachard.co";', 'const DEFAULT_API_BASE_URL = "http://127.0.0.1:3000";').replace('const DEFAULT_WEB_BASE_URL = "https://reachard.co";', 'const DEFAULT_WEB_BASE_URL = "http://127.0.0.1:3000";'));
   } else if (file === 'ui.js') {
     const source = await readFile(path.join(root, 'extension', file), 'utf8');
     await writeFile(target, source.replaceAll('https://reachard.co/dashboard/billing', 'http://127.0.0.1:3000/dashboard/billing'));

@@ -38,8 +38,8 @@ function load(file) {
   const localRequire = name => {
     if (Object.hasOwn(overrides, name)) return overrides[name];
     if (name.endsWith('.json')) return require(resolve(dirname(file), name));
-    if (name.startsWith('@/')) return load(resolve(root, name.slice(2) + '.ts'));
-    if (name.startsWith('.')) return load(resolve(dirname(file), name + '.ts'));
+    if (name.startsWith('@/')) return load(resolve(root, /\.[cm]?[jt]s$/.test(name) ? name.slice(2) : name.slice(2) + '.ts'));
+    if (name.startsWith('.')) return load(resolve(dirname(file), /\.[cm]?[jt]s$/.test(name) ? name : name + '.ts'));
     return require(name);
   };
   new Function('require', 'module', 'exports', output)(localRequire, module, module.exports);

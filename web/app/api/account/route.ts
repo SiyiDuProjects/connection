@@ -1,9 +1,19 @@
+import { handleContactsRequest } from '@/lib/contacts/runtime';
+import { isBetaUnlimitedUsage } from '@/lib/contacts/membership-policy.js';
 import { getActiveExtensionTokenInfo, getAccountEntitlement, getRecentUsage, getSettings, getTeamForUser, getUser } from '@/lib/db/queries';
 import { getOnboardingStatus } from '@/lib/onboarding';
 import { toPublicUser } from '@/lib/auth/public-user';
 import { getFreeTrialStatus } from '@/lib/free-trial';
 
-export async function GET() {
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request) {
+  // Old extensions keep /api/account; the web dashboard retains its cookie API.
+  const host = (request.headers.get('host') || new URL(request.url).host).split(':')[0].toLowerCase();
+  if (host === 'contacts.reachard.co' || request.headers.has('authorization')) {
+    return handleContactsRequest(request, 'account');
+  }
   const user = await getUser();
   if (!user) {
     return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
@@ -96,10 +106,4 @@ function creditCost(name: string, fallback: number) {
   return value;
 }
 
-function isBetaUnlimitedUsage() {
-  const configured = String(process.env.BETA_UNLIMITED_USAGE || '').trim().toLowerCase();
-  if (['0', 'false', 'no', 'off'].includes(configured)) return false;
-  if (['1', 'true', 'yes', 'on'].includes(configured)) return true;
-
-  return false;
-}
+export function OPTIONS(request: Request) { return handleContactsRequest(request, 'account'); }

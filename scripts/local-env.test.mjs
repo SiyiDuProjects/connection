@@ -8,10 +8,10 @@ import { spawnSync } from 'node:child_process';
 function check(t, version, runtime = true, directoryEntry = null) {
   const root = mkdtempSync(join(tmpdir(), 'reachard-env-fixture-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  for (const dir of ['scripts', 'web/scripts', 'web/node_modules', 'server/node_modules', 'bin']) mkdirSync(join(root, dir), { recursive: true });
+  for (const dir of ['scripts', 'web/scripts', 'web/node_modules', 'bin']) mkdirSync(join(root, dir), { recursive: true });
   copyFileSync(new URL('./check-local-env.sh', import.meta.url), join(root, 'scripts/check-local-env.sh'));
   copyFileSync(new URL('../web/scripts/check-pro-install.mjs', import.meta.url), join(root, 'web/scripts/check-pro-install.mjs'));
-  for (const area of ['web', 'server']) writeFileSync(join(root, area, '.env'), '# fixture only\n');
+  for (const area of ['web']) writeFileSync(join(root, area, '.env'), '# fixture only\n');
   // Version probes are local shims; they never run a package manager or access credentials.
   const quotedNode = `'${process.execPath.replaceAll("'", "'\\''")}'`;
   writeFileSync(join(root, 'bin/node'), `#!/bin/sh\nexec ${quotedNode} "$@"\n`, { mode: 0o755 });

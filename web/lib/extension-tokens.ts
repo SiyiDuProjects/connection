@@ -1,5 +1,5 @@
 import { randomBytes, createHash } from 'crypto';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, isNotNull, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { extensionApiTokens, users } from '@/lib/db/schema';
 
@@ -63,7 +63,10 @@ export async function revokeExtensionToken(userId: number, tokenId: number) {
 }
 
 export async function getUserFromExtensionBearer(request: Request) {
-  const token = getBearerToken(request);
+  return getUserFromExtensionToken(getBearerToken(request));
+}
+
+export async function getUserFromExtensionToken(token: string) {
   if (!token) return null;
 
   const [result] = await db
@@ -74,7 +77,8 @@ export async function getUserFromExtensionBearer(request: Request) {
       and(
         eq(extensionApiTokens.tokenHash, hashToken(token)),
         isNull(extensionApiTokens.revokedAt),
-        isNull(users.deletedAt)
+        isNull(users.deletedAt),
+        isNotNull(users.emailVerifiedAt)
       )
     )
     .limit(1);

@@ -14,13 +14,13 @@ const require = createRequire(import.meta.url);
 const web = fileURLToPath(new URL('..', import.meta.url));
 const root = path.dirname(web);
 // A fresh in-memory database on every start; never inherits a production secret.
-for (const port of [3000, 8787, 55432]) await new Promise((resolve, reject) => {
+for (const port of [3000, 55432]) await new Promise((resolve, reject) => {
   const probe = net.createServer();
   probe.once('error', () => reject(new Error(`Port ${port} is already in use. Stop that local service first.`)));
   probe.listen(port, '127.0.0.1', () => probe.close(resolve));
 });
 const env = { ...process.env };
-for (const folder of [web, path.join(root, 'server')]) for (const file of ['.env', '.env.local', '.env.development', '.env.development.local']) {
+for (const folder of [web]) for (const file of ['.env', '.env.local', '.env.development', '.env.development.local']) {
   const content = await readFile(path.join(folder, file), 'utf8').catch(() => '');
   for (const key of Object.keys(dotenv.parse(content))) env[key] = '';
 }
@@ -28,8 +28,8 @@ Object.assign(env, {
   NODE_ENV: 'development', REACHARD_LOCAL_TEST: '1', VERCEL: '',
   POSTGRES_URL: 'postgresql://postgres@127.0.0.1:55432/postgres',
   AUTH_SECRET: randomBytes(48).toString('hex'), BASE_URL: 'http://127.0.0.1:3000',
-  WEB_BASE_URL: 'http://127.0.0.1:3000', NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:8787',
-  REACHARD_PREVIEW_DIST_DIR: '.next-local-test', HOST: '127.0.0.1', PORT: '8787',
+  WEB_BASE_URL: 'http://127.0.0.1:3000', NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:3000',
+  REACHARD_PREVIEW_DIST_DIR: '.next-local-test', HOST: '127.0.0.1', PORT: '3000',
   CONTACT_PROVIDER: 'mock', APOLLO_MOCK: 'true', OPENAI_API_KEY: '', TREG_TOKEN: '',
   RESEND_API_KEY: '', EMAIL_FROM: '', STRIPE_SECRET_KEY: 'sk_test_local_disabled',
   EXTENSION_ID: '', CHROME_EXTENSION_ID: '', ALLOWED_EXTENSION_IDS: '',
@@ -44,7 +44,6 @@ const socket = new PGLiteSocketServer({ db, host: '127.0.0.1', port: 55432, maxC
 keepProtocolMessagesTogether(socket, db);
 await socket.start();
 const children = [
-  spawn(process.execPath, ['src/index.js'], { cwd: path.join(root, 'server'), env, stdio: 'inherit' }),
   spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'dev', '--hostname', '127.0.0.1', '--port', '3000'], { cwd: web, env, stdio: 'inherit' }),
 ];
 console.log('Reachard local test: http://127.0.0.1:3000/sign-up');

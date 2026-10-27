@@ -6,6 +6,10 @@ const protectedRoutes = '/dashboard';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const hostname=(request.headers.get('host')||request.nextUrl.host).split(':')[0].toLowerCase();
+  if (hostname==='contacts.reachard.co' && ['/pricing','/connect-extension'].includes(pathname)) {
+    return NextResponse.redirect(new URL(pathname+request.nextUrl.search,'https://reachard.co'),302);
+  }
   const sessionCookie = request.cookies.get('session');
   const isProtectedRoute = pathname.startsWith(protectedRoutes);
   const signInUrl = new URL('/sign-in', request.url);

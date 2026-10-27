@@ -1,0 +1,17 @@
+services:
+  reachard:
+    image: ${REACHARD_IMAGE:?Set the reviewed release image}
+    container_name: reachard
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - ${REACHARD_ENV_FILE:-/opt/reachard/runtime.env}
+    environment:
+      HOSTNAME: 127.0.0.1
+      PORT: "8787"
+      REACHARD_CONTACTS_ENABLED: "1"
+      REACHARD_TRUST_CLOUDFLARE_PROXY: "1"
+    stop_grace_period: 90s
+    init: true
+    security_opt:
+      - no-new-privileges:true

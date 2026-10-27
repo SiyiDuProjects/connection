@@ -1,10 +1,12 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   distDir: process.env.REACHARD_PREVIEW_DIST_DIR || '.next',
   async headers() {
     return [{ source: '/:path*', headers: [
       { key: 'X-Frame-Options', value: 'DENY' },
+      ...(process.env.REACHARD_BUILD_SHA ? [{ key: 'X-Reachard-Revision', value: process.env.REACHARD_BUILD_SHA }] : []),
       { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' }

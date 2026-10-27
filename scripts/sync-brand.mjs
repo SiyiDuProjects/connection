@@ -16,7 +16,7 @@ const mark = await readFile(new URL(`extension/${brand.extensionMarkPath}`, root
 const extensionBrand = { ...brand, markDataUrl: `data:image/png;base64,${mark.toString('base64')}` };
 const outputs = new Map([
   ['web/lib/brand.ts', `${shared}export const BRAND_MARK_PATH = ${JSON.stringify(brand.webMarkPath)};\n`],
-  ['server/src/lib/brand.js', shared],
+  ['web/lib/contacts/brand.js', shared],
   ['extension-ui/brand.js', `${shared}export const BRAND_MARK_PATH = ${JSON.stringify(brand.extensionMarkPath)};\n`],
   ['extension/brand.js', `${header}globalThis.ReachardBrand = Object.freeze(${JSON.stringify(extensionBrand, null, 2)});\n`],
 ]);

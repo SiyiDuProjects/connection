@@ -49,44 +49,14 @@
 
 ## Production Server
 
-- Host: `49.51.38.235`
-- SSH user: `ubuntu`
-- Resolve SSH access from the current host configuration; do not reuse paths from a different machine.
-- Project env file on host: `/opt/connection/server/.env`
-- Docker Compose file: `/home/ubuntu/siyi/docker-compose.yml`
-- Contacts service/container: `connection_contacts`
-- Compose service name: `connection_contacts`
-- Server container working directory: `/app`
-- Server command inside container: `node src/index.js`
-- Public/local server port: `8787`
-
-Keep SSH keys and server secrets out of chat and logs. Run this health check on the deployment host:
-
-```bash
-curl -sS http://127.0.0.1:8787/health
-```
-
-## Important Deployment Detail
-
-The production contacts server runs inside Docker, not directly from the host.
-
-Do not assume that restarting a host `node src/index.js` process is the correct deployment path. The container uses `env_file: /opt/connection/server/.env`, so env changes require recreating the container. A plain `docker restart connection_contacts` may keep old env values.
-
-Use:
-
-```bash
-cd /home/ubuntu/siyi
-sudo docker compose up -d --build connection_contacts
-```
-
-Then verify:
-
-```bash
-curl -sS http://127.0.0.1:8787/health
-sudo docker logs --tail 30 connection_contacts
-```
-
-Use `/health` for effective provider status. If configuration inspection is necessary, select only named non-secret fields; do not dump container environment variables. Inspect logs locally and redact secrets before sharing excerpts.
+- Existing VPS: `ubuntu@49.51.38.235`; use the current machine's recorded project SSH identity.
+- Unified release target: container `reachard`, `/opt/reachard/runtime.env`, `/opt/reachard/deploy/compose.yml`, loopback port `8787`.
+- Candidate port: `18787`. Run and verify the candidate before activating a release.
+- Migration fallback: retained `connection_contacts` container, `/opt/connection/server/.env`, shared Compose `/home/ubuntu/siyi/docker-compose.yml`, previous Vercel website deployment.
+- Treat these as deployment targets, not proof that cutover has occurred. Inspect running containers and public revision before reporting production state.
+- Follow `DEPLOY_CICD.md` for complete checks, hostname cutover and rollback. Do not run shared `docker compose down`, overwrite unrelated tunnel routes, or remove the legacy recovery assets during migration.
+- One Next.js Node process owns process-local rate limits, concurrency and circuit breakers. Multi-instance deployment needs shared admission state first.
+- Keep SSH keys and server secrets out of chat and logs. Check `http://127.0.0.1:8787/health`; inspect only explicitly selected non-secret settings. Environment changes require recreating the release container.
 
 ## Current Contact Pipeline Env
 

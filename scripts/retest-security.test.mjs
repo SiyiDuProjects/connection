@@ -33,7 +33,7 @@ for (const scenario of ['valid', 'missing', '401', '503', 'malformed', 'network'
   if (scenario === 'valid') assert.equal(status.userId, 42);
 }
 console.log('Local fake-email restrictions and network-independent extension presence/session states passed.');
-const intelligence = await readFile(new URL('../server/src/lib/contact-intelligence.js', import.meta.url), 'utf8');
+const intelligence = await readFile(new URL('../web/lib/contacts/contact-intelligence.js', import.meta.url), 'utf8');
 const schoolScope = {};
 vm.runInNewContext(intelligence.slice(intelligence.indexOf('function schoolsMatch('), intelligence.indexOf('function normalizeLocation(')), schoolScope);
 assert.equal(schoolScope.schoolsMatch('UC Berkeley', 'University of California, Berkeley'), true);
