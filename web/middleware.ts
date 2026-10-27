@@ -1,3 +1,4 @@
+import { publicUrl } from '@/lib/public-url';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { signToken, verifyToken } from '@/lib/auth/session';
@@ -12,7 +13,7 @@ export async function middleware(request: NextRequest) {
   }
   const sessionCookie = request.cookies.get('session');
   const isProtectedRoute = pathname.startsWith(protectedRoutes);
-  const signInUrl = new URL('/sign-in', request.url);
+  const signInUrl = publicUrl('/sign-in', request.url);
   signInUrl.searchParams.set('redirect', `${pathname}${request.nextUrl.search}`);
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', pathname);

@@ -72,6 +72,13 @@ try {
     assert.equal((await request('/')).status,200);assert.equal((await request('/sign-in')).status,200);
     const health=await request('/health');assert.equal(health.status,200,await health.clone().text());assert.equal((await health.json()).ready,true);
   });
+  await check('website redirects keep the public HTTPS origin behind the tunnel',async()=>{
+    for(const [route,target] of [['/dashboard','/sign-in'],['/verify-email/confirm','/verify-email'],['/api/stripe/checkout','/pricing']]) {
+      const res=await request(route,{headers:{host:'reachard.co','x-forwarded-host':'reachard.co','x-forwarded-proto':'https'},redirect:'manual'});
+      const location=new URL(res.headers.get('location'));
+      assert.equal(location.origin,'https://reachard.co',route+' redirects to '+location.href);assert.equal(location.pathname,target);
+    }
+  });
   await check('legacy hostname and explicit account endpoint require extension authentication',async()=>{
     const res=await request('/api/account',{headers:{host:'contacts.reachard.co'}});assert.equal(res.status,401);
     assert.ok((await res.json()).action.url.endsWith('/connect-extension'));
@@ -133,7 +140,11 @@ try {
   console.log(JSON.stringify({ok:true,checks,paidProviderCalls:0,database:'disposable PGlite',runtime:'Next.js production standalone'}));
 } catch(error) {console.error(output);throw error;}
 finally {
+  // pglite-socket 0.2.11 stop() does not await handler.detach(). Drain those
+  // operations before closing the database, including protocol rollback work.
+  await Promise.all([...socket.handlers].map(handler=>handler.detach(true)));
+  await socket.stop();
   const exited=child.exitCode===null?once(child,'exit'):Promise.resolve();child.kill('SIGTERM');
   const force=setTimeout(()=>child.kill('SIGKILL'),5000);await exited;clearTimeout(force);
-  await socket.stop();await db.close();
+  await db.close();
 }
