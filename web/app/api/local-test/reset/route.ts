@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const user = await getUser();
   if (user && !isLocalTestEmail(user.email)) return new Response(null, { status: 403 });
   if (user) {
-    const deleted = await deleteAccountData(user.id, null, { sessionVersion: user.sessionVersion, passwordHash: user.passwordHash });
+    const deleted = await deleteAccountData(user.id, { sessionVersion: user.sessionVersion, passwordHash: user.passwordHash });
     if (!deleted) return Response.json({ ok: false }, { status: 409 });
     await db.delete(freeTrialClaims).where(eq(freeTrialClaims.userId, user.id));
   }

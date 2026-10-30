@@ -34,11 +34,10 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled)(name => name === '../db/client.mjs' ? {getDatabaseClient:()=>tagged(pg)} : name === './onboarding.js' ? {getOnboardingStatus} : require(name), module, module.exports);
 const account = module.exports;
 beforeEach(async () => {
-  await pg.exec(`TRUNCATE users, teams CASCADE;
+  await pg.exec(`TRUNCATE users, billing_accounts CASCADE;
     INSERT INTO users (id,email,password_hash,email_verified_at,name) VALUES
     (1,'trial@example.com','fixture',now(),'Trial'),(2,'other@example.com','fixture',now(),'Other');
-    INSERT INTO teams (id,name) VALUES (1,'Trial team'),(2,'Other team');
-    INSERT INTO team_members (user_id,team_id,role) VALUES (1,1,'owner'),(2,2,'owner');`);
+    INSERT INTO billing_accounts (id,user_id) VALUES (1,1),(2,2);`);
 });
 after(() => pg.close());
 
@@ -54,7 +53,7 @@ test('concurrent first visits grant exactly three credits and no subscription', 
   assert.ok(results.every(Boolean));
   assert.equal(await account.getCreditBalance(1), 3);
   assert.equal((await pg.query("select count(*)::int n from credit_ledger where user_id=1")).rows[0].n, 1);
-  assert.equal((await pg.query('select stripe_subscription_id from teams where id=1')).rows[0].stripe_subscription_id, null);
+  assert.equal((await pg.query('select stripe_subscription_id from billing_accounts where id=1')).rows[0].stripe_subscription_id, null);
   assert.equal((await account.getMembershipForUser(1)).status, 'free_trial');
 });
 
@@ -124,11 +123,11 @@ test('subscription access replaces trial access and cannot revert after a paid p
   await account.ensureFreeTrial(1);
   const periodEnd = Math.floor(Date.now()/1000) + 86400;
   await pg.query("insert into credit_ledger(user_id,amount,action,metadata) values (1,20,'subscription.initial_grant',$1)", [JSON.stringify({ subscriptionId: 'sub_fixture', periodEnd })]);
-  await pg.exec("update teams set subscription_status='active',stripe_subscription_id='sub_fixture' where id=1");
+  await pg.exec("update billing_accounts set subscription_status='active',stripe_subscription_id='sub_fixture' where id=1");
   assert.equal(await account.ensureFreeTrial(1), false);
   const membership = await account.getMembershipForUser(1);
   assert.equal(hasActionAccess(membership, 'contacts.search', 0), true);
   assert.equal(hasActionAccess(membership, 'email.draft', 20, (periodEnd + 1) * 1000), false);
-  await pg.exec("update teams set subscription_status='canceled' where id=1");
+  await pg.exec("update billing_accounts set subscription_status='canceled' where id=1");
   assert.equal((await account.getMembershipForUser(1)).status, 'canceled');
 });

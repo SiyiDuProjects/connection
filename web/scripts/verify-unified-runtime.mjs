@@ -30,8 +30,8 @@ const journal=JSON.parse(await readFile(path.join(migrations,'meta/_journal.json
 for(const entry of journal.entries)await db.exec(await readFile(path.join(migrations,entry.tag+'.sql'),'utf8'));
 await db.exec(`INSERT INTO users (id,email,password_hash,email_verified_at,name) VALUES
  (1,'runtime@example.test','unused',now(),'Runtime Test'),(2,'unverified@example.test','unused',null,'Unverified');
- INSERT INTO teams (id,name) VALUES (1,'Runtime Test');
- INSERT INTO team_members (user_id,team_id,role) VALUES (1,1,'owner');
+ INSERT INTO billing_accounts (id,user_id) VALUES (1,1);
+
  INSERT INTO user_settings (user_id,school,sender_profile) VALUES (1,'Test School','Test profile');`);
 const token='fc_'+randomBytes(32).toString('base64url');
 await db.query('INSERT INTO extension_api_tokens (user_id,token_hash) VALUES (1,$1)',[createHash('sha256').update(token).digest('hex')]);
@@ -44,7 +44,7 @@ const env={PATH:process.env.PATH,NODE_ENV:'production',NEXT_TELEMETRY_DISABLED:'
   POSTGRES_URL:`postgresql://postgres@127.0.0.1:${dbPort}/postgres`,AUTH_SECRET:secret,
   BASE_URL:'https://reachard.co',WEB_BASE_URL:'https://reachard.co',ALLOWED_WEB_ORIGINS:'https://reachard.co',
   ALLOWED_EXTENSION_ORIGINS:'chrome-extension://ladoemfclhhepfomibkdblodgnhceefm',
-  CONTACT_PROVIDER:'mock',APOLLO_MOCK:'true',BETA_UNLIMITED_USAGE:'false',
+  CONTACT_PROVIDER:'mock',BETA_UNLIMITED_USAGE:'false',
   STRIPE_SECRET_KEY:'sk_test_disabled',STRIPE_WEBHOOK_SECRET:'whsec_disabled',PROVIDER_DAILY_BUDGET_USD:''};
 const child=spawn(process.execPath,[path.join(standalone,'server.js')],{cwd:standalone,env,stdio:['ignore','pipe','pipe']});
 let output='';for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>{output=(output+chunk).slice(-20000);});
@@ -101,8 +101,18 @@ try {
       .setProtectedHeader({alg:'HS256'}).setExpirationTime('1h').sign(new TextEncoder().encode(secret));
     const web=await request('/api/account',{headers:{cookie:`session=${jwt}`}});
     assert.equal(web.status,200,await web.clone().text());assert.ok((await web.json()).extension);
+    const billing=await request('/dashboard/billing',{headers:{cookie:`session=${jwt}`}});
+    assert.equal(billing.status,200);
+    const html=await billing.text();
+    assert.match(html,/Free trial/);
+    assert.doesNotMatch(html,/Ask the account owner/);
     const extension=await request('/api/account',{headers:auth});assert.equal(extension.status,200,await extension.clone().text());
     const data=await extension.json();assert.equal(data.credits.remaining,3);assert.ok(data.user);
+  });
+  await check('retired team and template routes are absent',async()=>{
+    for (const route of ['/api/team','/ui-preview','/ui-preview/first-run','/workspace-preview']) {
+      assert.equal((await request(route)).status,404,route);
+    }
   });
   await check('search runs through compiled route and replays the same request',async()=>{
     const body={companyName:'Example',companyDomain:'example.test'};

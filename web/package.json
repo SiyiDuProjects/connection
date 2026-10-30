@@ -16,8 +16,6 @@
     "test:billing": "node --test scripts/billing.test.mjs scripts/public-pricing.test.cjs",
     "check:brand": "node ../scripts/sync-brand.mjs --check",
     "check:billing": "node scripts/check-billing-readiness.mjs",
-    "db:setup": "npx tsx lib/db/setup.ts",
-    "db:seed": "npx tsx lib/db/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",

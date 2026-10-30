@@ -25,7 +25,9 @@ Retired design checkouts and recovery copies belong in `.archive/` and are not d
 - `deploy/`: single-instance VPS deployment, candidate checks and rollback.
 - `brand/`: one display-name configuration and icon master; generated web/API/extension bridges keep presentation consistent.
 
-The app uses a Postgres + Drizzle + cookie auth stack. It does not use Supabase.
+Billing belongs directly to each user through `billing_accounts`; the starter
+team/membership/invitation model is retired. `activity_logs` retains per-user
+audit history. The app uses a Postgres + Drizzle + cookie auth stack. It does not use Supabase.
 
 ## Local Environment Check
 
@@ -121,7 +123,6 @@ TREG_TOKEN=your-treg-token
 TREG_BASE_URL=https://treg.to
 TREG_SEARCH_ENDPOINT=icypeas.people.search
 TREG_EMAIL_ENDPOINT=apollo.people.enrich
-APOLLO_MOCK=false
 BETA_UNLIMITED_USAGE=false
 ```
 
@@ -164,4 +165,4 @@ published listing URL from the existing website configuration.
 
 Change `name` in `brand/brand.json` for spelling or capitalization. Run `node scripts/sync-brand.mjs` to update all generated display text. Replace `brand/mark.png` for the graphic, then run `node scripts/build-brand-icons.mjs`, synchronize, and rebuild the extension. The image contains only the symbol; lettering remains editable text. Domain names, service identifiers, and stored account data are independent of display branding.
 
-The current Chrome store candidate, screenshots, listing copy, and exact checksums are in `artifacts/launch-20260907/store/`. See `extension/STORE_SUBMISSION.md` for reproducible build commands and reviewer instructions. Preparation does not imply a store submission or a production deployment.
+Archived store preparation files remain local under `artifacts/`. See `extension/STORE_SUBMISSION.md` for reproducible build commands and reviewer instructions. Preparation does not imply a store submission or a production deployment.

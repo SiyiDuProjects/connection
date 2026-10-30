@@ -15,7 +15,6 @@ for key in ['AUTH_SECRET','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET']:
     if any(x in values.get(key,'').lower() for x in ['placeholder','fixture','validation','build-only']):invalid.append(key)
 if values.get('BASE_URL')!='https://reachard.co':invalid.append('BASE_URL')
 if values.get('CONTACT_PROVIDER')!='treg':invalid.append('CONTACT_PROVIDER')
-if values.get('APOLLO_MOCK','false').lower()!='false':invalid.append('APOLLO_MOCK')
 if values.get('BETA_UNLIMITED_USAGE','false').lower() not in ['0','false','no','off']:invalid.append('BETA_UNLIMITED_USAGE')
 print(json.dumps({'ready':not(missing or invalid),'missingNames':missing,'invalidNames':sorted(set(invalid))}))
 sys.exit(bool(missing or invalid))

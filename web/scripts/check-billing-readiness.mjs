@@ -55,9 +55,9 @@ try {
       const [entitlementSchema] = await sql`select to_regprocedure('public.get_account_entitlement(integer)') is not null as entitlement,
         to_regclass('public.contact_email_unlocks') is not null as unlocks`;
       check('billing_entitlement_schema', entitlementSchema.entitlement && entitlementSchema.unlocks);
-      const [row] = await sql`select count(*)::int as missing from teams where subscription_status in ('active','trialing','past_due')
+      const [row] = await sql`select count(*)::int as missing from billing_accounts where subscription_status in ('active','trialing','past_due')
         and stripe_subscription_id is not null and not exists (
-          select 1 from credit_ledger where metadata->>'subscriptionId'=teams.stripe_subscription_id
+          select 1 from credit_ledger where metadata->>'subscriptionId'=billing_accounts.stripe_subscription_id
           and action in ('subscription.initial_grant','subscription.monthly_grant') and metadata->>'periodEnd' is not null)`;
       check('existing_member_periods', row.missing === 0, `${row.missing} subscriptions need verified period backfill before release.`);
     });

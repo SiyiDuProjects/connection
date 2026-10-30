@@ -35,7 +35,7 @@ export function Login({ localTest = false }: { mode?: 'signin' | 'signup'; local
         </Card.Header>
         <Card.Content>
           <Form action={action} className="hu-auth-fields" aria-label={`Continue to ${BRAND_NAME}`}>
-            {['redirect', 'priceId', 'inviteId', 'ref'].map(key => <input key={key} type="hidden" name={key} value={searchParams.get(key) || ''}/>)}
+            {['redirect', 'priceId', 'ref'].map(key => <input key={key} type="hidden" name={key} value={searchParams.get(key) || ''}/>)}
             <TextField isRequired fullWidth name="email" type="email" value={email} onChange={setEmail} maxLength={255}>
               <Label>Email address</Label><Input placeholder="you@example.com" autoComplete="username" autoCapitalize="none" spellCheck={false}/><FieldError/>
             </TextField>

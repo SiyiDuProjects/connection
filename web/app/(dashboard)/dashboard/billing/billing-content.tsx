@@ -9,24 +9,24 @@ import { SettingsRow } from '@/components/settings-row';
 import { openBillingPortal } from './actions';
 import type { getAccountEntitlement } from '@/lib/db/queries';
 
-export function BillingContent({ planName = 'No active plan', status = 'inactive', hasCustomer = false, isOwner = false, preview = false, trialRemaining, allowance }: {
-  planName?: string; status?: string; hasCustomer?: boolean; isOwner?: boolean; preview?: boolean; trialRemaining?: number;
+export function BillingContent({ planName = 'No active plan', status = 'inactive', hasCustomer = false, trialRemaining, allowance }: {
+  planName?: string; status?: string; hasCustomer?: boolean; trialRemaining?: number;
   allowance?: Awaited<ReturnType<typeof getAccountEntitlement>>;
 }) {
   const [state, action, pending] = useActionState(openBillingPortal, {});
   const needsPayment = ['past_due', 'unpaid', 'incomplete'].includes(status);
   const statuses: Record<string, string> = { free_trial: 'No card required', active: 'Active', trialing: 'Trial', past_due: 'Payment overdue', unpaid: 'Unpaid', incomplete: 'Payment incomplete', incomplete_expired: 'Checkout expired', canceled: 'Canceled', paused: 'Paused', inactive: 'Inactive' };
   return <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-5 pb-10 pt-4">
-    {preview ? <p className="text-xs text-muted">Billing preview · no payment or account changes are made here.</p> : null}
+
     <p className="text-sm text-muted">Manage your membership, payment method and invoices.</p>
     <Separator />
     {needsPayment ? <Alert status="warning"><Alert.Indicator /><Alert.Content><Alert.Title>Update your payment method</Alert.Title><Alert.Description>Your payment needs attention. Open billing to review your invoice and payment method. Access depends on your paid membership period.</Alert.Description></Alert.Content></Alert> : null}
     <SettingsRow label="Membership" description={`${planName} · ${statuses[status] || 'Status unavailable'}`}>
       {trialRemaining !== undefined ? <p className="text-sm text-muted">{trialRemaining} of 3 free email unlocks remaining. Your trial does not renew or charge you automatically. Choose a paid plan when you are ready.</p> : null}
       <p className="text-sm text-muted">Use the secure billing portal to view invoices, update your payment method or cancel renewal at the end of your billing period.</p>
-      {hasCustomer && isOwner ? <Form action={preview ? undefined : action} onSubmit={preview ? event => event.preventDefault() : undefined}>
-        <Button type="submit" variant="primary" isPending={pending} isDisabled={preview || pending}>Manage billing or cancel</Button>
-      </Form> : !isOwner && hasCustomer ? <p className="text-sm text-muted">Ask the account owner to manage billing.</p> : <Link href="/pricing" className={buttonVariants({ variant: 'primary' })}>View plans</Link>}
+      {hasCustomer ? <Form action={action}>
+        <Button type="submit" variant="primary" isPending={pending} isDisabled={pending}>Manage billing or cancel</Button>
+      </Form> : <Link href="/pricing" className={buttonVariants({ variant: 'primary' })}>View plans</Link>}
       {state.error ? <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Description>{state.error}</Alert.Description></Alert.Content></Alert> : null}
     </SettingsRow>
     {allowance && ['active', 'trialing', 'past_due'].includes(allowance.status) ? <>

@@ -14,10 +14,8 @@ Settings use the supplied template's grouped `SettingsRow` composition, with
 native HeroUI controls and Pro DropZone. The admin uses Pro KPI/DataGrid.
 `Appearance` restores the user's root-level light/dark preference.
 
-Local-only routes `/workspace-preview` and `/ui-preview` use the same production
-components without account mutations. The latter supplies fixture data and
-overlay/validation states. The optional `/template-preview/*` viewer and private
-upstream reference files stay in the local workspace, outside production releases.
+Use `pnpm preview` for public pages or `pnpm test:local` for account flows.
+Both run the actual application. Retired template viewers are not app routes.
 
 Run `node scripts/check-ui-boundaries.mjs` for architecture checks; CI runs this
 alongside the existing business tests and production build. Before publishing

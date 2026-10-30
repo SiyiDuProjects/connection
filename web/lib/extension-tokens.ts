@@ -4,7 +4,7 @@ import { db } from '@/lib/db/drizzle';
 import { extensionApiTokens, users } from '@/lib/db/schema';
 
 export async function createExtensionToken(userId: number, expectedSessionVersion: number) {
-  const token = `fc_${randomBytes(32).toString('base64url')}`;
+  const token = `rd_${randomBytes(32).toString('base64url')}`;
   const createdToken = await db.transaction(async (tx) => {
     // Lock the same user row as password recovery. A request authenticated
     // before a reset must not mint an extension credential after revocation.

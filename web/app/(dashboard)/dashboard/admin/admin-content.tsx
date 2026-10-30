@@ -96,10 +96,10 @@ const usage:DataGridColumn<AdminOverview['recentUsage'][number]>[]=[
  {id:'createdAt',header:t('admin.date'),cell:row=>formatDate(row.createdAt),minWidth:160}
 ];
 
-export function AdminPanel({data,loading,search='',onSearchChange,onSearch,onGrant,status,pending=false,preview=false}:{
+export function AdminPanel({data,loading,search='',onSearchChange,onSearch,onGrant,status,pending=false}:{
  data?:AdminOverview;loading?:boolean;search?:string;onSearchChange?:(value:string)=>void;
  onSearch?:(event:FormEvent<HTMLFormElement>)=>void;onGrant?:(event:FormEvent<HTMLFormElement>)=>void;
- status?:{message:string;failed:boolean};pending?:boolean;preview?:boolean;
+ status?:{message:string;failed:boolean};pending?:boolean;
 }){
  if(loading)return <div className="flex justify-center p-12"><Spinner aria-label="Loading administration"/></div>;
  const summary=data?.summary;
@@ -117,18 +117,18 @@ export function AdminPanel({data,loading,search='',onSearchChange,onSearch,onGra
    </Card.Content></Card>
    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
      <Card className="min-w-0"><Card.Header><Card.Title>{t('admin.users')}</Card.Title></Card.Header><Card.Content className="gap-4">
-       <Form className="flex flex-row gap-2" onSubmit={preview?event=>event.preventDefault():onSearch}>
+       <Form className="flex flex-row gap-2" onSubmit={onSearch}>
          <TextField aria-label={t('admin.searchEmail')} value={search} onChange={onSearchChange} className="min-w-0 flex-1"><Input placeholder={t('admin.searchEmail')}/></TextField>
-         <Button type="submit" variant="secondary" isDisabled={preview}>{t('admin.search')}</Button>
+         <Button type="submit" variant="secondary">{t('admin.search')}</Button>
        </Form>
        <DataGrid aria-label="Users" columns={users} contentClassName="min-w-[760px]" data={data?.users||[]} getRowId={row=>String(row.id)} renderEmptyState={()=>t('admin.noUsers')}/>
      </Card.Content></Card>
      <Card><Card.Header><Card.Title>{t('admin.grantCredits')}</Card.Title></Card.Header><Card.Content>
-       <Form className="flex flex-col gap-4" onSubmit={preview?event=>event.preventDefault():onGrant}>
+       <Form className="flex flex-col gap-4" onSubmit={onGrant}>
          <TextField name="email" type="email" isRequired isDisabled={pending} fullWidth><Label>{t('admin.userEmail')}</Label><Input autoComplete="off"/><FieldError/></TextField>
          <TextField name="amount" type="number" isRequired isDisabled={pending} fullWidth><Label>{t('admin.credits')}</Label><Input min={1} step={1}/><FieldError/></TextField>
          <TextField name="note" isDisabled={pending} fullWidth><Label>{t('admin.note')}</Label><TextArea rows={3} placeholder={t('admin.notePlaceholder')}/><FieldError/></TextField>
-         <Button type="submit" isPending={pending} isDisabled={preview||pending}>{t('admin.grantCredits')}</Button>
+         <Button type="submit" isPending={pending} isDisabled={pending}>{t('admin.grantCredits')}</Button>
          {status&&<Alert status={status.failed?'danger':'success'}><Alert.Indicator/><Alert.Content><Alert.Description>{status.message}</Alert.Description></Alert.Content></Alert>}
        </Form>
      </Card.Content></Card>

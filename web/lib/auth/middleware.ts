@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { TeamDataWithMembers, User } from '@/lib/db/schema';
-import { getTeamForUser, getUser } from '@/lib/db/queries';
+import { BillingAccount, User } from '@/lib/db/schema';
+import { getBillingAccount, getUser } from '@/lib/db/queries';
 import { redirect } from 'next/navigation';
 
 export type ActionState = {
@@ -53,35 +53,16 @@ export function validatedActionWithUser<S extends z.ZodType<any, any>, T>(
   };
 }
 
-type ActionWithTeamFunction<T> = (
-  formData: FormData,
-  team: TeamDataWithMembers,
-  user: User
+type ActionWithBillingAccount<T> = (
+  formData: FormData, account: BillingAccount, user: User
 ) => Promise<T>;
 
-export function withTeam<T>(action: ActionWithTeamFunction<T>) {
+export function withBillingAccount<T>(action: ActionWithBillingAccount<T>) {
   return async (formData: FormData): Promise<T> => {
     const user = await getUser();
-    if (!user) {
-      redirect('/sign-in');
-    }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      throw new Error('Team not found');
-    }
-
-    return action(formData, team, user);
+    if (!user) redirect('/sign-in');
+    const account = await getBillingAccount(user.id);
+    if (!account) throw new Error('Billing account is unavailable.');
+    return action(formData, account, user);
   };
-}
-
-export function withOwnerTeam<T>(action: ActionWithTeamFunction<T>) {
-  return withTeam(async (formData, team, user) => {
-    const membership = team.teamMembers.find((member) => member.userId === user.id);
-    if (membership?.role !== 'owner') {
-      throw new Error('Only team owners can manage billing.');
-    }
-
-    return action(formData, team, user);
-  });
 }

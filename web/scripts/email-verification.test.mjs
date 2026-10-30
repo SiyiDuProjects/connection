@@ -29,7 +29,7 @@ const overrides = {
     comparePasswords: async (value, hash) => hash === `fixture:${value}`,
     setSession: async user => { sessions.push(user.id); },
   },
-  '@/lib/db/queries': { getUser: async () => currentUser, getUserWithTeam: async () => null },
+  '@/lib/db/queries': { getUser: async () => currentUser, getBillingAccount: async () => null },
   '@/lib/extension-tokens': { revokeExtensionTokens: async () => {} },
   '@/lib/payments/stripe': { createCheckoutSession: async ({ priceId }) => { throw Object.assign(new Error('redirect'), { url: `checkout:${priceId}` }); } },
 };
@@ -67,13 +67,13 @@ async function ageCodes(userId) { await pg.query("UPDATE email_verification_toke
 
 before(async () => {
   await pg.exec("SET TIME ZONE 'UTC'");
-  await pg.exec(`CREATE TABLE users (id serial PRIMARY KEY, name varchar(100), email varchar(255) NOT NULL UNIQUE, password_hash text NOT NULL, role varchar(20) NOT NULL DEFAULT 'member', created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now(), deleted_at timestamp);
-  CREATE TABLE teams (id serial PRIMARY KEY, name varchar(100) NOT NULL, created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now(), stripe_customer_id text, stripe_subscription_id text, stripe_product_id text, plan_name varchar(50), subscription_status varchar(20));
-  CREATE TABLE team_members (id serial PRIMARY KEY, user_id integer, team_id integer, role varchar(50), joined_at timestamp DEFAULT now());
+  await pg.exec(`CREATE TABLE users (id serial PRIMARY KEY, name varchar(100), email varchar(255) NOT NULL UNIQUE, password_hash text NOT NULL, created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now(), deleted_at timestamp);
+  CREATE TABLE billing_accounts (id serial PRIMARY KEY, user_id integer NOT NULL UNIQUE, created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now(), stripe_customer_id text, stripe_subscription_id text, stripe_product_id text, plan_name varchar(50), subscription_status varchar(20));
+
   CREATE TABLE friend_invites (id serial PRIMARY KEY, inviter_user_id integer, token text, created_at timestamp DEFAULT now(), last_generated_at timestamp DEFAULT now());
   CREATE TABLE friend_invite_redemptions (id serial PRIMARY KEY, invite_id integer, invited_user_id integer UNIQUE, created_at timestamp DEFAULT now());
-  CREATE TABLE invitations (id serial PRIMARY KEY, team_id integer, email varchar(255), role varchar(50), invited_by integer, invited_at timestamp DEFAULT now(), status varchar(20));
-  CREATE TABLE activity_logs (id serial PRIMARY KEY, team_id integer, user_id integer, action text, timestamp timestamp DEFAULT now(), ip_address varchar(45));
+
+  CREATE TABLE activity_logs (id serial PRIMARY KEY, user_id integer, action text, timestamp timestamp DEFAULT now(), ip_address varchar(45));
   CREATE TABLE extension_api_tokens (id serial PRIMARY KEY, user_id integer, revoked_at timestamp);`);
   await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0003_email_verification.sql'), 'utf8'));
   await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0014_email_verification_codes.sql'), 'utf8'));

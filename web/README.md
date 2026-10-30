@@ -1,109 +1,36 @@
-# Reachard
+# Reachard application
 
-Reachard is a SaaS application for finding company contacts from LinkedIn job pages, with authentication, Stripe billing, a dashboard, credits, preferences, and extension tokens.
+One Next.js app serves the website, authentication, billing and extension API
+on the existing VPS. See [the root README](../README.md) for setup and
+[deployment instructions](../DEPLOY_CICD.md) for production operations.
 
-## Features
+Accounts are personal: `billing_accounts.user_id` uniquely links each user to
+Stripe customer/subscription state. Paid invoice evidence stays in the append-only
+`credit_ledger`. PostgreSQL owns atomic charging, durable email unlocks,
+idempotency and entitlement checks. Friend referrals use separate direct-attribution
+records; they do not create teams or shared subscriptions.
 
-- Marketing landing page (`/`) with an automatically looping extension demonstration
-- Pricing page (`/pricing`) which connects to Stripe Checkout
-- Dashboard pages with CRUD operations on users/teams
-- Basic RBAC with Owner and Member roles
-- Subscription management with Stripe Customer Portal
-- Direct friend-invite rewards: the inviter gets one month of Stripe customer balance credit only after the directly invited user purchases
-- Email/password authentication with email verification and JWTs stored to cookies
-- Global middleware to protect logged-in routes
-- Local middleware to protect Server Actions or validate Zod schemas
-- Activity logging system for any user events
+Install the pinned dependencies with `pnpm install --frozen-lockfile`, then follow
+[CollectUI installation](docs/cloud-build.md). Preserve existing private `.env`
+files. New local installations can copy `.env.example` without overwriting them.
+There is no seed script that creates users, prices or subscriptions.
 
-## Tech Stack
+Use `pnpm preview` for public pages, or `pnpm test:local` for the real account
+flows against a disposable PostgreSQL database and mock providers. The latter
+accepts `@reachard.test` accounts without external email delivery.
 
-- **Framework**: [Next.js](https://nextjs.org/)
-- **Database**: [Postgres](https://www.postgresql.org/)
-- **ORM**: [Drizzle](https://orm.drizzle.team/)
-- **Payments**: [Stripe](https://stripe.com/)
-- **UI Library**: HeroUI v3 and HeroUI Pro (see docs/cloud-build.md)
-
-## Getting Started
-
-Install dependencies from this repository's `web/` directory:
+Release checks:
 
 ```bash
-corepack pnpm install
+pnpm test:contacts
+node --test --test-concurrency=1 scripts/*.test.mjs scripts/*.test.cjs
+node scripts/check-pro-install.mjs
+node scripts/check-ui-boundaries.mjs
+pnpm build
+node scripts/verify-unified-runtime.mjs
 ```
 
-## Running Locally
-
-[Install](https://docs.stripe.com/stripe-cli) and log in to your Stripe account:
-
-```bash
-stripe login
-```
-
-Use the included setup script to create your `.env` file:
-
-```bash
-corepack pnpm db:setup
-```
-
-Run the database migrations and seed the database with a default user and team:
-
-```bash
-corepack pnpm db:migrate
-corepack pnpm db:seed
-```
-
-This will create the following user and team:
-
-- User: `test@test.com`
-- Password: `admin123`
-
-You can also create new users through the `/sign-up` route.
-
-Finally, run the Next.js development server:
-
-```bash
-corepack pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser to see the app in action.
-
-You can listen for Stripe webhooks locally through their CLI to handle subscription change events:
-
-```bash
-stripe listen --forward-to localhost:3000/api/stripe/webhook
-```
-
-## Testing Payments
-
-To test Stripe payments, use the following test card details:
-
-- Card Number: `4242 4242 4242 4242`
-- Expiration: Any future date
-- CVC: Any 3-digit number
-
-## Going to Production
-
-When you're ready to deploy Reachard to production, follow these steps:
-
-### Set up a production Stripe webhook
-
-1. Go to the Stripe Dashboard and create a new webhook for your production environment.
-2. Set the endpoint URL to your production API route (e.g., `https://yourdomain.com/api/stripe/webhook`).
-3. Select the events you want to listen for (e.g., `checkout.session.completed`, `customer.subscription.updated`).
-
-### Deploy to Vercel
-
-1. Push your code to a GitHub repository.
-2. Connect your repository to [Vercel](https://vercel.com/) and deploy it.
-3. Follow the Vercel deployment process, which will guide you through setting up your project.
-
-### Add environment variables
-
-In your Vercel project settings (or during deployment), add all the necessary environment variables. Make sure to update the values for the production environment, including:
-
-1. `BASE_URL`: Set this to your production domain.
-2. `STRIPE_SECRET_KEY`: Use your Stripe secret key for the production environment.
-3. `STRIPE_WEBHOOK_SECRET`: Use the webhook secret from the production webhook you created in step 1.
-4. `POSTGRES_URL`: Set this to your production database URL.
-5. `AUTH_SECRET`: Set this to a random string. `openssl rand -base64 32` will generate one.
-6. `EMAIL_FROM` and `RESEND_API_KEY`: Configure a verified Resend sender (for example `Reachard <noreply@reachard.co>`) and a server-only sending API key. `AUTH_SECRET` must contain at least 32 characters. Delivery is required in every environment; missing configuration does not log codes or silently mark accounts verified. See [email setup and verification](docs/email-verification.md).
+Fresh databases may apply all migrations with `pnpm db:migrate`. Existing
+production uses the explicitly staged migration commands in the deployment guide.
+Migration history remains immutable. Production payment, email and paid-provider
+checks require separate live acceptance; fixtures do not contact those services.

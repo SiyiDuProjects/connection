@@ -30,9 +30,8 @@ after authentication. Extension 0.7.2 opens this guide on first installation.
 All installation actions use the published listing in `lib/extension-store.ts`.
 Opening an email composer is not confirmation of delivery.
 
-`/ui-preview/first-run` is local-only and uses the actual onboarding form with
-saving disabled and a manually opened native welcome dialog. It does not create
-an account, save a profile, grant credits, or send mail.
+`pnpm test:local` runs the actual account and onboarding flows against a
+disposable database with fixture providers and no external mail delivery.
 
 Regression checks: `node --test scripts/auth-session.test.mjs
 scripts/email-verification.test.mjs scripts/billing.test.mjs

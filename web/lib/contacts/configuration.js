@@ -11,21 +11,15 @@ export function webBaseUrl(env = process.env) {
   return 'https://reachard.co';
 }
 export function providerStatus(env = process.env) {
-  return { contactProvider:String(env.CONTACT_PROVIDER || 'treg').toLowerCase(),
-    apolloMock:String(env.APOLLO_MOCK || '').toLowerCase()==='true',
-    hasApolloKey:Boolean(env.APOLLO_API_KEY), hasHunterKey:Boolean(env.HUNTER_API_KEY),
-    hasExploriumKey:Boolean(env.EXPLORIUM_API_KEY), hasRapidApiKey:Boolean(env.RAPIDAPI_KEY), hasTregToken:Boolean(env.TREG_TOKEN) };
+  return { contactProvider: String(env.CONTACT_PROVIDER || 'treg').toLowerCase(), hasTregToken: Boolean(env.TREG_TOKEN) };
 }
 export function revealProviderName(env = process.env) {
-  const status=providerStatus(env);
-  return status.apolloMock ? 'mock' : status.contactProvider==='rapidapi' ? 'hunter' : status.contactProvider;
+  return providerStatus(env).contactProvider;
 }
 export function configurationIssues(env, databaseConfigured) {
-  const status=providerStatus(env), issues=[];
+  const status = providerStatus(env), issues = [];
   if (!databaseConfigured) issues.push('account_database_not_configured');
-  for (const [provider, key] of [['rapidapi','hasRapidApiKey'],['apollo','hasApolloKey'],['explorium','hasExploriumKey'],['treg','hasTregToken']]) {
-    if (status.contactProvider===provider && !status[key] && !(provider==='apollo' && status.apolloMock)) issues.push(`${provider}_key_missing`);
-  }
-  if (status.contactProvider==='rapidapi' && !status.apolloMock && !status.hasHunterKey) issues.push('hunter_key_missing');
+  if (!['treg', 'mock'].includes(status.contactProvider)) issues.push('unsupported_contact_provider');
+  if (status.contactProvider === 'treg' && !status.hasTregToken) issues.push('treg_key_missing');
   return issues;
 }
