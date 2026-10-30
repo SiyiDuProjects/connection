@@ -15,6 +15,7 @@ export async function checkAccountDb() {
   const [row] = await sql`
     select
       to_regclass('public.billing_accounts')::text as billing_accounts,
+      to_regclass('public.friend_invite_rewards')::text as friend_invite_rewards,
       to_regclass('public.credit_ledger')::text as credit_ledger,
       to_regclass('public.api_usage')::text as api_usage,
       to_regclass('public.api_idempotency_keys')::text as api_idempotency_keys,
@@ -27,7 +28,7 @@ export async function checkAccountDb() {
       to_regprocedure('public.ensure_free_trial(integer)')::text as ensure_free_trial,
       to_regprocedure('public.consume_free_trial_operation(integer,text)')::text as consume_free_trial_operation
   `;
-  if (!row?.billing_accounts || !row?.credit_ledger || !row?.api_usage || !row?.api_idempotency_keys
+  if (!row?.billing_accounts || !row?.friend_invite_rewards || !row?.credit_ledger || !row?.api_usage || !row?.api_idempotency_keys
     || !row?.request_hash_ready || !row?.free_trial_claims || !row?.auth_rate_limits || !row?.contact_email_unlocks || !row?.get_account_entitlement
     || !row?.ensure_free_trial || !row?.consume_free_trial_operation) {
     throw new Error("Required account database migrations have not been applied.");

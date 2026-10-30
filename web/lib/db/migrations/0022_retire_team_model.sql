@@ -30,3 +30,9 @@ ALTER TABLE billing_accounts DROP COLUMN name;
 ALTER TABLE billing_accounts ALTER COLUMN user_id SET NOT NULL;
 --> statement-breakpoint
 ALTER TABLE users DROP COLUMN role;
+--> statement-breakpoint
+-- One-off copies from the earlier 0013 rollout are retained in the verified
+-- private database dump, rather than as live application-schema tables.
+DROP TABLE IF EXISTS team_members_backup_0013;
+--> statement-breakpoint
+DROP TABLE IF EXISTS extension_api_tokens_backup_0013;

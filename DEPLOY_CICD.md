@@ -59,6 +59,10 @@ changes are separate from activation. Never rewrite already-applied migrations.
    backfills the unique owner, and changes entitlement reads. Temporary views
    and triggers keep the previous image and new signup paths compatible. Any
    ambiguous ownership or remaining invitation aborts the whole transaction.
+   If status reports the verified historical `0010_friend_invite_rewards` gap,
+   first run `--repair-missing 0010_friend_invite_rewards`. This fills the missing
+   schema/history entry and refuses duplicate referral attribution. It creates
+   no rewards or Stripe balance transactions. Other gaps require separate review.
 3. Stage and activate the tested image normally. Verify public routes and the
    personal-account schema before continuing.
 4. Run `node scripts/migrate-db.mjs --through 0022_retire_team_model` from that

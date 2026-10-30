@@ -27,7 +27,9 @@ async function legacy() {
     INSERT INTO contact_email_unlocks(user_id,email_fingerprint,email) VALUES(1,'fixture','saved@example.test');
     INSERT INTO extension_api_tokens(user_id,token_hash) VALUES(1,'legacy-token-hash');
     INSERT INTO friend_invites(inviter_user_id,token) VALUES(1,'referral');
-    INSERT INTO friend_invite_redemptions(invite_id,invited_user_id) VALUES(1,2);`);
+    INSERT INTO friend_invite_redemptions(invite_id,invited_user_id) VALUES(1,2);
+    CREATE TABLE team_members_backup_0013 AS TABLE team_members;
+    CREATE TABLE extension_api_tokens_backup_0013 AS TABLE extension_api_tokens;`);
   return db;
 }
 async function snapshot(db) {
@@ -51,7 +53,7 @@ test('expand and contract preserve IDs, purchases, entitlements, logs, unlocks, 
     assert.deepEqual(await snapshot(db), before);
     assert.deepEqual((await db.query('select id,user_id,stripe_customer_id from billing_accounts order by id')).rows,
       [1,2,3].map((user_id,i) => ({id:11+i,user_id,stripe_customer_id:`cus_${user_id}`})));
-    for (const name of ['teams','team_members','invitations']) {
+    for (const name of ['teams','team_members','invitations','team_members_backup_0013','extension_api_tokens_backup_0013']) {
       assert.equal((await db.query('select to_regclass($1) relation',[name])).rows[0].relation,null);
     }
     await assert.rejects(db.exec('insert into billing_accounts(user_id) values(1)'), /unique/);

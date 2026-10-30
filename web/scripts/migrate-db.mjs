@@ -6,8 +6,9 @@ import postgres from 'postgres';
 
 const args = process.argv.slice(2);
 const statusOnly = args.length === 1 && args[0] === '--status';
-if (!statusOnly && !(args.length === 2 && args[0] === '--through')) {
-  throw new Error('Use --status or --through EXACT_MIGRATION_TAG');
+const repair = args.length === 2 && args[0] === '--repair-missing' && args[1] === '0010_friend_invite_rewards';
+if (!statusOnly && !repair && !(args.length === 2 && args[0] === '--through')) {
+  throw new Error('Use --status, --through EXACT_MIGRATION_TAG, or --repair-missing 0010_friend_invite_rewards');
 }
 if (!process.env.POSTGRES_URL) throw new Error('POSTGRES_URL is required');
 const folder = new URL('../lib/db/migrations/', import.meta.url);
@@ -35,11 +36,25 @@ try {
       }
     }
     const latest = Number(applied.at(-1)?.created_at || 0);
-    if (!statusOnly && latest > through) throw new Error('Database is already beyond the requested target');
-    const pending = migrations.filter(entry => entry.when > latest && entry.when <= through);
+    const timestamps = new Set(applied.map(entry => Number(entry.created_at)));
+    const missingHistorical = migrations.filter(entry => entry.when < latest && !timestamps.has(entry.when));
+    if (!statusOnly && !repair && latest > through) throw new Error('Database is already beyond the requested target');
+    let pending = migrations.filter(entry => entry.when > latest && entry.when <= through);
     if (statusOnly) {
-      console.log(JSON.stringify({ applied: applied.length, pending: pending.map(entry => entry.tag) }));
+      console.log(JSON.stringify({ applied: applied.length, missingHistorical: missingHistorical.map(entry => entry.tag), pending: pending.map(entry => entry.tag) }));
       return;
+    }
+    if (repair) {
+      if (timestamps.has(through)) return [];
+      // Reviewed recovery for the production gap. The original migration removes
+      // duplicate redemptions; refuse that situation instead of deleting history.
+      await tx`lock table friend_invite_redemptions in access exclusive mode`;
+      const [duplicates] = await tx`select exists (select 1 from friend_invite_redemptions
+        group by invited_user_id having count(*) > 1) found`;
+      if (duplicates.found) throw new Error('Duplicate referral attribution requires review');
+      pending = migrations.filter(entry => entry.when === through);
+    } else if (missingHistorical.length) {
+      throw new Error('Historical migration gaps require explicit repair');
     }
     for (const entry of pending) {
       await tx.unsafe(entry.sql);

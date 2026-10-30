@@ -61,6 +61,12 @@ END $$;
 --> statement-breakpoint
 CREATE TRIGGER sync_legacy_billing_membership AFTER INSERT ON billing_accounts
   FOR EACH ROW EXECUTE FUNCTION sync_legacy_billing_membership();
+--> statement-breakpoint
+-- An unsubscribed user created outside the starter signup also gets a personal
+-- account. Never invent a link to an orphaned paid account (guarded above).
+INSERT INTO billing_accounts(user_id)
+  SELECT u.id FROM users u WHERE u.deleted_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM billing_accounts a WHERE a.user_id=u.id);
 
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION get_account_entitlement(target_user_id integer)
