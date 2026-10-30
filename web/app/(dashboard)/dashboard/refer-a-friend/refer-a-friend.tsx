@@ -2,7 +2,6 @@
 import { BRAND_NAME } from '@/lib/brand';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import useSWR from 'swr';
 import { Alert, Button, Card, Input } from '@heroui/react';
 import { Check, Copy, Gift } from 'lucide-react';
@@ -18,9 +17,9 @@ async function fetchInvite(url: string): Promise<FriendInvite> {
   return payload;
 }
 
-export default function ReferAFriend({ preview = false }: { preview?: boolean }) {
+export default function ReferAFriend() {
   const { data, error, isLoading, isValidating, mutate } = useSWR<FriendInvite>(
-    preview ? null : '/api/invite-friend', fetchInvite
+    '/api/invite-friend', fetchInvite
   );
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
@@ -56,14 +55,14 @@ export default function ReferAFriend({ preview = false }: { preview?: boolean })
             <div className="flex flex-col gap-3 sm:flex-row">
               <Input aria-label="Your referral link" className="min-w-0 flex-1"
                 readOnly disabled={!data?.link} value={data?.link || ''}
-                placeholder={isLoading ? 'Loading your link…' : preview ? 'Sign in to get your referral link' : 'Referral link unavailable'}
+                placeholder={isLoading ? 'Loading your link…' : 'Referral link unavailable'}
                 onFocus={event => event.currentTarget.select()} />
               <Button variant="primary" isDisabled={!data?.link} onPress={() => void copyLink()}>
                 {copied ? <Check className="size-4" /> : <Copy className="size-4" />}{copied ? 'Copied' : 'Copy link'}
               </Button>
             </div>
             {data ? <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted"><span>Invite code <span className="ml-1 font-mono text-foreground">{data.code}</span></span><span>{data.acceptedCount} {data.acceptedCount === 1 ? 'friend has' : 'friends have'} joined</span></div> : null}
-            {preview ? <p className="text-sm text-muted"><Link href="/sign-in" className="text-accent underline">Sign in</Link> to get your link and see how many friends joined.</p> : null}
+
           </>}
           <p role="status" aria-live="polite" className={copyError ? 'text-sm text-danger' : 'sr-only'}>{copyError || (copied ? 'Referral link copied.' : '')}</p>
         </Card.Content>

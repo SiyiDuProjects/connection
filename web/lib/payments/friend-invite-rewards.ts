@@ -5,8 +5,7 @@ import {
   friendInviteRedemptions,
   friendInviteRewards,
   friendInvites,
-  teamMembers,
-  teams
+  billingAccounts
 } from '@/lib/db/schema';
 import { stripe } from '@/lib/payments/stripe';
 
@@ -124,28 +123,27 @@ async function applyFriendInviteReward(reward: RewardRow) {
     return;
   }
 
-  const [inviterTeam] = await db
+  const [inviterAccount] = await db
     .select({
-      stripeCustomerId: teams.stripeCustomerId,
-      stripeSubscriptionId: teams.stripeSubscriptionId,
-      subscriptionStatus: teams.subscriptionStatus
+      stripeCustomerId: billingAccounts.stripeCustomerId,
+      stripeSubscriptionId: billingAccounts.stripeSubscriptionId,
+      subscriptionStatus: billingAccounts.subscriptionStatus
     })
-    .from(teamMembers)
-    .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-    .where(eq(teamMembers.userId, lockedReward.inviterUserId))
+    .from(billingAccounts)
+    .where(eq(billingAccounts.userId, lockedReward.inviterUserId))
     .limit(1);
 
-  if (!inviterTeam?.stripeCustomerId || !inviterTeam.stripeSubscriptionId) {
+  if (!inviterAccount?.stripeCustomerId || !inviterAccount.stripeSubscriptionId) {
     await markRewardPending(lockedReward.id, 'Inviter does not have a Stripe customer or subscription yet.');
     return;
   }
 
-  if (!['active', 'trialing'].includes(inviterTeam.subscriptionStatus || '')) {
+  if (!['active', 'trialing'].includes(inviterAccount.subscriptionStatus || '')) {
     await markRewardPending(lockedReward.id, 'Inviter subscription is not active or trialing.');
     return;
   }
 
-  const subscription = await stripe.subscriptions.retrieve(inviterTeam.stripeSubscriptionId, {
+  const subscription = await stripe.subscriptions.retrieve(inviterAccount.stripeSubscriptionId, {
     expand: ['items.data.price']
   });
   const price = subscription.items.data[0]?.price;
@@ -158,7 +156,7 @@ async function applyFriendInviteReward(reward: RewardRow) {
   }
 
   const balanceTransaction = await stripe.customers.createBalanceTransaction(
-    inviterTeam.stripeCustomerId,
+    inviterAccount.stripeCustomerId,
     {
       amount: -amount,
       currency,
@@ -183,7 +181,7 @@ async function applyFriendInviteReward(reward: RewardRow) {
   await db
     .update(friendInviteRewards)
     .set({
-      stripeCustomerId: inviterTeam.stripeCustomerId,
+      stripeCustomerId: inviterAccount.stripeCustomerId,
       stripeCreditBalanceTransactionId: balanceTransaction.id,
       amount,
       currency,

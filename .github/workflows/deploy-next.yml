@@ -2,7 +2,7 @@ name: Build and deploy unified Next.js
 
 on:
   push:
-    branches: ["main", "codex/nextjs-vps"]
+    branches: ["main"]
     paths: ["web/**", "deploy/**", ".dockerignore", ".github/workflows/deploy-next.yml"]
   workflow_dispatch:
     inputs:
@@ -12,7 +12,7 @@ on:
         default: false
 
 concurrency:
-  group: deploy-contacts-server
+  group: deploy-reachard
   cancel-in-progress: false
 permissions:
   contents: read
@@ -36,12 +36,13 @@ jobs:
       - name: Verify the final container without production credentials
         run: |
           set -euo pipefail
+          docker run --rm --entrypoint node "reachard:$GITHUB_SHA" -e "import('postgres').then(()=>console.log('Migration client ready'))"
           trap 'docker rm -f reachard_image_smoke >/dev/null 2>&1 || true' EXIT
           docker run -d --name reachard_image_smoke --network host --memory 512m --memory-swap 768m \
             -e PORT=18787 -e AUTH_SECRET=isolated-image-check-secret-at-least-32-characters \
             -e BASE_URL=https://reachard.co -e POSTGRES_URL=postgresql://mock:mock@127.0.0.1:1/mock \
             -e STRIPE_SECRET_KEY=sk_test_disabled -e STRIPE_WEBHOOK_SECRET=whsec_disabled \
-            -e CONTACT_PROVIDER=mock -e APOLLO_MOCK=true "reachard:$GITHUB_SHA"
+            -e CONTACT_PROVIDER=mock "reachard:$GITHUB_SHA"
           for attempt in $(seq 1 40); do
             if curl --fail --silent http://127.0.0.1:18787/live >/dev/null; then break; fi
             sleep 1

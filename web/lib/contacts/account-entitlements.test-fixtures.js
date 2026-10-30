@@ -31,12 +31,11 @@ delete globalThis.__reachardEntitlementSql;
 const now = Math.floor(Date.now() / 1000);
 const version = '2026-09-base50-plus-unlimited';
 beforeEach(async () => {
-  await pg.exec(`TRUNCATE users, teams CASCADE;
+  await pg.exec(`TRUNCATE users, billing_accounts CASCADE;
     INSERT INTO users (id,email,password_hash,email_verified_at,name) VALUES
       (1,'first@example.com','fixture',now(),'First'),(2,'second@example.com','fixture',now(),'Second');
-    INSERT INTO teams (id,name,plan_name,subscription_status,stripe_subscription_id) VALUES
-      (1,'First','Base','active','sub_first'),(2,'Second','Plus','active','sub_second');
-    INSERT INTO team_members(user_id,team_id,role) VALUES(1,1,'owner'),(2,2,'owner');`);
+    INSERT INTO billing_accounts (id,user_id,plan_name,subscription_status,stripe_subscription_id) VALUES
+      (1,1,'Base','active','sub_first'),(2,2,'Plus','active','sub_second');`);
 });
 after(async () => {
   if (oldDatabaseUrl === undefined) delete process.env.POSTGRES_URL; else process.env.POSTGRES_URL = oldDatabaseUrl;
@@ -110,7 +109,7 @@ test('expired or canceled unlimited plans cannot finish new work admitted earlie
   await grant({ mode: 'unlimited', end: now - 1, start: now - 86400 });
   assert.equal((await reveal('expired')).membershipRequired, true);
   await grant({ mode: 'unlimited', action: 'subscription.monthly_grant' });
-  await pg.exec("update teams set subscription_status='canceled' where id=1");
+  await pg.exec("update billing_accounts set subscription_status='canceled' where id=1");
   assert.equal((await reveal('canceled')).membershipRequired, true);
   assert.equal((await account.getBillingStateForUser(1)).unlimited, false);
 });

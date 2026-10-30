@@ -6,8 +6,7 @@ import {
   apiUsage,
   creditLedger,
   productEvents,
-  teamMembers,
-  teams,
+  billingAccounts,
   users
 } from '@/lib/db/schema';
 import { getUser } from '@/lib/db/queries';
@@ -65,14 +64,13 @@ export async function GET(request: NextRequest) {
         id: users.id,
         email: users.email,
         createdAt: users.createdAt,
-        planName: teams.planName,
-        subscriptionStatus: teams.subscriptionStatus,
+        planName: billingAccounts.planName,
+        subscriptionStatus: billingAccounts.subscriptionStatus,
         creditBalance: sql<number>`coalesce((select sum(${creditLedger.amount}) from ${creditLedger} where ${creditLedger.userId} = ${users.id}), 0)::int`,
         lastUsedAt: sql<Date | null>`(select max(${apiUsage.createdAt}) from ${apiUsage} where ${apiUsage.userId} = ${users.id})`
       })
       .from(users)
-      .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
-      .leftJoin(teams, eq(teamMembers.teamId, teams.id))
+      .leftJoin(billingAccounts, eq(users.id, billingAccounts.userId))
       .where(
         userFilter
           ? and(isNull(users.deletedAt), userFilter)
@@ -82,8 +80,8 @@ export async function GET(request: NextRequest) {
         users.id,
         users.email,
         users.createdAt,
-        teams.planName,
-        teams.subscriptionStatus
+        billingAccounts.planName,
+        billingAccounts.subscriptionStatus
       )
       .orderBy(desc(users.createdAt))
       .limit(25),

@@ -2,7 +2,7 @@ import { BRAND_NAME } from '@/lib/brand';
 import type Stripe from 'stripe';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
-import { creditLedger, teamMembers, teams } from '@/lib/db/schema';
+import { creditLedger, billingAccounts } from '@/lib/db/schema';
 import { stripe } from '@/lib/payments/stripe';
 import { resolvePurchasedPlan, entitlementGrantMetadata } from '@/lib/payments/plans';
 import { invoiceSubscriptionId, isPaidRewardInvoice, stripeObjectId, invoiceLinePriceId, isMembershipInvoiceLine, isMonthlyPrice } from '@/lib/payments/billing-policy';
@@ -15,31 +15,28 @@ export async function handlePaidInvoice(invoice: Stripe.Invoice) {
   const subscriptionId = invoiceSubscriptionId(invoice);
   if (!subscriptionId || !['subscription_create', 'subscription_cycle', 'subscription_update'].includes(invoice.billing_reason || '')) return;
 
-  let [team] = await db.select().from(teams).where(eq(teams.stripeSubscriptionId, subscriptionId)).limit(1);
+  let [account] = await db.select().from(billingAccounts).where(eq(billingAccounts.stripeSubscriptionId, subscriptionId)).limit(1);
   const [initialGrant] = await db.select({ id: creditLedger.id }).from(creditLedger).where(and(
     eq(creditLedger.action, 'subscription.initial_grant'), sql`${creditLedger.metadata}->>'subscriptionId' = ${subscriptionId}`
   )).limit(1);
-  if (!team || !initialGrant) {
+  if (!account || !initialGrant) {
     // Recover initial fulfillment when the invoice arrives before the Checkout event.
     const sessions = await stripe.checkout.sessions.list({ subscription: subscriptionId, limit: 100 });
     const session = sessions.data.find(item => item.mode === 'subscription' && item.status === 'complete' && item.client_reference_id);
     if (session) await handleSuccessfulCheckoutSession(session.id);
-    [team] = await db.select().from(teams).where(eq(teams.stripeSubscriptionId, subscriptionId)).limit(1);
-    if (!team) {
+    [account] = await db.select().from(billingAccounts).where(eq(billingAccounts.stripeSubscriptionId, subscriptionId)).limit(1);
+    if (!account) {
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      if (session || subscription.metadata?.reachardTeamId) throw new Error(`${BRAND_NAME} invoice is awaiting account mapping.`);
+      if (session || subscription.metadata?.reachardAccountId || subscription.metadata?.reachardTeamId) throw new Error(`${BRAND_NAME} invoice is awaiting account mapping.`);
       return;
     }
   }
-  if (stripeObjectId(invoice.customer) !== team.stripeCustomerId) throw new Error('Invoice customer does not match the account.');
+  if (stripeObjectId(invoice.customer) !== account.stripeCustomerId) throw new Error('Invoice customer does not match the account.');
 
   const outcome = await db.transaction(async tx => {
-    const [locked] = await tx.select().from(teams).where(eq(teams.id, team.id)).for('update');
+    const [locked] = await tx.select().from(billingAccounts).where(eq(billingAccounts.id, account.id)).for('update');
     if (locked.stripeSubscriptionId !== subscriptionId) return null;
-    const [owner] = await tx.select({ userId: teamMembers.userId }).from(teamMembers)
-      .where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.role, 'owner'))).limit(1);
-    if (!owner) throw new Error(`${BRAND_NAME} invoice account has no owner.`);
-    await tx.execute(sql`select pg_advisory_xact_lock(${owner.userId}::bigint)`);
+    await tx.execute(sql`select pg_advisory_xact_lock(${locked.userId}::bigint)`);
     const [initial] = await tx.select().from(creditLedger).where(and(
       eq(creditLedger.action, 'subscription.initial_grant'), sql`${creditLedger.metadata}->>'subscriptionId' = ${subscriptionId}`
     )).limit(1);
@@ -70,7 +67,7 @@ export async function handlePaidInvoice(invoice: Stripe.Invoice) {
         if ('deleted' in product && product.deleted) throw new Error('Invoice product is unavailable.');
         const plan = resolvePurchasedPlan((product as Stripe.Product).name, price);
         planName = plan.name;
-        await tx.insert(creditLedger).values({ userId: owner.userId, amount: plan.monthlyCredits,
+        await tx.insert(creditLedger).values({ userId: locked.userId, amount: plan.monthlyCredits,
           action: 'subscription.monthly_grant', metadata: {
             subscriptionId, invoiceId: invoice.id,
             ...entitlementGrantMetadata({ ...plan, priceId }, line?.period.start, line!.period.end)
@@ -80,7 +77,7 @@ export async function handlePaidInvoice(invoice: Stripe.Invoice) {
       }
     }
     const metadata = initial.metadata as Record<string, unknown> | null;
-    return { userId: owner.userId, checkoutSessionId: String(metadata?.checkoutSessionId || ''), granted, planName };
+    return { userId: locked.userId, checkoutSessionId: String(metadata?.checkoutSessionId || ''), granted, planName };
   });
   if (!outcome) return;
   if (isPaidRewardInvoice(invoice) && outcome.checkoutSessionId) await grantFriendInvitePurchaseReward({

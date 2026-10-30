@@ -1,31 +1,26 @@
 'use server';
 
 import { z } from 'zod';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import {
   User,
   users,
-  teams,
-  teamMembers,
   activityLogs,
+  billingAccounts,
   type NewUser,
-  type NewTeam,
-  type NewTeamMember,
   type NewActivityLog,
   ActivityType,
   friendInviteRedemptions,
   friendInvites,
-  invitations,
   emailVerificationTokens,
   extensionApiTokens,
-  passwordResetTokens,
-  userSettings
+  passwordResetTokens
 } from '@/lib/db/schema';
 import { comparePasswords, hashPassword, setSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { getUser, getUserWithTeam } from '@/lib/db/queries';
+import { getUser, getBillingAccount } from '@/lib/db/queries';
 import { issueEmailVerification, verifyEmailCode, VerificationRateLimitError } from '@/lib/auth/email-verification';
 import { requireEmailDelivery } from '@/lib/email/resend';
 import { changeAuthenticatedPassword } from '@/lib/auth/password-reset';
@@ -39,16 +34,11 @@ import {
 } from '@/lib/auth/middleware';
 
 async function logActivity(
-  teamId: number | null | undefined,
   userId: number,
   type: ActivityType,
   ipAddress?: string
 ) {
-  if (teamId === null || teamId === undefined) {
-    return;
-  }
   const newActivity: NewActivityLog = {
-    teamId,
     userId,
     action: type,
     ipAddress: ipAddress || ''
@@ -77,26 +67,8 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
   const limited = await checkCredentialRateLimit(email);
   if (limited) return { error: limited, email };
 
-  const userWithTeam = await db
-    .select({
-      user: users,
-      team: teams,
-      teamRole: teamMembers.role
-    })
-    .from(users)
-    .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
-    .leftJoin(teams, eq(teamMembers.teamId, teams.id))
-    .where(eq(users.email, email))
-    .limit(1);
-
-  if (userWithTeam.length === 0) {
-    return {
-      error: 'Invalid email or password. Please try again.',
-      email
-    };
-  }
-
-  const { user: foundUser, team: foundTeam, teamRole } = userWithTeam[0];
+  const [foundUser] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  if (!foundUser) return { error: 'Invalid email or password. Please try again.', email };
 
   const isPasswordValid = await comparePasswords(
     password,
@@ -116,17 +88,14 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 
   await Promise.all([
     setSession(foundUser),
-    logActivity(foundTeam?.id, foundUser.id, ActivityType.SIGN_IN)
+    logActivity(foundUser.id, ActivityType.SIGN_IN)
   ]);
 
   const redirectTo = formData.get('redirect') as string | null;
   if (redirectTo === 'checkout') {
-    if (teamRole !== 'owner') {
-      redirect('/dashboard');
-    }
     const priceId = formData.get('priceId') as string;
     const { createCheckoutSession } = await import('@/lib/payments/stripe');
-    return createCheckoutSession({ team: foundTeam, priceId });
+    return createCheckoutSession({ account: await getBillingAccount(foundUser.id), priceId });
   }
   if (isInternalRedirect(redirectTo)) {
     redirect(redirectTo);
@@ -138,12 +107,11 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 const signUpSchema = z.object({
   email: z.string().email().max(255),
   password: newPasswordSchema,
-  inviteId: z.string().optional(),
   ref: z.string().trim().optional()
 });
 
 export const signUp = validatedAction(signUpSchema, async (data, formData) => {
-  const { password, inviteId, ref } = data;
+  const { password, ref } = data;
   const email = data.email.toLowerCase();
   const localTestAccount = isLocalTestEmail(email);
   const limited = await checkCredentialRateLimit(email, true);
@@ -165,11 +133,6 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
 
   const passwordHash = await hashPassword(password);
   const friendInviteToken = String(ref || '').replace(/\s+/g, '');
-  const parsedInviteId = inviteId ? Number.parseInt(inviteId, 10) : null;
-  if (inviteId && (!Number.isSafeInteger(parsedInviteId) || Number(parsedInviteId) <= 0)) {
-    return { error: 'Invalid or expired invitation.', email, ref };
-  }
-
   try { if (!localTestAccount) requireEmailDelivery(); } catch {
     return { error: 'Email verification is temporarily unavailable. Please try again later.', email, ref };
   }
@@ -188,49 +151,17 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
         throw new Error('INVALID_FRIEND_INVITE');
       }
 
-      let teamId: number;
-      let userRole = 'owner';
-
-      if (parsedInviteId) {
-        const [invitation] = await tx
-          .update(invitations)
-          .set({ status: 'accepted' })
-          .where(
-            and(
-              eq(invitations.id, parsedInviteId),
-              eq(invitations.email, email),
-              eq(invitations.status, 'pending')
-            )
-          )
-          .returning();
-        if (!invitation) throw new Error('INVALID_TEAM_INVITATION');
-        teamId = invitation.teamId;
-        userRole = invitation.role;
-      } else {
-        const [team] = await tx
-          .insert(teams)
-          .values({ name: `${email}'s Team` } satisfies NewTeam)
-          .returning();
-        if (!team) throw new Error('TEAM_CREATION_FAILED');
-        teamId = team.id;
-      }
-
       const [user] = await tx
         .insert(users)
         .values({
           email,
           passwordHash,
-          emailVerifiedAt: localTestAccount ? new Date() : null,
-          role: userRole
+          emailVerifiedAt: localTestAccount ? new Date() : null
         } satisfies NewUser)
         .returning();
       if (!user) throw new Error('USER_CREATION_FAILED');
 
-      await tx.insert(teamMembers).values({
-        userId: user.id,
-        teamId,
-        role: userRole
-      } satisfies NewTeamMember);
+      await tx.insert(billingAccounts).values({ userId: user.id });
 
       if (friendInvite && friendInvite.inviterUserId !== user.id) {
         await tx
@@ -239,18 +170,9 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
           .onConflictDoNothing({ target: friendInviteRedemptions.invitedUserId });
       }
 
-      const activityTypes = [
-        parsedInviteId ? ActivityType.ACCEPT_INVITATION : ActivityType.CREATE_TEAM,
-        ActivityType.SIGN_UP
-      ];
-      await tx.insert(activityLogs).values(
-        activityTypes.map((type) => ({
-          teamId,
-          userId: user.id,
-          action: type,
-          ipAddress: ''
-        } satisfies NewActivityLog))
-      );
+      await tx.insert(activityLogs).values({
+        userId: user.id, action: ActivityType.SIGN_UP, ipAddress: ''
+      } satisfies NewActivityLog);
       return user;
     });
   } catch (error) {
@@ -260,9 +182,6 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
       : '';
     if (message === 'INVALID_FRIEND_INVITE') {
       return { error: 'Invalid invite code. Ask your friend for a new code.', email, ref };
-    }
-    if (message === 'INVALID_TEAM_INVITATION') {
-      return { error: 'Invalid or expired invitation.', email, ref };
     }
     if (code === '23505') {
       return { error: 'This email already has an account. Sign in instead.', email, ref };
@@ -336,12 +255,10 @@ export const confirmVerification = validatedAction(
     if (!user) return { error: 'This code is invalid, expired, or has too many attempts. Try again or request a new code.', email };
     await setSession(user);
     if (formData.get('redirect') === 'checkout') {
-      const [membership] = await db.select({ team: teams, role: teamMembers.role }).from(teamMembers)
-        .innerJoin(teams, eq(teams.id, teamMembers.teamId)).where(eq(teamMembers.userId, user.id)).limit(1);
       const priceId = formData.get('priceId');
-      if (membership?.role === 'owner' && typeof priceId === 'string' && priceId) {
+      if (typeof priceId === 'string' && priceId) {
         const { createCheckoutSession } = await import('@/lib/payments/stripe');
-        return createCheckoutSession({ team: membership.team, priceId });
+        return createCheckoutSession({ account: await getBillingAccount(user.id), priceId });
       }
     }
     redirect(safeAuthRedirect(formData.get('redirect')));
@@ -359,7 +276,6 @@ export async function signOut() {
     return;
   }
 
-  const userWithTeam = await getUserWithTeam(user.id);
   await db.transaction(async (tx) => {
     // JWTs have no per-device session row. Rotate the account version so every
     // existing web session and extension credential is revoked together.
@@ -372,12 +288,7 @@ export async function signOut() {
       .where(eq(users.id, user.id));
     await tx.update(extensionApiTokens).set({ revokedAt: now })
       .where(and(eq(extensionApiTokens.userId, user.id), isNull(extensionApiTokens.revokedAt)));
-    if (userWithTeam?.teamId !== null && userWithTeam?.teamId !== undefined) {
-      await tx.insert(activityLogs).values({
-        teamId: userWithTeam.teamId, userId: user.id,
-        action: ActivityType.SIGN_OUT, ipAddress: ''
-      });
-    }
+    await tx.insert(activityLogs).values({ userId: user.id, action: ActivityType.SIGN_OUT, ipAddress: '' });
   });
   (await cookies()).delete('session');
 }
@@ -417,11 +328,10 @@ export const updatePassword = validatedActionWithUser(
     }
 
     const newPasswordHash = await hashPassword(newPassword);
-    const userWithTeam = await getUserWithTeam(user.id);
 
     const updated = await changeAuthenticatedPassword(user.id, user.passwordHash, newPasswordHash, user.sessionVersion);
     if (!updated) return { error: 'Your password has changed. Please sign in again.' };
-    await Promise.all([setSession(updated), logActivity(userWithTeam?.teamId, user.id, ActivityType.UPDATE_PASSWORD)]);
+    await Promise.all([setSession(updated), logActivity(user.id, ActivityType.UPDATE_PASSWORD)]);
 
     return {
       success: 'Password updated successfully.'
@@ -445,15 +355,15 @@ export const deleteAccount = validatedActionWithUser(
       };
     }
 
-    const userWithTeam = await getUserWithTeam(user.id);
 
     try {
       const { deleteAccountData } = await import('@/lib/delete-account-data');
-      const deleted = await deleteAccountData(user.id, userWithTeam?.teamId,
+      const deleted = await deleteAccountData(user.id,
         { sessionVersion: user.sessionVersion, passwordHash: user.passwordHash }, async () => {
-          if (userWithTeam?.teamRole === 'owner' && userWithTeam.stripeSubscriptionId) {
+          const account = await getBillingAccount(user.id);
+          if (account?.stripeSubscriptionId) {
             const { cancelSubscriptionAtPeriodEnd } = await import('@/lib/payments/stripe');
-            await cancelSubscriptionAtPeriodEnd(userWithTeam.stripeSubscriptionId);
+            await cancelSubscriptionAtPeriodEnd(account.stripeSubscriptionId);
           }
         });
       if (!deleted) return { error: 'Your account credentials have changed. Please sign in again.' };
@@ -476,8 +386,7 @@ export const updateAccount = validatedActionWithUser(
   async (data, _, user) => {
     const { name } = data;
     const email = data.email.toLowerCase();
-    const userWithTeam = await getUserWithTeam(user.id);
-    const emailChanged = email !== user.email;
+      const emailChanged = email !== user.email;
 
     if (emailChanged) {
       try { requireEmailDelivery(); } catch {
@@ -511,7 +420,7 @@ export const updateAccount = validatedActionWithUser(
         sessionVersion: emailChanged ? current.sessionVersion + 1 : current.sessionVersion };
     });
     if (!updated) return { error: 'Your account credentials have changed. Please sign in again.' };
-    await logActivity(userWithTeam?.teamId, user.id, ActivityType.UPDATE_ACCOUNT);
+    await logActivity(user.id, ActivityType.UPDATE_ACCOUNT);
 
     if (emailChanged) {
       (await cookies()).delete('session');
@@ -521,85 +430,5 @@ export const updateAccount = validatedActionWithUser(
     }
 
     return { name, success: 'Account updated successfully.' };
-  }
-);
-
-const removeTeamMemberSchema = z.object({
-  memberId: z.coerce.number().int().positive()
-});
-
-export const removeTeamMember = validatedActionWithUser(
-  removeTeamMemberSchema,
-  async (data, _, user) => {
-    const { memberId } = data;
-    const userWithTeam = await getUserWithTeam(user.id);
-
-    if (!userWithTeam?.teamId) {
-      return { error: 'User is not part of a team' };
-    }
-
-    if (userWithTeam.teamRole !== 'owner') {
-      return { error: 'Only team owners can remove members' };
-    }
-
-    const [member] = await db
-      .select({ userId: teamMembers.userId })
-      .from(teamMembers)
-      .where(
-        and(
-          eq(teamMembers.id, memberId),
-          eq(teamMembers.teamId, userWithTeam.teamId)
-        )
-      )
-      .limit(1);
-
-    if (!member) {
-      return { error: 'Team member not found' };
-    }
-
-    if (member.userId === user.id) {
-      return { error: 'Owners cannot remove themselves' };
-    }
-
-    await db
-      .delete(teamMembers)
-      .where(
-        and(
-          eq(teamMembers.id, memberId),
-          eq(teamMembers.teamId, userWithTeam.teamId)
-        )
-      );
-
-    await logActivity(
-      userWithTeam.teamId,
-      user.id,
-      ActivityType.REMOVE_TEAM_MEMBER
-    );
-
-    return { success: 'Team member removed successfully' };
-  }
-);
-
-const inviteTeamMemberSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  role: z.enum(['member', 'owner'])
-});
-
-export const inviteTeamMember = validatedActionWithUser(
-  inviteTeamMemberSchema,
-  async (data, _, user) => {
-    void data;
-    const userWithTeam = await getUserWithTeam(user.id);
-
-    if (!userWithTeam?.teamId) {
-      return { error: 'User is not part of a team' };
-    }
-
-    if (userWithTeam.teamRole !== 'owner') {
-      return { error: 'Only team owners can invite members' };
-    }
-    return {
-      error: 'Team invitations are unavailable until verified email delivery is configured.'
-    };
   }
 );

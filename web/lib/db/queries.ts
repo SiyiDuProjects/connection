@@ -3,10 +3,8 @@ import { db } from './drizzle';
 import {
   activityLogs,
   apiUsage,
-  creditLedger,
   extensionApiTokens,
-  teamMembers,
-  teams,
+  billingAccounts,
   userSettings,
   users
 } from './schema';
@@ -48,49 +46,16 @@ export async function getUser() {
   return user[0];
 }
 
-export async function getTeamByStripeCustomerId(customerId: string) {
-  const result = await db
-    .select()
-    .from(teams)
-    .where(eq(teams.stripeCustomerId, customerId))
-    .limit(1);
-
-  return result.length > 0 ? result[0] : null;
+export async function getBillingAccountByStripeCustomerId(customerId: string) {
+  const [account] = await db.select().from(billingAccounts)
+    .where(eq(billingAccounts.stripeCustomerId, customerId)).limit(1);
+  return account || null;
 }
 
-export async function updateTeamSubscription(
-  teamId: number,
-  subscriptionData: {
-    stripeSubscriptionId: string | null;
-    stripeProductId: string | null;
-    planName: string | null;
-    subscriptionStatus: string;
-  }
-) {
-  await db
-    .update(teams)
-    .set({
-      ...subscriptionData,
-      updatedAt: new Date()
-    })
-    .where(eq(teams.id, teamId));
-}
-
-export async function getUserWithTeam(userId: number) {
-  const result = await db
-    .select({
-      user: users,
-      teamId: teamMembers.teamId,
-      teamRole: teamMembers.role,
-      stripeSubscriptionId: teams.stripeSubscriptionId
-    })
-    .from(users)
-    .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
-    .leftJoin(teams, eq(teamMembers.teamId, teams.id))
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  return result[0];
+export async function getBillingAccount(userId: number) {
+  const [account] = await db.select().from(billingAccounts)
+    .where(eq(billingAccounts.userId, userId)).limit(1);
+  return account || null;
 }
 
 export async function getActivityLogs() {
@@ -112,36 +77,6 @@ export async function getActivityLogs() {
     .where(eq(activityLogs.userId, user.id))
     .orderBy(desc(activityLogs.timestamp))
     .limit(10);
-}
-
-export async function getTeamForUser() {
-  const user = await getUser();
-  if (!user) {
-    return null;
-  }
-
-  const result = await db.query.teamMembers.findFirst({
-    where: eq(teamMembers.userId, user.id),
-    with: {
-      team: {
-        with: {
-          teamMembers: {
-            with: {
-              user: {
-                columns: {
-                  id: true,
-                  name: true,
-                  email: true
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  });
-
-  return result?.team || null;
 }
 
 export async function getCreditBalance(userId: number) {

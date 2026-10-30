@@ -91,7 +91,7 @@ const overrides = {
   '../db/client.mjs': {getDatabaseClient:()=>async (strings,...values)=>(await pg.query(strings.reduce((query,part,index)=>query+(index?`$${index}`:'')+part,''),values)).rows},
   '@/lib/db/queries': {
     getUser: async () => ({ id: 1, email: 'member@example.com' }),
-    getTeamByStripeCustomerId: async id => (await database.select().from(schema.teams).where(require('drizzle-orm').eq(schema.teams.stripeCustomerId, id)))[0],
+    getBillingAccountByStripeCustomerId: async id => (await database.select().from(schema.billingAccounts).where(require('drizzle-orm').eq(schema.billingAccounts.stripeCustomerId, id)))[0],
   },
   '@/lib/product-events': { recordProductEvent: async (...args) => events.push(args) },
   'next/navigation': { redirect: url => { throw Object.assign(new Error('redirect'), { url }); } },
@@ -140,7 +140,7 @@ function invoiceLine(priceId, { start = now - 30, end = future, amount = 100, pr
 
 before(async () => {
   const journal = JSON.parse(readFileSync(resolve(root, 'lib/db/migrations/meta/_journal.json'), 'utf8'));
-  for (const entry of journal.entries.filter(entry => entry.idx <= 19)) {
+  for (const entry of journal.entries) {
     await pg.exec(readFileSync(resolve(root, 'lib/db/migrations', `${entry.tag}.sql`), 'utf8'));
   }
   // Row locking must still prevent duplicates without the defense-in-depth indexes.
@@ -152,11 +152,11 @@ beforeEach(async () => {
   sub.set('sub_inviter', subscription('sub_inviter', { customer: 'cus_inviter' }));
   sessions.set('cs_main', checkoutSession());
   delete process.env.STRIPE_PORTAL_CONFIGURATION_ID;
-  await pg.exec(`TRUNCATE users, teams, team_members, credit_ledger, stripe_webhook_events, friend_invites, friend_invite_redemptions, friend_invite_rewards RESTART IDENTITY CASCADE;
+  await pg.exec(`TRUNCATE users, billing_accounts, credit_ledger, stripe_webhook_events, friend_invites, friend_invite_redemptions, friend_invite_rewards RESTART IDENTITY CASCADE;
     INSERT INTO users (id,email,password_hash) VALUES (1,'member@example.com','fixture'),(2,'inviter@example.com','fixture');
-    INSERT INTO teams (id,name,stripe_customer_id,stripe_subscription_id,subscription_status) VALUES
-      (1,'Member','cus_main',null,null),(2,'Inviter','cus_inviter','sub_inviter','active');
-    INSERT INTO team_members(user_id,team_id,role) VALUES(1,1,'owner'),(2,2,'owner');
+    INSERT INTO billing_accounts (id,user_id,stripe_customer_id,stripe_subscription_id,subscription_status) VALUES
+      (1,1,'cus_main',null,null),(2,2,'cus_inviter','sub_inviter','active');
+
     INSERT INTO friend_invites(inviter_user_id,token) VALUES(2,'fixture');
     INSERT INTO friend_invite_redemptions(invite_id,invited_user_id) VALUES(1,1);`);
 });
@@ -166,6 +166,24 @@ test('first checkout and simultaneous replay grant once, including an access exp
   await Promise.all([checkout.handleSuccessfulCheckoutSession('cs_main'), checkout.handleSuccessfulCheckoutSession('cs_main')]);
   const ledger = await grants(); assert.equal(ledger.length, 1); assert.equal(ledger[0].amount, 20);
   assert.equal(ledger[0].metadata.periodEnd, future); assert.equal(balances.length, 0);
+});
+
+test('personal account checkout keeps old Stripe metadata compatible and rejects wrong or malformed ownership', async () => {
+  const original = sessions.get('cs_main');
+  for (const metadata of [{reachardAccountId:'2'}, {reachardTeamId:'invalid'},
+    {reachardAccountId:'1',reachardTeamId:'2'}, {reachardAccountId:'1',reachardUserId:'2'}]) {
+    sessions.set('cs_main', {...original,metadata});
+    await assert.rejects(checkout.handleSuccessfulCheckoutSession('cs_main'), /match/);
+    assert.equal((await grants()).length,0);
+  }
+  sessions.set('cs_main', {...original,metadata:{reachardAccountId:'1',reachardUserId:'1'}});
+  await checkout.handleSuccessfulCheckoutSession('cs_main');
+  assert.equal((await grants()).length,1);
+});
+
+test('checkout cannot use another persons billing account', async () => {
+  await assert.rejects(billing.createCheckoutSession({account:{id:2,userId:2},priceId:'price_base_current'}), /belong/);
+  assert.equal(createdSessions.length,0);
 });
 test('invoice arriving first fulfills without a success-page visit; repeated events reward once', async () => {
   const paid = invoice({ id: 'in_first', billing_reason: 'subscription_create' });
@@ -209,23 +227,23 @@ test('wrong owner, customer mismatch and canceled checkout do not grant access',
 test('old subscription snapshots synchronize latest state and cannot cancel a newer subscription', async () => {
   await checkout.handleSuccessfulCheckoutSession('cs_main');
   sub.get('sub_main').status = 'canceled'; await billing.handleSubscriptionChange(subscription());
-  assert.equal((await rows('SELECT subscription_status FROM teams WHERE id=1'))[0].subscription_status, 'canceled');
-  await pg.exec("UPDATE teams SET stripe_subscription_id='sub_new',subscription_status='active' WHERE id=1");
+  assert.equal((await rows('SELECT subscription_status FROM billing_accounts WHERE id=1'))[0].subscription_status, 'canceled');
+  await pg.exec("UPDATE billing_accounts SET stripe_subscription_id='sub_new',subscription_status='active' WHERE id=1");
   await billing.handleSubscriptionChange(subscription('sub_main', { status: 'canceled' }));
-  assert.equal((await rows('SELECT subscription_status FROM teams WHERE id=1'))[0].subscription_status, 'active');
+  assert.equal((await rows('SELECT subscription_status FROM billing_accounts WHERE id=1'))[0].subscription_status, 'active');
 });
 test('repeated checkout starts reuse the open session; plan change expires the old one', async () => {
   sub.delete('sub_main'); sessions.clear();
-  const team = { id: 1 };
-  for (let index=0; index<2; index++) await assert.rejects(billing.createCheckoutSession({ team, priceId: 'price_base_current' }), error => error.url === 'https://checkout.stripe.com/cs_new_1');
+  const account = { id: 1, userId: 1 };
+  for (let index=0; index<2; index++) await assert.rejects(billing.createCheckoutSession({ account, priceId: 'price_base_current' }), error => error.url === 'https://checkout.stripe.com/cs_new_1');
   assert.equal(createdSessions.length, 1);
-  await assert.rejects(billing.createCheckoutSession({ team, priceId: 'price_plus_current' }), error => error.url === 'https://checkout.stripe.com/cs_new_2');
+  await assert.rejects(billing.createCheckoutSession({ account, priceId: 'price_plus_current' }), error => error.url === 'https://checkout.stripe.com/cs_new_2');
   assert.equal(sessions.get('cs_new_1').status, 'expired');
 });
 test('past due and unpaid subscriptions block a second checkout', async () => {
   for (const status of ['past_due','unpaid','incomplete','paused']) {
     sub.get('sub_main').status = status;
-    await assert.rejects(billing.createCheckoutSession({ team: { id: 1 }, priceId: 'price_base_current' }), error => error.url === '/dashboard?billing=already-active');
+    await assert.rejects(billing.createCheckoutSession({ account: { id: 1, userId: 1 }, priceId: 'price_base_current' }), error => error.url === '/dashboard?billing=already-active');
   }
   assert.equal(createdSessions.length, 0);
 });
@@ -290,7 +308,7 @@ test('contacts API reads only the current membership period from the real ledger
   assert.equal(hasMembershipAccess(await account.getMembershipForUser(1)), true);
   await invoices.handlePaidInvoice(invoice());
   assert.equal((await account.getMembershipForUser(1)).periodEnd, future);
-  await pg.exec("UPDATE teams SET stripe_subscription_id='sub_different' WHERE id=1");
+  await pg.exec("UPDATE billing_accounts SET stripe_subscription_id='sub_different' WHERE id=1");
   assert.equal(hasMembershipAccess(await account.getMembershipForUser(1)), false);
 });
 
@@ -429,7 +447,7 @@ test('revisiting an older Base checkout cannot roll back the visible plan after 
   await invoices.handlePaidInvoice(invoice({ id: 'in_upgrade', billing_reason: 'subscription_update',
     lines: { has_more: false, data: [invoiceLine('price_plus_current', { proration: true })] } }));
   await checkout.handleSuccessfulCheckoutSession('cs_main');
-  assert.equal((await rows('select plan_name from teams where id=1'))[0].plan_name, 'Plus');
+  assert.equal((await rows('select plan_name from billing_accounts where id=1'))[0].plan_name, 'Plus');
   assert.equal((await account.getBillingStateForUser(1)).unlimited, true);
 });
 
@@ -498,7 +516,7 @@ test('an unrecognized default or sole $9/$19 price is rejected before creating a
       const listed = await fresh.getStripePrices();
       const offer = pricing(listed, [{ id: candidate.product.id, name, defaultPriceId: candidate.product.default_price }]).find(item => item.name === name);
       assert.equal(offer.priceId, null);
-      await assert.rejects(fresh.createCheckoutSession({ team: { id: 1 }, priceId: id }), /Unrecognized/);
+      await assert.rejects(fresh.createCheckoutSession({ account: { id: 1, userId: 1 }, priceId: id }), /Unrecognized/);
       assert.equal(createdSessions.length, 0);
     }
     assert.equal((await grants()).length, 0);
@@ -519,7 +537,7 @@ for (const identity of ['published', 'metadata']) test(`${identity} fallback has
     assert.equal(offer.priceId, id);
     const checkoutPlan = await fresh.resolveCheckoutPlan(id);
     assert.equal(checkoutPlan.entitlementVersion, plans.ENTITLEMENT_VERSION);
-    await assert.rejects(fresh.createCheckoutSession({ team: { id: 1 }, priceId: id }), error => error.url === 'https://checkout.stripe.com/cs_new_1');
+    await assert.rejects(fresh.createCheckoutSession({ account: { id: 1, userId: 1 }, priceId: id }), error => error.url === 'https://checkout.stripe.com/cs_new_1');
     assert.equal(createdSessions.length, 1);
     sub.set('sub_main', subscription('sub_main', { items: { data: [{ price: candidate, quantity: 1, current_period_start: now - 30, current_period_end: future }] } }));
     Object.assign(sessions.get('cs_new_1'), { status: 'complete', payment_status: 'paid', subscription: 'sub_main', invoice: 'in_identity' });

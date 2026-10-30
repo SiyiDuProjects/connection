@@ -11,7 +11,7 @@ const root = path.resolve(__dirname, '..');
 const pg = new PGlite();
 const db = drizzle(pg);
 const modules = new Map();
-let schema, currentUser, teamPause, verificationCalls, cancellationCalls, sessions, deletedCookies;
+let schema, currentUser, authPause, verificationCalls, cancellationCalls, sessions, deletedCookies;
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const overrides = {
   '@/lib/auth/rate-limit': { checkCredentialRateLimit: async () => null, reserveAccountEmailDelivery: async () => {} },
@@ -26,11 +26,12 @@ const overrides = {
     setSession: async user => { sessions.push(user); },
   },
   '@/lib/db/queries': {
-    getUser: async () => currentUser,
-    getUserWithTeam: async () => {
-      if (teamPause) { teamPause.started.resolve(); await teamPause.resume.promise; }
-      return { teamId: 7, teamRole: 'owner', stripeSubscriptionId: 'sub_fixture' };
+    getUser: async () => {
+      const authenticated = currentUser;
+      if (authPause) { authPause.started.resolve(); await authPause.resume.promise; }
+      return authenticated;
     },
+    getBillingAccount: async () => ({ id: 7, userId: 1, stripeSubscriptionId: 'sub_fixture' }),
   },
   '@/lib/email/resend': { requireEmailDelivery() {}, sendPasswordResetEmail: async () => {}, sendPasswordChangedEmail: async () => {} },
   '@/lib/auth/email-verification': {
@@ -73,28 +74,28 @@ async function resetLink() {
 before(async () => {
   await pg.exec(`
     CREATE TABLE users (id integer PRIMARY KEY, name varchar(100), email varchar(255) UNIQUE NOT NULL, email_verified_at timestamp,
-      password_hash text NOT NULL, role varchar(20) DEFAULT 'member', created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now(), deleted_at timestamp);
-    CREATE TABLE teams (id integer PRIMARY KEY, name varchar(100), created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now(), stripe_customer_id text,
+      password_hash text NOT NULL, created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now(), deleted_at timestamp);
+    CREATE TABLE billing_accounts (id integer PRIMARY KEY, user_id integer NOT NULL UNIQUE, created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now(), stripe_customer_id text,
       stripe_subscription_id text, stripe_product_id text, plan_name varchar(50), subscription_status varchar(20));
-    CREATE TABLE team_members (id serial PRIMARY KEY, user_id integer, team_id integer, role varchar(50), joined_at timestamp DEFAULT now());
+
     CREATE TABLE extension_api_tokens (id serial PRIMARY KEY, user_id integer, revoked_at timestamp);
     CREATE TABLE email_verification_tokens (id serial PRIMARY KEY, user_id integer, used_at timestamp);
     CREATE TABLE user_settings (id serial PRIMARY KEY, user_id integer, resume_context text);
     CREATE TABLE api_idempotency_keys (id serial PRIMARY KEY, user_id integer);
-    CREATE TABLE activity_logs (id serial PRIMARY KEY, team_id integer, user_id integer, action text, ip_address text, timestamp timestamp DEFAULT now());
+    CREATE TABLE activity_logs (id serial PRIMARY KEY, user_id integer, action text, ip_address text, timestamp timestamp DEFAULT now());
   `);
   await pg.exec(fs.readFileSync(path.join(root, 'lib/db/migrations/0015_password_recovery.sql'), 'utf8'));
 });
 beforeEach(async () => {
-  await pg.exec(`TRUNCATE password_reset_tokens, users, teams, team_members, extension_api_tokens, email_verification_tokens, user_settings, api_idempotency_keys, activity_logs RESTART IDENTITY;
+  await pg.exec(`TRUNCATE password_reset_tokens, users, billing_accounts, extension_api_tokens, email_verification_tokens, user_settings, api_idempotency_keys, activity_logs RESTART IDENTITY;
     INSERT INTO users (id,name,email,password_hash,email_verified_at) VALUES (1,'User','user@example.com','fixture:oldpassword',now());
-    INSERT INTO teams (id,name,stripe_subscription_id) VALUES (7,'Team','sub_fixture');
-    INSERT INTO team_members (user_id,team_id,role) VALUES (1,7,'owner');
+    INSERT INTO billing_accounts (id,user_id,stripe_subscription_id) VALUES (7,1,'sub_fixture');
+
     INSERT INTO extension_api_tokens (user_id) VALUES (1);
     INSERT INTO email_verification_tokens (user_id) VALUES (1);
     INSERT INTO user_settings (user_id,resume_context) VALUES (1,'private fixture');
   `);
-  currentUser = await userRow(); teamPause = null; verificationCalls = []; cancellationCalls = 0; sessions = []; deletedCookies = [];
+  currentUser = await userRow(); authPause = null; verificationCalls = []; cancellationCalls = 0; sessions = []; deletedCookies = [];
 });
 after(async () => { await pg.close(); });
 
@@ -112,12 +113,12 @@ test('logout invalidates every prior web version and extension token only for th
 
 test('a logout authenticated before recovery cannot revoke a later login or extension token', async () => {
   const token = await resetLink();
-  teamPause = { started: deferred(), resume: deferred() };
+  authPause = { started: deferred(), resume: deferred() };
   const pending = actions.signOut();
-  await teamPause.started.promise;
+  await authPause.started.promise;
   assert.ok(await recovery.resetPassword(token, 'newpassword'));
   await pg.exec('INSERT INTO extension_api_tokens (user_id) VALUES (1)');
-  teamPause.resume.resolve();
+  authPause.resume.resolve();
   await pending;
   assert.equal((await userRow()).sessionVersion, 1);
   assert.equal((await pg.query('SELECT count(*)::integer AS count FROM extension_api_tokens WHERE user_id=1 AND revoked_at IS NULL')).rows[0].count, 1);
@@ -144,11 +145,11 @@ test('unauthenticated logout only clears the local cookie', async () => {
 
 test('email update authenticated before recovery cannot regain access after the reset commits', async () => {
   const token = await resetLink();
-  teamPause = { started: deferred(), resume: deferred() };
+  authPause = { started: deferred(), resume: deferred() };
   const pending = actions.updateAccount({}, form({ name: 'Attacker', email: 'attacker@example.com' }));
-  await teamPause.started.promise;
+  await authPause.started.promise;
   assert.ok(await recovery.resetPassword(token, 'newpassword'));
-  teamPause.resume.resolve();
+  authPause.resume.resolve();
   assert.match((await pending).error, /credentials have changed/);
   const user = await userRow();
   assert.equal(user.email, 'user@example.com'); assert.equal(user.sessionVersion, 1);
@@ -158,11 +159,11 @@ test('email update authenticated before recovery cannot regain access after the 
 
 test('deletion authenticated with an old password cannot cancel billing or delete after recovery', async () => {
   const token = await resetLink();
-  teamPause = { started: deferred(), resume: deferred() };
+  authPause = { started: deferred(), resume: deferred() };
   const pending = actions.deleteAccount({}, form({ password: 'oldpassword' }));
-  await teamPause.started.promise;
+  await authPause.started.promise;
   assert.ok(await recovery.resetPassword(token, 'newpassword'));
-  teamPause.resume.resolve();
+  authPause.resume.resolve();
   assert.match((await pending).error, /credentials have changed/);
   assert.equal((await userRow()).deletedAt, null);
   assert.equal(cancellationCalls, 0);
@@ -197,7 +198,7 @@ test('failure to revoke a credential rolls the email/version/token changes back 
 test('deletion rechecks the hash as well as the version before its billing callback', async () => {
   const expected = { sessionVersion: 0, passwordHash: 'fixture:oldpassword' };
   await pg.exec("UPDATE users SET password_hash='fixture:changed' WHERE id=1");
-  assert.equal(await deletion.deleteAccountData(1, 7, expected, async () => { cancellationCalls++; }), false);
+  assert.equal(await deletion.deleteAccountData(1, expected, async () => { cancellationCalls++; }), false);
   assert.equal(cancellationCalls, 0); assert.equal((await userRow()).deletedAt, null);
 });
 

@@ -24,6 +24,10 @@ ENV REACHARD_BUILD_SHA=$RELEASE_SHA REACHARD_CONTACTS_ENABLED=1 REACHARD_TRUST_C
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
+# Explicit migration CLI for staged schema changes; no provider or web process.
+COPY --from=build --chown=node:node /app/node_modules/postgres ./node_modules/postgres
+COPY --from=build --chown=node:node /app/lib/db/migrations ./lib/db/migrations
+COPY --from=build --chown=node:node /app/scripts/migrate-db.mjs ./scripts/migrate-db.mjs
 USER node
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(async r=>{if(!r.ok||!(await r.json()).ready)process.exit(1)}).catch(()=>process.exit(1))"

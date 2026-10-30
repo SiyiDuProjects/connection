@@ -1,6 +1,6 @@
 import { handleContactsRequest } from '@/lib/contacts/runtime';
 import { isBetaUnlimitedUsage } from '@/lib/contacts/membership-policy.js';
-import { getActiveExtensionTokenInfo, getAccountEntitlement, getRecentUsage, getSettings, getTeamForUser, getUser } from '@/lib/db/queries';
+import { getActiveExtensionTokenInfo, getAccountEntitlement, getRecentUsage, getSettings, getBillingAccount, getUser } from '@/lib/db/queries';
 import { getOnboardingStatus } from '@/lib/onboarding';
 import { toPublicUser } from '@/lib/auth/public-user';
 import { getFreeTrialStatus } from '@/lib/free-trial';
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
       getAccountEntitlement(user.id),
       getRecentUsage(user.id),
       getSettings(user.id),
-      getTeamForUser(),
+      getBillingAccount(user.id),
       getActiveExtensionTokenInfo(user.id),
       getFreeTrialStatus(user.id)
     ]).catch((error) => {
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
       { status: 503 }
     );
   }
-  const [entitlement, usage, settings, team, extensionToken, trial] = accountData;
+  const [entitlement, usage, settings, billingAccount, extensionToken, trial] = accountData;
   const balance = entitlement.balance;
   const unlimited = entitlement.unlimited || isBetaUnlimitedUsage();
 
@@ -64,8 +64,8 @@ export async function GET(request: Request) {
     settings,
     trial,
     subscription: {
-      planName: trial ? 'Free trial' : team?.planName || 'Free',
-      status: trial ? 'free_trial' : team?.subscriptionStatus || 'inactive'
+      planName: trial ? 'Free trial' : billingAccount?.planName || 'Free',
+      status: trial ? 'free_trial' : billingAccount?.subscriptionStatus || 'inactive'
     },
     extension: {
       connected: Boolean(extensionToken),
@@ -89,8 +89,8 @@ export async function GET(request: Request) {
         recentSuccessfulDraftAt: successfulDraft?.createdAt || null
       },
       billing: {
-        planName: team?.planName || 'Free',
-        status: team?.subscriptionStatus || 'inactive',
+        planName: billingAccount?.planName || 'Free',
+        status: billingAccount?.subscriptionStatus || 'inactive',
         creditsRemaining: balance
       }
     }

@@ -14,6 +14,8 @@ export async function checkAccountDb() {
   ensureConfigured();
   const [row] = await sql`
     select
+      to_regclass('public.billing_accounts')::text as billing_accounts,
+      to_regclass('public.friend_invite_rewards')::text as friend_invite_rewards,
       to_regclass('public.credit_ledger')::text as credit_ledger,
       to_regclass('public.api_usage')::text as api_usage,
       to_regclass('public.api_idempotency_keys')::text as api_idempotency_keys,
@@ -26,7 +28,7 @@ export async function checkAccountDb() {
       to_regprocedure('public.ensure_free_trial(integer)')::text as ensure_free_trial,
       to_regprocedure('public.consume_free_trial_operation(integer,text)')::text as consume_free_trial_operation
   `;
-  if (!row?.credit_ledger || !row?.api_usage || !row?.api_idempotency_keys
+  if (!row?.billing_accounts || !row?.friend_invite_rewards || !row?.credit_ledger || !row?.api_usage || !row?.api_idempotency_keys
     || !row?.request_hash_ready || !row?.free_trial_claims || !row?.auth_rate_limits || !row?.contact_email_unlocks || !row?.get_account_entitlement
     || !row?.ensure_free_trial || !row?.consume_free_trial_operation) {
     throw new Error("Required account database migrations have not been applied.");
@@ -55,14 +57,13 @@ export async function getAccountSummary(userId) {
       users.id,
       users.email,
       users.name,
-      teams.plan_name,
-      teams.subscription_status,
+      billing_accounts.plan_name,
+      billing_accounts.subscription_status,
       extension_api_tokens.id as extension_token_id,
       extension_api_tokens.last_used_at,
       to_jsonb(user_settings) as settings
     from users
-    left join team_members on team_members.user_id = users.id
-    left join teams on teams.id = team_members.team_id
+    left join billing_accounts on billing_accounts.user_id = users.id
     left join extension_api_tokens on extension_api_tokens.user_id = users.id
       and extension_api_tokens.revoked_at is null
     left join user_settings on user_settings.user_id = users.id

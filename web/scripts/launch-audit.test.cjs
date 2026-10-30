@@ -12,14 +12,14 @@ const { eq } = projectRequire('drizzle-orm');
 const pg = new PGlite();
 const db = drizzle(pg);
 const modules = new Map();
-let user = { id: 1 }, token = { id: 42 }, team, records, portalCalls, portalFails;
+let user = { id: 1 }, token = { id: 42 }, account, records, portalCalls, portalFails;
 let schema;
 const overrides = {
   'server-only': {},
   '@/lib/db/drizzle': { db },
   '@/lib/db/queries': {
     getUser: async () => user,
-    getTeamForUser: async () => team,
+    getBillingAccount: async id => account?.userId === id ? account : null,
     getActiveExtensionTokenInfo: async () => token,
     getSettings: async id => (await db.select().from(schema.userSettings).where(eq(schema.userSettings.userId, id)))[0] || null,
   },
@@ -67,7 +67,7 @@ before(async () => {
 beforeEach(async () => {
   await pg.exec('TRUNCATE user_settings RESTART IDENTITY');
   user = { id: 1 }; token = { id: 42 }; records = []; portalCalls = []; portalFails = false;
-  team = { id: 2, stripeCustomerId: 'cus_fixture', teamMembers: [{ userId: 1, role: 'owner' }] };
+  account = { id: 2, stripeCustomerId: 'cus_fixture', userId: 1 };
 });
 after(async () => { global.fetch = originalFetch; if (oldRapidKey === undefined) delete process.env.RAPIDAPI_KEY; else process.env.RAPIDAPI_KEY = oldRapidKey; await pg.close(); });
 
@@ -102,12 +102,12 @@ test('empty preference save is a no-op and invalid values are rejected', async (
   assert.equal((await db.select().from(schema.userSettings)).length, 0);
   assert.equal((await custom.PATCH(req({ tone: 'made-up' }, 'PATCH'))).status, 400);
 });
-test('billing entry enforces owner access before calling Stripe', async () => {
+test('billing entry requires a personal billing account before calling Stripe', async () => {
   user = null;
   await assert.rejects(billing.openBillingPortal({}, new FormData()), e => e.url.includes('/sign-in'));
   user = { id: 8 };
-  assert.match((await billing.openBillingPortal({}, new FormData())).error, /owner/);
-  user = { id: 1 }; team.stripeCustomerId = null;
+  assert.match((await billing.openBillingPortal({}, new FormData())).error, /unavailable/);
+  user = { id: 1 }; account.stripeCustomerId = null;
   assert.match((await billing.openBillingPortal({}, new FormData())).error, /no billing account/);
   assert.equal(portalCalls.length, 0);
 });
@@ -134,40 +134,40 @@ test('school lookup uses the bundled directory, bounds input and never calls a p
 test('account deletion is atomic, retryable and isolated from another user', async () => {
   const deletion = load(path.join(root, 'lib/delete-account-data.ts'));
   await pg.exec(`
-    CREATE TABLE users (id integer PRIMARY KEY, name varchar(100), email varchar(255) UNIQUE NOT NULL, email_verified_at timestamp, password_hash text NOT NULL, session_version integer NOT NULL DEFAULT 0, role varchar(20) DEFAULT 'member', created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now(), deleted_at timestamp);
+    CREATE TABLE users (id integer PRIMARY KEY, name varchar(100), email varchar(255) UNIQUE NOT NULL, email_verified_at timestamp, password_hash text NOT NULL, session_version integer NOT NULL DEFAULT 0, created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now(), deleted_at timestamp);
     CREATE TABLE extension_api_tokens (id serial PRIMARY KEY, user_id integer, revoked_at timestamp);
     CREATE TABLE email_verification_tokens (id serial PRIMARY KEY, user_id integer);
     CREATE TABLE password_reset_tokens (id serial PRIMARY KEY, user_id integer);
     CREATE TABLE api_idempotency_keys (id serial PRIMARY KEY, user_id integer);
     CREATE TABLE contact_email_unlocks (user_id integer, email_fingerprint text);
-    CREATE TABLE team_members (id serial PRIMARY KEY, user_id integer);
-    CREATE TABLE activity_logs (id serial PRIMARY KEY, team_id integer, user_id integer, action text, ip_address text, timestamp timestamp DEFAULT now());
+
+    CREATE TABLE activity_logs (id serial PRIMARY KEY, user_id integer, action text, ip_address text, timestamp timestamp DEFAULT now());
     INSERT INTO users (id,name,email,password_hash,email_verified_at) VALUES (1,'First','first@example.com','old-hash',now()),(2,'Other','other@example.com','other-hash',now());
     INSERT INTO extension_api_tokens (user_id) VALUES (1),(2);
     INSERT INTO email_verification_tokens (user_id) VALUES (1),(2);
     INSERT INTO api_idempotency_keys (user_id) VALUES (1),(2);
     INSERT INTO contact_email_unlocks (user_id,email_fingerprint) VALUES (1,'first'),(2,'other');
-    INSERT INTO team_members (user_id) VALUES (1),(2);
+
     INSERT INTO user_settings (user_id,resume_context) VALUES (1,'resume-one'),(2,'resume-two');
     ALTER TABLE users ADD CONSTRAINT force_rollback CHECK (deleted_at IS NULL);
   `);
   const expected = { sessionVersion: 0, passwordHash: 'old-hash' };
-  await assert.rejects(deletion.deleteAccountData(1, 7, expected));
+  await assert.rejects(deletion.deleteAccountData(1, expected));
   assert.equal((await pg.query('SELECT * FROM user_settings WHERE user_id=1')).rows.length, 1);
   assert.equal((await pg.query('SELECT revoked_at FROM extension_api_tokens WHERE user_id=1')).rows[0].revoked_at, null);
   assert.equal((await pg.query('SELECT * FROM activity_logs')).rows.length, 0);
   await pg.exec('ALTER TABLE users DROP CONSTRAINT force_rollback');
-  await deletion.deleteAccountData(1, 7, expected);
+  await deletion.deleteAccountData(1, expected);
   const deleted = (await pg.query('SELECT * FROM users WHERE id=1')).rows[0];
   assert.ok(deleted.deleted_at); assert.equal(deleted.name, null); assert.equal(deleted.email_verified_at, null);
   assert.equal(deleted.password_hash, '!deleted-account'); assert.match(deleted.email, /^deleted-1-.+@deleted.invalid$/); assert.ok(deleted.email.length <= 255);
-  for (const table of ['email_verification_tokens','api_idempotency_keys','contact_email_unlocks','team_members','user_settings']) {
+  for (const table of ['email_verification_tokens','api_idempotency_keys','contact_email_unlocks','user_settings']) {
     assert.equal((await pg.query(`SELECT * FROM ${table} WHERE user_id=1`)).rows.length, 0);
     assert.equal((await pg.query(`SELECT * FROM ${table} WHERE user_id=2`)).rows.length, 1);
   }
   assert.ok((await pg.query('SELECT revoked_at FROM extension_api_tokens WHERE user_id=1')).rows[0].revoked_at);
   assert.equal((await pg.query('SELECT revoked_at FROM extension_api_tokens WHERE user_id=2')).rows[0].revoked_at, null);
-  await deletion.deleteAccountData(1, 7, expected);
+  await deletion.deleteAccountData(1, expected);
   assert.equal((await pg.query('SELECT * FROM activity_logs')).rows.length, 1);
   assert.equal((await pg.query('SELECT email FROM users WHERE id=1')).rows[0].email, deleted.email);
 });

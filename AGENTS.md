@@ -52,9 +52,9 @@
 - Existing VPS: `ubuntu@49.51.38.235`; use the current machine's recorded project SSH identity.
 - Unified release target: container `reachard`, `/opt/reachard/runtime.env`, `/opt/reachard/deploy/compose.yml`, loopback port `8787`.
 - Candidate port: `18787`. Run and verify the candidate before activating a release.
-- Migration fallback: retained `connection_contacts` container, `/opt/connection/server/.env`, shared Compose `/home/ubuntu/siyi/docker-compose.yml`, previous Vercel website deployment.
+- Rollback uses the prior unified image and private snapshots in `/opt/reachard/backups/`. Historical split-service assets are retained offline only.
 - Treat these as deployment targets, not proof that cutover has occurred. Inspect running containers and public revision before reporting production state.
-- Follow `DEPLOY_CICD.md` for complete checks, hostname cutover and rollback. Do not run shared `docker compose down`, overwrite unrelated tunnel routes, or remove the legacy recovery assets during migration.
+- Follow `DEPLOY_CICD.md` for complete checks, hostname cutover and rollback. Do not run shared `docker compose down`, overwrite unrelated tunnel routes, or remove recovery snapshots.
 - One Next.js Node process owns process-local rate limits, concurrency and circuit breakers. Multi-instance deployment needs shared admission state first.
 - Keep SSH keys and server secrets out of chat and logs. Check `http://127.0.0.1:8787/health`; inspect only explicitly selected non-secret settings. Environment changes require recreating the release container.
 
@@ -83,13 +83,3 @@ EMAIL_DRAFT_CREDITS=0
 ```
 
 Do not send paid live Treg requests during verification without explicit approval. Use fixture tests for routine release validation.
-
-## Legacy RapidAPI Hosts
-
-- People search host: `fresh-linkedin-scraper-api.p.rapidapi.com`
-- People search endpoint: `/api/v1/search/people`
-- Company lookup endpoint: `/api/v1/company/profile?company=...`
-- School lookup endpoint: `/api/v1/search/schools?keyword=...`
-- Location lookup endpoint: `/api/v1/search/location?keyword=...`
-
-These hosts are retained only for the legacy `rapidapi` provider path. RapidAPI marketplace page URLs are not the runtime host; use the `*.p.rapidapi.com` host in env and requests.

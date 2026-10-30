@@ -22,8 +22,8 @@ export type ProfileValues = {
 
 // Native HeroUI Fieldset/Form examples and Pro DropZone anatomy. Business state
 // is shared by onboarding and My profile so neither retains a separate old UI.
-export function ProfileForm({ initial, onboarding = false, preview = false, onSaved }: {
-  initial: ProfileValues; onboarding?: boolean; preview?: boolean; onSaved?: () => void;
+export function ProfileForm({ initial, onboarding = false, onSaved }: {
+  initial: ProfileValues; onboarding?: boolean; onSaved?: () => void;
 }) {
   const [values, setValues] = useState(initial);
   const [saving, setSaving] = useState(false);
@@ -52,7 +52,7 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
   }
 
   async function save() {
-    if (preview || disabled) return;
+    if (disabled) return;
     if (!values.name.trim() || !values.school.trim() || (!values.senderProfile.trim() && !values.resumeContext.trim())) {
       setFailed(true); setStatus('Add your name, school or affiliation, and either a short background or a resume.'); return;
     }
@@ -130,7 +130,7 @@ export function ProfileForm({ initial, onboarding = false, preview = false, onSa
       <Separator />
       <footer className="flex flex-col gap-4 pt-2">
         {status && <Alert status={failed ? 'danger' : 'success'}><Alert.Indicator /><Alert.Content><Alert.Description>{status}</Alert.Description></Alert.Content></Alert>}
-        <div className="flex justify-end"><Button type="submit" variant="primary" isPending={saving} isDisabled={preview || disabled}>{onboarding ? 'Continue to dashboard' : 'Save changes'}</Button></div>
+        <div className="flex justify-end"><Button type="submit" variant="primary" isPending={saving} isDisabled={disabled}>{onboarding ? 'Continue to dashboard' : 'Save changes'}</Button></div>
       </footer>
   </Form>;
 }

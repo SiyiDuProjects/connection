@@ -2,11 +2,11 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
-import { activityLogs, ActivityType, apiIdempotencyKeys, contactEmailUnlocks, emailVerificationTokens, extensionApiTokens, passwordResetTokens, teamMembers, users, userSettings } from '@/lib/db/schema';
+import { activityLogs, ActivityType, apiIdempotencyKeys, contactEmailUnlocks, emailVerificationTokens, extensionApiTokens, passwordResetTokens, users, userSettings } from '@/lib/db/schema';
 
 // Recheck the credential under the same user lock as password recovery before
 // billing cancellation. Local deletion steps then commit or roll back together.
-export async function deleteAccountData(userId: number, teamId: number | null | undefined,
+export async function deleteAccountData(userId: number,
   expected: { sessionVersion: number; passwordHash: string }, beforeDelete?: () => Promise<void>) {
   return db.transaction(async tx => {
     const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update');
@@ -21,12 +21,11 @@ export async function deleteAccountData(userId: number, teamId: number | null | 
     await tx.delete(userSettings).where(eq(userSettings.userId, userId));
     await tx.delete(apiIdempotencyKeys).where(eq(apiIdempotencyKeys.userId, userId));
     await tx.delete(contactEmailUnlocks).where(eq(contactEmailUnlocks.userId, userId));
-    if (teamId != null) await tx.insert(activityLogs).values({ teamId, userId, action: ActivityType.DELETE_ACCOUNT, ipAddress: '' });
+    await tx.insert(activityLogs).values({ userId, action: ActivityType.DELETE_ACCOUNT, ipAddress: '' });
     await tx.update(users).set({
       deletedAt: now, updatedAt: now, name: null, emailVerifiedAt: null,
       email: `deleted-${userId}-${randomUUID()}@deleted.invalid`, passwordHash: '!deleted-account'
     }).where(eq(users.id, userId));
-    await tx.delete(teamMembers).where(eq(teamMembers.userId, userId));
     return true;
   });
 }

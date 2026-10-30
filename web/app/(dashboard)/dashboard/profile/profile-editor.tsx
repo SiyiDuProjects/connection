@@ -14,17 +14,17 @@ const fetcher = async (url: string) => {
 };
 const empty: ProfileValues = { name: '', school: '', region: '', senderProfile: '', resumeContext: '', resumeFileName: '', resumeUploadedAt: '', emailTone: 'warm', outreachLength: 'concise', outreachGoal: 'advice', outreachStyleNotes: '', defaultSearchPreferences: {} };
 
-export default function ProfileEditor({ preview = false }: { preview?: boolean }) {
-  const { data, error, mutate } = useSWR(preview ? null : '/api/account', fetcher);
+export default function ProfileEditor() {
+  const { data, error, mutate } = useSWR('/api/account', fetcher);
   const refresh = async () => { try { await mutate(); } catch { /* SWR exposes the failure through error. */ } };
   if (error && !data) return <ProfileLoadError error={error} onRetry={refresh} />;
-  if (!preview && !data) return <div className="flex justify-center p-12"><Spinner aria-label="Loading profile" /></div>;
+  if (!data) return <div className="flex justify-center p-12"><Spinner aria-label="Loading profile" /></div>;
   const settings = data?.settings;
   const initial = Object.fromEntries(Object.entries({ ...empty, ...settings, name: data?.user.name || '' }).map(([key, value]) => [key, value ?? empty[key as keyof ProfileValues]])) as ProfileValues;
   return <section className="mx-auto w-full max-w-5xl space-y-4 px-5 pb-10 pt-4">
     <div><p className="text-sm text-muted">Your background and preferences for more personal outreach.</p></div>
     {error && <ProfileLoadError error={error} onRetry={refresh} hasDraft />}
-    <ProfileForm key={data?.user.id ?? 'preview'} initial={initial} preview={preview} onSaved={refresh} />
+    <ProfileForm key={data?.user.id} initial={initial} onSaved={refresh} />
   </section>;
 }
 

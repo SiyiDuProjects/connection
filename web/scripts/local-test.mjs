@@ -30,7 +30,7 @@ Object.assign(env, {
   AUTH_SECRET: randomBytes(48).toString('hex'), BASE_URL: 'http://127.0.0.1:3000',
   WEB_BASE_URL: 'http://127.0.0.1:3000', NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:3000',
   REACHARD_PREVIEW_DIST_DIR: '.next-local-test', HOST: '127.0.0.1', PORT: '3000',
-  CONTACT_PROVIDER: 'mock', APOLLO_MOCK: 'true', OPENAI_API_KEY: '', TREG_TOKEN: '',
+  CONTACT_PROVIDER: 'mock', OPENAI_API_KEY: '', TREG_TOKEN: '',
   RESEND_API_KEY: '', EMAIL_FROM: '', STRIPE_SECRET_KEY: 'sk_test_local_disabled',
   EXTENSION_ID: '', CHROME_EXTENSION_ID: '', ALLOWED_EXTENSION_IDS: '',
   ALLOW_ANY_EXTENSION_ID: 'true', ALLOWED_ORIGINS: 'http://127.0.0.1:3000,http://localhost:3000',

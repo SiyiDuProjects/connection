@@ -46,11 +46,43 @@ needed. Set production extension IDs/origins to the existing published IDs.
 The image sets `REACHARD_CONTACTS_ENABLED=1`; leave it disabled on Vercel while
 that service is retained as the website rollback target.
 
-The current schema must include migration `0020_idempotency_request_hash`.
-This consolidation itself adds no database migration. For future schema changes,
-back up the database and apply backward-compatible migrations before activation;
-health checks reject missing account/billing schema. Atomic charges, unique
-constraints, advisory locks and idempotency remain in PostgreSQL.
+The current personal-account schema ends at `0022_retire_team_model`. Database
+changes are separate from activation. Never rewrite already-applied migrations.
+
+## Personal-account migration
+
+1. Make a private full database dump and confirm its archive can be read. Save
+   the running image, environment and aggregate account/ledger invariants.
+2. From the reviewed checkout, run `node scripts/migrate-db.mjs --status`, then
+   `--through 0021_personal_billing_accounts` with the production environment.
+   This renames the billing table, preserves every ID and Stripe association,
+   backfills the unique owner, and changes entitlement reads. Temporary views
+   and triggers keep the previous image and new signup paths compatible. Any
+   ambiguous ownership or remaining invitation aborts the whole transaction.
+   If status reports the verified historical `0010_friend_invite_rewards` gap,
+   first run `--repair-missing 0010_friend_invite_rewards`. This fills the missing
+   schema/history entry and refuses duplicate referral attribution. It creates
+   no rewards or Stripe balance transactions. Other gaps require separate review.
+3. Stage and activate the tested image normally. Verify public routes and the
+   personal-account schema before continuing.
+4. Run `node scripts/migrate-db.mjs --through 0022_retire_team_model` from that
+   image. This removes compatibility views/triggers, membership/invitation tables,
+   and unused role/name/team columns. It retains activity, ledger, unlock and
+   referral records. Verify the same account/billing invariants again.
+
+The image includes the migration CLI and SQL under `/app`. To run it without
+starting the web process, use `docker run --rm --env-file /opt/reachard/runtime.env
+--entrypoint node reachard:COMMIT_SHA scripts/migrate-db.mjs --status` (join these
+lines). Replace `--status` only with the explicit `--through` target above.
+The CLI checks migration hashes, serializes migration runs and commits atomically;
+it never prints configuration or row values.
+
+Before reverting to an image from before the personal-account migration **after
+0022**, run `deploy/restore-billing-compat.sql` in a transaction. This recreates
+only compatibility objects and preserves new users and billing writes. Do not
+restore an old database dump over newer purchases. Then restore the previous
+image/environment and verify health. This reverse path is covered by a migration
+test and allows 0022 to be reapplied after retrying the release.
 
 ## Build, stage and activate
 
@@ -61,12 +93,10 @@ runtime files travel directly to the VPS over SSH, never through a public
 artifact or registry. See `web/docs/cloud-build.md`.
 
 The workflow uses the existing `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_KEY`
-secrets and the current repository's `HEROUI_KEY`. A push to
-`codex/nextjs-vps`, or a manual run with activation off, prepares the image and
-stages it if the private runtime configuration exists. A main-branch push
+secrets and the current repository's `HEROUI_KEY`. A manual run with activation off prepares the image and stages it if the
+private runtime configuration exists. A main-branch push
 activates only after validation and candidate checks pass. Manual activation
-is allowed only on main. Never merge until configuration and initial hostname
-cutover preparations are complete.
+is allowed only on main. Apply the compatible migration before merging a release that requires it.
 
 For a prepared image, run as root on the VPS:
 
@@ -80,42 +110,35 @@ starts `reachard_candidate` on loopback port 18787, checks database/provider
 readiness, homepage and sign-in, then removes it. It does not switch traffic.
 Activation saves private recovery files under `/opt/reachard/backups/`, stops
 the old container with a 90-second grace period, recreates the unified runtime,
-and checks health. Failure restores the old image and running environment, or
-restarts the retained legacy container. Shared Compose marks
-`connection_contacts` with the `legacy-reachard` profile to prevent accidental
-restart alongside the new port owner. Other services are not changed.
+and checks health. Failure restores the old image and running environment, using the previous unified image. Deployments require an existing Reachard
+release as their rollback target and never edit shared Compose services.
 
-## First hostname cutover
+## Public routing and acceptance
 
-1. Save the current Cloudflare DNS records, tunnel ingress configuration and
-   Vercel Production deployment URL. Confirm the new private config preserves
-   existing account sessions, payment and email settings.
-2. Stage and activate the unified runtime while retaining the contacts hostname.
-3. Update the existing tunnel's ingress for `reachard.co` and `www.reachard.co`
-   to `http://127.0.0.1:8787`, preserving all unrelated tunnel routes. Update
-   only the website's DNS records to that tunnel. Keep contacts routing intact.
-4. Check both public hosts: `/health`, `/live`, homepage/sign-in/pricing,
-   protected-account 401 behavior, extension CORS preflight, old connection
-   redirects and release revision. Confirm cookie sessions and webhook endpoint
-   routing. A malformed Stripe webhook must be rejected, never granted benefits.
-5. Retain the previous Vercel deployment, legacy container/image, DNS records and
-   private backups until the migration is accepted. A provider fixture pass is
-   not proof of live paid-provider behavior; paid calls need explicit approval.
+Cloudflare Tunnel routes `reachard.co`, `www.reachard.co` and
+`contacts.reachard.co` to this VPS. Website `www` requests redirect to the apex.
+No deployment needs to alter DNS or unrelated tunnel routes.
 
-Hostname changes require Cloudflare management access. A tunnel runtime token
-alone does not grant DNS/ingress management. Website configuration must be
-recovered from its existing authorized store; never substitute fake credentials.
+Check both public hosts: `/health`, `/live`, homepage/sign-in/pricing, account
+401 behavior, extension CORS preflight, connection redirects and release
+revision. An invalid Stripe webhook must be rejected. Do not use paid provider
+calls, real payments or delivered emails as routine release tests.
 
 ## Rollback
 
 `/opt/reachard/last-rollback-path` identifies the private pre-activation snapshot.
-Automatic rollback applies when activation fails. For a later rollback, first
-restore website DNS/ingress to the saved Vercel target if returning to the split
-architecture. Then stop/remove only `reachard`, restore the saved shared Compose
-file and restart policy, and start the retained `connection_contacts` container.
-For an earlier unified release, use its saved image, environment and Compose
-configuration. Verify `/health` locally and publicly before closing the incident.
-Never run `docker compose down` on the shared host or remove unrelated services.
+Automatic rollback applies when activation fails. For a later rollback, use the
+saved image, environment and Compose configuration, observing the schema
+compatibility step above if 0022 has already been applied. Verify `/health`
+locally and publicly. Never run `docker compose down` on the shared host.
+
+Historical split-service containers, Vercel deployments and backups remain
+private recovery assets; they are not part of the active deployment workflow.
+The GitHub repository and old Vercel project retain their external `connection`
+identifier. Renaming those external resources is independent of application
+branding and is unnecessary for this release. Existing `fc_` extension tokens
+remain valid by hash; newly issued tokens use `rd_`. Stripe's old
+`reachardTeamId` metadata is accepted only against the preserved billing ID.
 
 Official runtime references: [self-hosting](https://nextjs.org/docs/app/guides/self-hosting)
 and [standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output).

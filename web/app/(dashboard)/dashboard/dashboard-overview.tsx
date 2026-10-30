@@ -17,14 +17,14 @@ export async function fetchDashboardAccount(url: string): Promise<DashboardAccou
   return payload;
 }
 
-export function DashboardOverview({ preview = false }: { preview?: boolean }) {
-  const { data, error, isLoading, isValidating, mutate } = useSWR<DashboardAccount>(preview ? null : '/api/account', fetchDashboardAccount);
-  return <DashboardOverviewContent account={data} preview={preview}
+export function DashboardOverview() {
+  const { data, error, isLoading, isValidating, mutate } = useSWR<DashboardAccount>('/api/account', fetchDashboardAccount);
+  return <DashboardOverviewContent account={data}
     error={error?.message} loading={isLoading} refreshing={isValidating} onRefresh={() => void mutate()} />;
 }
 
-export function DashboardOverviewContent({ account, preview, error, loading, refreshing, onRefresh }: {
-  account?: DashboardAccount; preview?: boolean; error?: string;
+export function DashboardOverviewContent({ account, error, loading, refreshing, onRefresh }: {
+  account?: DashboardAccount; error?: string;
   loading?: boolean; refreshing?: boolean; onRefresh?: () => void;
 }) {
   const [filter, setFilter] = useState('all');
@@ -44,12 +44,12 @@ export function DashboardOverviewContent({ account, preview, error, loading, ref
     { id: 'createdAt', header: 'Date', allowsSorting: true, minWidth: 160, cell: row => Number.isFinite(Date.parse(row.createdAt)) ? new Date(row.createdAt).toLocaleString() : '—' }
   ], []);
   return <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 pb-10 pt-4">
-    {preview ? <p className="text-xs text-muted">{BRAND_NAME} preview · <Link href="/sign-in" className="text-accent underline">Sign in</Link> to load your account.</p> : null}
+
     {error ? <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Description>{error}</Alert.Description></Alert.Content></Alert> : null}
     {account?.trial ? <Alert><Alert.Indicator /><Alert.Content><Alert.Title>{account.trial.remaining > 0 ? `${account.trial.remaining} of 3 free email unlocks remaining` : 'Your free email unlocks have been used'}</Alert.Title><Alert.Description>No card required. You will only be charged if you choose a paid plan. <Link href="/pricing" className="underline">View plans</Link></Alert.Description></Alert.Content></Alert> : null}
     <div className="flex items-start justify-between gap-3">
       <div><h2 className="text-base font-semibold">Recent activity</h2><p className="mt-1 text-sm text-muted">Your latest 10 searches, email reveals and drafts.</p></div>
-      <Tooltip><Button isIconOnly size="sm" variant="tertiary" aria-label="Refresh activity" isDisabled={preview || refreshing} onPress={onRefresh}><ArrowsRotateLeft className="size-4" /></Button><Tooltip.Content>Refresh activity</Tooltip.Content></Tooltip>
+      <Tooltip><Button isIconOnly size="sm" variant="tertiary" aria-label="Refresh activity" isDisabled={refreshing} onPress={onRefresh}><ArrowsRotateLeft className="size-4" /></Button><Tooltip.Content>Refresh activity</Tooltip.Content></Tooltip>
     </div>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <Tabs selectedKey={filter} onSelectionChange={key => setFilter(String(key))}><Tabs.ListContainer><Tabs.List aria-label="Activity filter">
@@ -57,6 +57,6 @@ export function DashboardOverviewContent({ account, preview, error, loading, ref
       </Tabs.List></Tabs.ListContainer></Tabs>
       <SearchField aria-label="Search activity" className="w-full sm:w-60" value={search} onChange={setSearch}><SearchField.Group><SearchField.SearchIcon /><SearchField.Input placeholder="Company, role or activity…" /><SearchField.ClearButton /></SearchField.Group></SearchField>
     </div>
-    {loading ? <div className="flex justify-center py-10"><Spinner aria-label="Loading activity" /></div> : rows.length ? <DataGrid aria-label="Outreach history" columns={columns} contentClassName="min-w-[640px]" data={rows} getRowId={row => String(row.id)} sortDescriptor={sort} onSortChange={setSort} /> : !error ? <EmptyState><EmptyState.Header><EmptyState.Title>{search || filter !== 'all' ? 'No matching activity' : 'Prepare your first message'}</EmptyState.Title><EmptyState.Description>{preview ? 'Sign in to see your own activity.' : search || filter !== 'all' ? 'Try another search or switch to All.' : `Open a job or company page in desktop Chrome, then open ${BRAND_NAME} to find people and prepare a draft.`}</EmptyState.Description></EmptyState.Header><EmptyState.Content>{search || filter !== 'all' ? <Button variant="secondary" onPress={() => { setSearch(''); setFilter('all'); }}>Clear filters</Button> : <><ExtensionNextStep /><Link href="/getting-started" className="text-sm text-accent underline">How to prepare your first draft</Link></>}</EmptyState.Content></EmptyState> : null}
+    {loading ? <div className="flex justify-center py-10"><Spinner aria-label="Loading activity" /></div> : rows.length ? <DataGrid aria-label="Outreach history" columns={columns} contentClassName="min-w-[640px]" data={rows} getRowId={row => String(row.id)} sortDescriptor={sort} onSortChange={setSort} /> : !error ? <EmptyState><EmptyState.Header><EmptyState.Title>{search || filter !== 'all' ? 'No matching activity' : 'Prepare your first message'}</EmptyState.Title><EmptyState.Description>{search || filter !== 'all' ? 'Try another search or switch to All.' : `Open a job or company page in desktop Chrome, then open ${BRAND_NAME} to find people and prepare a draft.`}</EmptyState.Description></EmptyState.Header><EmptyState.Content>{search || filter !== 'all' ? <Button variant="secondary" onPress={() => { setSearch(''); setFilter('all'); }}>Clear filters</Button> : <><ExtensionNextStep /><Link href="/getting-started" className="text-sm text-accent underline">How to prepare your first draft</Link></>}</EmptyState.Content></EmptyState> : null}
   </div>;
 }

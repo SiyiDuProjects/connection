@@ -71,7 +71,7 @@ const age = userId => pg.query("UPDATE password_reset_tokens SET created_at=now(
 before(async () => {
   await pg.exec(`SET TIME ZONE 'UTC';
     CREATE TABLE users (id serial PRIMARY KEY, name varchar(100), email varchar(255) NOT NULL UNIQUE, email_verified_at timestamp,
-      password_hash text NOT NULL, role varchar(20) NOT NULL DEFAULT 'member', created_at timestamp NOT NULL DEFAULT now(),
+      password_hash text NOT NULL, created_at timestamp NOT NULL DEFAULT now(),
       updated_at timestamp NOT NULL DEFAULT now(), deleted_at timestamp);
     CREATE TABLE extension_api_tokens (id serial PRIMARY KEY, user_id integer NOT NULL REFERENCES users(id), token_hash text UNIQUE, name text DEFAULT 'Chrome extension',
       created_at timestamp DEFAULT now(), last_used_at timestamp, revoked_at timestamp);
@@ -79,8 +79,8 @@ before(async () => {
       expires_at timestamp, created_at timestamp DEFAULT now(), used_at timestamp);
     CREATE TABLE user_settings (id serial PRIMARY KEY, user_id integer);
     CREATE TABLE api_idempotency_keys (id serial PRIMARY KEY, user_id integer);
-    CREATE TABLE team_members (id serial PRIMARY KEY, user_id integer);
-    CREATE TABLE activity_logs (id serial PRIMARY KEY, team_id integer, user_id integer, action text, ip_address text, timestamp timestamp DEFAULT now());`);
+
+    CREATE TABLE activity_logs (id serial PRIMARY KEY, user_id integer, action text, ip_address text, timestamp timestamp DEFAULT now());`);
   await pg.exec(readFileSync(resolve(root, 'lib/db/migrations/0015_password_recovery.sql'), 'utf8'));
 });
 beforeEach(() => {
@@ -284,6 +284,7 @@ test('URL origin and sender validation reject attacker domains and header inject
 test('the shared bearer verifier rejects unverified, revoked and deleted users for every adapter', async () => {
   const u=await user();
   const issued=await tokens.createExtensionToken(u.id,u.session_version);
+  assert.match(issued.token, /^rd_/);
   assert.ok(issued);
   const request=new Request('https://reachard.co/api/settings/custom',{headers:{authorization:`Bearer ${issued.token}`}});
   assert.equal((await tokens.getUserFromExtensionToken(issued.token)).id,u.id);
