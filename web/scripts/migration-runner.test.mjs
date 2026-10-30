@@ -20,8 +20,10 @@ test('production migration CLI uses real Postgres protocol, preserves history, a
     for (const entry of journal.filter(entry => entry.idx <= 20)) {
       const sql = await readFile(new URL(entry.tag + '.sql', folder), 'utf8');
       await db.exec(sql);
+      const lf = sql.replace(/\r\n/g,'\n');
+      const appliedBytes = entry.idx % 2 ? lf : lf.replace(/\n/g,'\r\n');
       await db.query('insert into drizzle.__drizzle_migrations(hash,created_at) values($1,$2)',
-        [createHash('sha256').update(sql).digest('hex'), entry.when]);
+        [createHash('sha256').update(appliedBytes).digest('hex'), entry.when]);
     }
     await socket.start();
     const run = (...args) => promisify(execFile)(process.execPath,

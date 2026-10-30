@@ -14,7 +14,11 @@ const folder = new URL('../lib/db/migrations/', import.meta.url);
 const journal = JSON.parse(await readFile(new URL('meta/_journal.json', folder), 'utf8')).entries;
 const migrations = await Promise.all(journal.map(async entry => {
   const sql = await readFile(new URL(`${entry.tag}.sql`, folder), 'utf8');
-  return { ...entry, sql, hash: createHash('sha256').update(sql).digest('hex') };
+  const hash = value => createHash('sha256').update(value).digest('hex');
+  // Historical Drizzle runs on Windows and macOS hashed different line endings.
+  // Accept only the same SQL bytes with LF/CRLF conversion, never arbitrary drift.
+  const lf = sql.replace(/\r\n/g, '\n');
+  return { ...entry, sql, hash: hash(sql), hashes: [hash(sql), hash(lf), hash(lf.replace(/\n/g, '\r\n'))] };
 }));
 const through = statusOnly ? Infinity : migrations.find(entry => entry.tag === args[1])?.when;
 if (!through) throw new Error('Unknown migration target');
@@ -26,7 +30,7 @@ try {
     await tx`set local statement_timeout = '60s'`;
     const applied = await tx`select hash,created_at from drizzle.__drizzle_migrations order by created_at`;
     for (const entry of applied) {
-      if (!migrations.some(m => m.when === Number(entry.created_at) && m.hash === entry.hash)) {
+      if (!migrations.some(m => m.when === Number(entry.created_at) && m.hashes.includes(entry.hash))) {
         throw new Error('Database migration history does not match this checkout');
       }
     }
