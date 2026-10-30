@@ -3,6 +3,15 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   output: 'standalone',
   distDir: process.env.REACHARD_PREVIEW_DIST_DIR || '.next',
+  async redirects() {
+    // Vercel previously owned this domain redirect; preserve it when self-hosted.
+    return [{
+      source: '/:path*',
+      has: [{ type: 'host', value: 'www.reachard.co' }],
+      destination: 'https://reachard.co/:path*',
+      permanent: true
+    }];
+  },
   async headers() {
     return [{ source: '/:path*', headers: [
       { key: 'X-Frame-Options', value: 'DENY' },

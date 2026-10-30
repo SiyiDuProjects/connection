@@ -9,6 +9,8 @@ rate limits and circuit breakers remain shared. Do not scale to multiple
 instances without moving those admission controls to a shared coordinator.
 
 The runtime binds to `127.0.0.1:8787` behind the existing Cloudflare Tunnel.
+The app preserves the existing permanent `www.reachard.co` redirect to
+`reachard.co`, including paths and query strings, without relying on Vercel.
 The shared VPS uses a 512 MiB memory limit (768 MiB including swap) per candidate
 and release container. Check observed usage before increasing limits or adding
 instances. Builds run on GitHub, not on the shared VPS.

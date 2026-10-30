@@ -79,6 +79,12 @@ try {
       assert.equal(location.origin,'https://reachard.co',route+' redirects to '+location.href);assert.equal(location.pathname,target);
     }
   });
+  await check('www canonical redirect preserves paths, queries and request methods',async()=>{
+    for (const [route,method] of [['/','GET'],['/pricing?plan=base','GET'],['/api/account?source=legacy','POST']]) {
+      const res=await request(route,{method,headers:{host:'www.reachard.co'},redirect:'manual'});
+      assert.equal(res.status,308);assert.equal(new URL(res.headers.get('location')).href,new URL(route,'https://reachard.co').href);
+    }
+  });
   await check('legacy hostname and explicit account endpoint require extension authentication',async()=>{
     const res=await request('/api/account',{headers:{host:'contacts.reachard.co'}});assert.equal(res.status,401);
     assert.ok((await res.json()).action.url.endsWith('/connect-extension'));
