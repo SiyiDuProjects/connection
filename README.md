@@ -1,6 +1,6 @@
 # Reachard
 
-Chrome Extension + Express API + Next.js SaaS app for finding relevant company contacts from job pages, company sites, and public professional profiles.
+Chrome extension + one Next.js application for finding relevant company contacts from job pages, company sites, and public professional profiles.
 
 ## Current Website and Local Preview
 
@@ -20,9 +20,10 @@ Retired design checkouts and recovery copies belong in `.archive/` and are not d
 ## Structure
 
 - `extension/`: Manifest V3 Chrome extension for supported job, company, and public professional-profile pages.
-- `server/`: Express API that keeps provider credentials private and enforces membership and included usage.
-- `web/`: Reachard web app with auth, Stripe billing, account activity, profile/preferences, and extension tokens.
-- `brand/`: one display-name configuration and icon master; generated web/server/extension bridges keep presentation consistent.
+- `web/`: Next.js website and API, with auth, Stripe billing, profiles, extension tokens and contact operations.
+- `web/lib/contacts/`: framework-independent provider operations, billing transactions and traffic controls.
+- `deploy/`: single-instance VPS deployment, candidate checks and rollback.
+- `brand/`: one display-name configuration and icon master; generated web/API/extension bridges keep presentation consistent.
 
 The app uses a Postgres + Drizzle + cookie auth stack. It does not use Supabase.
 
@@ -74,13 +75,9 @@ APP_URL=http://localhost:3000
 AUTH_SECRET=generate-a-long-random-secret
 EMAIL_FROM="Reachard <noreply@yourdomain.com>"
 RESEND_API_KEY=re_...
-BASE_MONTHLY_CREDITS=20
-PLUS_MONTHLY_CREDITS=60
 STRIPE_BASE_PRICE_ID=price_...
 STRIPE_PLUS_PRICE_ID=price_...
 NEXT_PUBLIC_CHROME_STORE_URL=
-RAPIDAPI_KEY=your-rapidapi-key
-RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
 ```
 
 Account creation and email recovery require a configured Resend sender and API key. Missing delivery configuration stops those operations; codes and links are never printed as a delivery fallback. Public page previews still work without credentials.
@@ -113,42 +110,34 @@ To try a different image without editing CSS, run one of:
 
 The script copies the source image into the fixed public path and leaves the source file in place. In local dev, refresh the browser to preview; run a full build/screenshot only after choosing the final image.
 
-## Local Server
+## Contact API
 
-macOS/Linux:
-
-```bash
-cd server
-cp .env.example .env
-npm install
-npm run dev
-```
-
-Windows PowerShell:
-
-```powershell
-cd server
-copy .env.example .env
-npm install
-npm run dev
-```
-
-Set `POSTGRES_URL` to the same database used by `web/`, then configure Treg in `server/.env`. The production contact pipeline uses Treg's Icypeas route for current-company people search and Treg's Apollo route for on-demand verified work-email reveal:
+The website and extension API run in the same Next.js Node process. Enable the
+API with `REACHARD_CONTACTS_ENABLED=1` and configure Treg in `web/.env`:
 
 ```env
-POSTGRES_URL=postgresql://...
 CONTACT_PROVIDER=treg
 TREG_TOKEN=your-treg-token
 TREG_BASE_URL=https://treg.to
 TREG_SEARCH_ENDPOINT=icypeas.people.search
 TREG_EMAIL_ENDPOINT=apollo.people.enrich
-CONTACT_SEARCH_CREDITS=0
-CONTACT_REVEAL_CREDITS=1
-EMAIL_DRAFT_CREDITS=0
+APOLLO_MOCK=false
 BETA_UNLIMITED_USAGE=false
 ```
 
-Membership enforcement defaults to enabled. Set `BETA_UNLIMITED_USAGE=false` explicitly in both deployments for launch. A separately authorized private beta can explicitly enable the bypass; provider costs still accrue. Search and drafts use zero app credits, while a verified work-email reveal uses one. The reveal uses the candidate's LinkedIn URL first and falls back to name plus company domain when needed.
+Search and drafts use zero app credits; a successfully verified work-email
+reveal uses one. PostgreSQL transactions still own entitlement revalidation,
+idempotency and charging. The shared token verifier requires a verified,
+undeleted account and an unrevoked token. One database pool serves both the
+website and contact operations.
+
+For disposable, offline account and extension testing, run `pnpm test:local`
+from `web/`. It starts one Next.js app on port 3000 with an in-memory database
+and mock contact providers. No production database or paid provider is used.
+
+Run provider, timeout, billing and admission fixtures with `pnpm test:contacts`
+from `web/`. The deployment workflow also requires the website and extension
+checks in `.github/workflows/validate.yml` before building the release image.
 
 ## Production Access
 
@@ -163,9 +152,13 @@ Resolve production SSH access from the current host configuration. Project-speci
 5. Sign in on the Reachard website to connect the extension.
 6. Open a supported job, company, or LinkedIn profile page.
 
-The extension defaults to `https://contacts.reachard.co`. For local or staging use, the website supplies the API URL during connection through `NEXT_PUBLIC_API_BASE_URL` (localhost defaults to `http://localhost:8787`).
+The extension defaults to `https://contacts.reachard.co`. For local or staging use, the website supplies the API URL during connection through `NEXT_PUBLIC_API_BASE_URL` (local development uses the same Next.js origin on port 3000).
 
-During private beta, `ALLOW_ANY_EXTENSION_ID` defaults to enabled so unpacked builds with different valid Chrome extension IDs can connect after the user signs in. Before public launch, set `ALLOW_ANY_EXTENSION_ID=false` and set `ALLOWED_EXTENSION_IDS` to the final Chrome Web Store ID. Keep `NEXT_PUBLIC_CHROME_STORE_URL` empty during private beta; the website then links to setup instructions and beta access. After publication, set it to the verified Chrome Web Store listing URL.
+The extension is published. Preserve `contacts.reachard.co` and the existing
+API paths for installed versions during migration. Production uses the existing
+Chrome Store ID and explicit extension allowlists; retain any authorized local
+development IDs when updating them. `NEXT_PUBLIC_CHROME_STORE_URL` must keep the
+published listing URL from the existing website configuration.
 
 ## Brand and launch package
 

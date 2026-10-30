@@ -1,212 +1,121 @@
-# CI/CD Deployment
+# Unified Next.js deployment
 
-This repo includes a GitHub Actions workflow that deploys only the `server/` folder to the VPS and rebuilds the existing Docker Compose service.
+## Architecture and compatibility
 
-The Next.js SaaS app in `web/` is separate. Deploy it with Vercel or add a second VPS service/workflow.
+`web/` contains the website and native Next.js Route Handlers for search, email
+reveal, drafts and extension account access. Express is removed. One Node 22
+process runs on the existing VPS (`49.51.38.235`) so process-wide concurrency,
+rate limits and circuit breakers remain shared. Do not scale to multiple
+instances without moving those admission controls to a shared coordinator.
 
-## What It Does
+The runtime binds to `127.0.0.1:8787` behind the existing Cloudflare Tunnel.
+The app preserves the existing permanent `www.reachard.co` redirect to
+`reachard.co`, including paths and query strings, without relying on Vercel.
+The shared VPS uses a 512 MiB memory limit (768 MiB including swap) per candidate
+and release container. Check observed usage before increasing limits or adding
+instances. Builds run on GitHub, not on the shared VPS.
+Keep both `reachard.co` and `contacts.reachard.co`. Installed extensions can keep
+using their old URLs. `/api/account` selects the extension contract for Bearer
+authentication or the contacts hostname; cookie-authenticated website requests
+keep their existing contract. An explicit `/api/extension/account` is also
+available. Contacts-host pricing and connection links redirect to the website.
 
-On every push to `main` that changes `server/**` or `.github/workflows/deploy-server.yml`:
+`REACHARD_TRUST_CLOUDFLARE_PROXY=1` is safe only for this loopback-only ingress.
+It uses `CF-Connecting-IP` for unauthenticated limits and ignores arbitrary
+`X-Forwarded-For`. Other environments default to one anonymous bucket.
 
-```text
-GitHub Actions
--> npm ci
--> node --check server files
--> rsync server/ to VPS
--> docker compose up -d --build connection_contacts
--> curl public health URL
-```
+## Configuration and prerequisites
 
-The workflow does not upload `.env`, so production secrets stay on the server.
+The release container is `reachard`; its private environment is
+`/opt/reachard/runtime.env` (root-owned, mode 600). Combine the existing website
+Production settings with the existing contact provider settings using a secure
+transfer. Preserve `AUTH_SECRET`, Stripe keys, webhook signing secret, price
+IDs, mail sender, Resend key, extension allowlists, public store URL, database
+URL and all provider budgets. Never generate replacement signing keys as part
+of this move. Vercel, GitHub and Cloudflare secrets are separate stores.
 
-You can also run it manually from GitHub Actions with `workflow_dispatch`.
+The Docker env file uses literal `KEY=value` lines. Remove shell-style wrapping
+quotes when importing a Vercel dotenv export, and reject multiline values.
+Do not print the result. `deploy/check-runtime-env.py` reports only missing or
+invalid key names. It checks required website/provider settings and disables
+mock/beta billing in production. Keep any additional optional existing settings.
 
-## Required GitHub Secrets
+Keep `BASE_URL`, `APP_URL`, `WEB_BASE_URL` and public website/API build URLs at
+`https://reachard.co`. Add both public origins to the web CORS allowlist as
+needed. Set production extension IDs/origins to the existing published IDs.
+The image sets `REACHARD_CONTACTS_ENABLED=1`; leave it disabled on Vercel while
+that service is retained as the website rollback target.
 
-In GitHub organization or repository settings, add these Actions secrets. If they live at the organization level, make sure this repository is allowed to access them:
+The current schema must include migration `0020_idempotency_request_hash`.
+This consolidation itself adds no database migration. For future schema changes,
+back up the database and apply backward-compatible migrations before activation;
+health checks reject missing account/billing schema. Atomic charges, unique
+constraints, advisory locks and idempotency remain in PostgreSQL.
 
-```text
-SSH_HOST=your_server_ip_or_hostname
-SSH_PORT=22
-SSH_USER=your_deploy_user
-SSH_KEY=private SSH key for that deploy user
-DEPLOY_PATH=/opt/connection/server
-COMPOSE_PATH=/home/ubuntu/siyi
-PUBLIC_HEALTH_URL=https://contacts.reachard.co/health
-```
+## Build, stage and activate
 
-Adjust paths if your server uses a different user or project directory.
+`.github/workflows/deploy-next.yml` first runs the complete reusable validation
+workflow. It then builds the Node 22 Linux standalone image with the exact
+CollectUI beta.9 installation through a BuildKit `HEROUI_KEY` secret. Licensed
+runtime files travel directly to the VPS over SSH, never through a public
+artifact or registry. See `web/docs/cloud-build.md`.
 
-## One-Time VPS Setup
+The workflow uses the existing `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_KEY`
+secrets and the current repository's `HEROUI_KEY`. A push to
+`codex/nextjs-vps`, or a manual run with activation off, prepares the image and
+stages it if the private runtime configuration exists. A main-branch push
+activates only after validation and candidate checks pass. Manual activation
+is allowed only on main. Never merge until configuration and initial hostname
+cutover preparations are complete.
 
-Install Docker, create the deploy folder, and keep production env on the server:
-
-```bash
-sudo mkdir -p /opt/connection/server
-sudo chown -R deployer:deployer /opt/connection
-nano /opt/connection/server/.env
-```
-
-If your current Compose project lives in `/home/ubuntu/siyi`, make sure the Compose file contains this service:
-
-```yaml
-  connection_contacts:
-    build: /opt/connection/server
-    container_name: connection_contacts
-    restart: always
-    network_mode: "host"
-    env_file:
-      - /opt/connection/server/.env
-```
-
-Run the service once manually before relying on CI/CD:
-
-```bash
-cd /home/ubuntu/siyi
-sudo docker compose up -d --build connection_contacts
-sudo docker logs --tail=80 connection_contacts
-curl http://localhost:8787/health
-```
-
-## Server Requirements
-
-The server must already have:
-
-```text
-Docker
-Docker Compose
-cloudflared tunnel
-/home/ubuntu/siyi/docker-compose.yml with connection_contacts service
-/opt/connection/server/.env
-```
-
-Your production `.env` should contain:
-
-```env
-PORT=8787
-WEB_BASE_URL=https://reachard.co
-POSTGRES_URL=postgresql://...
-CONTACT_PROVIDER=treg
-APOLLO_MOCK=false
-TREG_TOKEN=your_treg_token
-TREG_BASE_URL=https://treg.to
-TREG_SEARCH_ENDPOINT=icypeas.people.search
-TREG_EMAIL_ENDPOINT=apollo.people.enrich
-EXTENSION_ORIGIN=
-GMAIL_SUBJECT_PREFIX=Quick question from a Berkeley student
-RATE_LIMIT_WINDOW_MS=60000
-RATE_LIMIT_MAX=60
-CONTACT_SEARCH_CREDITS=0
-CONTACT_REVEAL_CREDITS=1
-EMAIL_DRAFT_CREDITS=0
-BETA_UNLIMITED_USAGE=true
-```
-
-`POSTGRES_URL` must point to the same Neon database used by the `web/` app. Extension API tokens, Contact Kit ledger entries, settings, and usage logs live in that database.
-
-`BETA_UNLIMITED_USAGE=true` makes every authenticated user's search, reveal, and draft cost zero Contact Kits while preserving request and internal provider-cost logging. Set it to `false` to restore the configured credit prices.
-
-`WEB_BASE_URL` must point to the deployed Next.js web app, not the contacts API service. Production should be `https://reachard.co`; do not set this to Stripe or any other billing/provider domain. The API service redirects `/connect-extension` and `/pricing` there so older or default extension links do not show `Cannot GET`.
-
-## Web App Deployment
-
-Recommended first production path: deploy `web/` to Vercel.
-
-Use these Vercel settings:
-
-```text
-Root Directory: web
-Framework Preset: Next.js
-Install Command: corepack pnpm install
-Build Command: corepack pnpm build
-```
-
-Required Vercel environment variables:
-
-```env
-POSTGRES_URL=postgresql://...
-STRIPE_SECRET_KEY=sk_test_or_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-BASE_URL=https://reachard.co
-NEXT_PUBLIC_WEB_BASE_URL=https://reachard.co
-NEXT_PUBLIC_API_BASE_URL=https://contacts.reachard.co
-NEXT_PUBLIC_CHROME_STORE_URL=
-ALLOWED_EXTENSION_IDS=ojajfgpfdkmaiccoeffhbdbccefpbala
-ALLOW_ANY_EXTENSION_ID=true
-AUTH_SECRET=long-random-secret
-BASE_MONTHLY_CREDITS=20
-PLUS_MONTHLY_CREDITS=60
-STRIPE_BASE_PRICE_ID=price_...
-STRIPE_PLUS_PRICE_ID=price_...
-RAPIDAPI_KEY=your_rapidapi_key
-RAPIDAPI_PEOPLE_HOST=fresh-linkedin-scraper-api.p.rapidapi.com
-```
-
-Private beta accepts any syntactically valid Chrome extension ID while `ALLOW_ANY_EXTENSION_ID=true` (and this is the current default when unset). Login and account-scoped extension tokens are still required. Before publishing, set `ALLOW_ANY_EXTENSION_ID=false`; `ALLOWED_EXTENSION_IDS` is comma-separated and must include the final Chrome Web Store ID. Keep `NEXT_PUBLIC_CHROME_STORE_URL` empty during private beta; set it only after the listing URL is live and verified.
-
-The Neon schema has already been created once with `corepack pnpm db:migrate`. For future schema changes, run migrations before or during deployment:
+For a prepared image, run as root on the VPS:
 
 ```bash
-cd web
-corepack pnpm db:migrate
+bash /opt/reachard/deploy/activate.sh reachard:COMMIT_SHA stage
+bash /opt/reachard/deploy/activate.sh reachard:COMMIT_SHA activate
 ```
 
-You can make Vercel run migrations by changing the build command to:
+Replace `COMMIT_SHA` with the complete 40-character reviewed commit. Staging
+starts `reachard_candidate` on loopback port 18787, checks database/provider
+readiness, homepage and sign-in, then removes it. It does not switch traffic.
+Activation saves private recovery files under `/opt/reachard/backups/`, stops
+the old container with a 90-second grace period, recreates the unified runtime,
+and checks health. Failure restores the old image and running environment, or
+restarts the retained legacy container. Shared Compose marks
+`connection_contacts` with the `legacy-reachard` profile to prevent accidental
+restart alongside the new port owner. Other services are not changed.
 
-```text
-corepack pnpm db:migrate && corepack pnpm build
-```
+## First hostname cutover
 
-For production teams, a separate migration GitHub Action is cleaner than running migrations inside every web build.
+1. Save the current Cloudflare DNS records, tunnel ingress configuration and
+   Vercel Production deployment URL. Confirm the new private config preserves
+   existing account sessions, payment and email settings.
+2. Stage and activate the unified runtime while retaining the contacts hostname.
+3. Update the existing tunnel's ingress for `reachard.co` and `www.reachard.co`
+   to `http://127.0.0.1:8787`, preserving all unrelated tunnel routes. Update
+   only the website's DNS records to that tunnel. Keep contacts routing intact.
+4. Check both public hosts: `/health`, `/live`, homepage/sign-in/pricing,
+   protected-account 401 behavior, extension CORS preflight, old connection
+   redirects and release revision. Confirm cookie sessions and webhook endpoint
+   routing. A malformed Stripe webhook must be rejected, never granted benefits.
+5. Retain the previous Vercel deployment, legacy container/image, DNS records and
+   private backups until the migration is accepted. A provider fixture pass is
+   not proof of live paid-provider behavior; paid calls need explicit approval.
 
-### Security and request-safety fixes (2026-10-26)
+Hostname changes require Cloudflare management access. A tunnel runtime token
+alone does not grant DNS/ingress management. Website configuration must be
+recovered from its existing authorized store; never substitute fake credentials.
 
-Treat migration and application deployment as separate release steps. Back up the production database and preserve the current container image before applying the additive migration below.
+## Rollback
 
-Before deploying the updated contacts service, apply `0020_idempotency_request_hash` using the existing web migration runner. It adds a nullable request digest column without rewriting historical responses. The updated health check requires this column. Keep it when rolling back the application; the previous service ignores it.
+`/opt/reachard/last-rollback-path` identifies the private pre-activation snapshot.
+Automatic rollback applies when activation fails. For a later rollback, first
+restore website DNS/ingress to the saved Vercel target if returning to the split
+architecture. Then stop/remove only `reachard`, restore the saved shared Compose
+file and restart policy, and start the retained `connection_contacts` container.
+For an earlier unified release, use its saved image, environment and Compose
+configuration. Verify `/health` locally and publicly before closing the incident.
+Never run `docker compose down` on the shared host or remove unrelated services.
 
-New requests bind each idempotency key to a canonical SHA-256 digest of its JSON body. Different payloads return HTTP 409 without replaying old data or invoking a provider. Failed validation releases the processing state so the same payload can retry immediately. Historical rows without a digest cannot establish payload identity: they return `idempotency_unverifiable` without replay or paid work, and must be reconciled before repeating an uncertain operation. Never manufacture a digest from the old partial request summaries.
-
-Run `npm run test:http`, `npm run test:usage-guard`, and `npm run test:entitlements` as well as the existing provider fixtures before release. The HTTP tests use loopback only and cover compressed-body rejection and a stalled upstream body. Full web builds must still use the reviewed HeroUI Pro beta.9 distribution; do not bypass its version guard.
-
-
-## Deploy User
-
-Create a deploy user and add its SSH public key:
-
-```bash
-adduser deployer
-usermod -aG sudo deployer
-mkdir -p /home/deployer/.ssh
-nano /home/deployer/.ssh/authorized_keys
-chmod 700 /home/deployer/.ssh
-chmod 600 /home/deployer/.ssh/authorized_keys
-chown -R deployer:deployer /home/deployer/.ssh
-```
-
-If Docker requires sudo for this user, either add the user to the `docker` group:
-
-```bash
-usermod -aG docker deployer
-```
-
-Then log out and log back in as `deployer` so the new group membership is active.
-
-## Daily Deployment
-
-After the one-time setup:
-
-```bash
-git add server .github/workflows/deploy-server.yml DEPLOY_CICD.md
-git commit -m "Add contacts server CI/CD"
-git push origin main
-```
-
-The workflow will deploy automatically. Changes under `extension/**` or `web/**` alone do not trigger this server deployment.
-
-## Troubleshooting
-
-- If `Configure SSH` fails, check `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_KEY`, and the deploy user's `authorized_keys`.
-- If `Sync server files` fails, check `DEPLOY_PATH` permissions.
-- If `Rebuild container` fails, SSH into the VPS and run `docker compose config` inside `COMPOSE_PATH`.
-- If `Health check` fails, check `PUBLIC_HEALTH_URL`, Cloudflare Tunnel routing, and `sudo docker logs connection_contacts`.
+Official runtime references: [self-hosting](https://nextjs.org/docs/app/guides/self-hosting)
+and [standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output).

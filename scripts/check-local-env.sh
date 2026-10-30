@@ -49,12 +49,6 @@ else
   warn "web/.env is missing. Create it with: cp web/.env.example web/.env"
 fi
 
-if [ -f "$repo_root/server/.env" ]; then
-  ok "server/.env exists"
-else
-  warn "server/.env is missing. Create it with: cp server/.env.example server/.env"
-fi
-
 if [ -d "$repo_root/web/node_modules" ]; then
   ok "web/node_modules exists"
   if command -v node >/dev/null 2>&1; then
@@ -66,12 +60,6 @@ if [ -d "$repo_root/web/node_modules" ]; then
   fi
 else
   warn "web dependencies are missing. Run: cd web && corepack pnpm install"
-fi
-
-if [ -d "$repo_root/server/node_modules" ]; then
-  ok "server/node_modules exists"
-else
-  warn "server dependencies are missing. Run: cd server && npm install"
 fi
 
 echo

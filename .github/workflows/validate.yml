@@ -1,6 +1,10 @@
 name: Validate Reachard
 
 on:
+  workflow_call:
+    secrets:
+      HEROUI_KEY:
+        required: true
   pull_request:
   push:
     branches: ["main"]
@@ -9,36 +13,6 @@ permissions:
   contents: read
 
 jobs:
-  server:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: server/package-lock.json
-      - run: npm ci
-      - name: Check server and provider fixtures
-        run: |
-          find src -name '*.js' -print0 | xargs -0 -n1 node --check
-          npm run test:http
-          npm run test:hunter
-          npm run test:rapidapi
-          npm run test:treg
-          npm run test:search-quality
-          npm run test:country
-          npm run test:usage-guard
-          npm run test:entitlements
-          npm run test:spend-budget
-          npm run test:email
-          npm run test:intelligence
-          npm run test:intelligence:large
-          node src/lib/contact-photo.test-fixtures.js
-
   extension:
     runs-on: ubuntu-latest
     steps:
@@ -46,6 +20,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Verify deployment rollback
+        run: python3 -m unittest discover -s deploy -p "test_*.py"
       - name: Check extension JavaScript
         run: |
           node scripts/sync-brand.mjs --check
@@ -74,7 +50,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 10.34.6
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -86,12 +62,7 @@ jobs:
         run: node scripts/install-reviewed-pro.mjs
       - run: node scripts/check-pro-install.mjs
       - run: node scripts/check-ui-boundaries.mjs
-      - run: pnpm test:billing
-      - run: pnpm test:email
-      - run: pnpm test:password-reset
-      - run: node --test scripts/auth-session.test.mjs scripts/extension-sync.test.mjs
-      - run: node --test --test-concurrency=1 scripts/free-trial.test.mjs scripts/auth-rate-limit.test.mjs scripts/launch-audit.test.cjs
-      - run: node --test scripts/dashboard.test.mjs
-      - run: node --test scripts/account-security.test.cjs
-      - run: pnpm test:settings
+      - run: pnpm test:contacts
+      - run: node --test --test-concurrency=1 scripts/*.test.mjs scripts/*.test.cjs
       - run: pnpm build
+      - run: node scripts/verify-unified-runtime.mjs

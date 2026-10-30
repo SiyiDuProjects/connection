@@ -1,0 +1,14 @@
+**/node_modules
+**/.next*
+**/.env
+**/.env.*
+**/.npmrc
+**/*.pem
+**/*.key
+.git
+.archive
+output
+artifacts
+design
+web/components/heroui-dashboard-template
+web/app/template-preview

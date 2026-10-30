@@ -62,3 +62,12 @@ When changing the brand, run `node scripts/sync-brand.mjs` from the repository
 root and include all generated changes in the release.
 
 Reference: https://docs.collectui.pro/hpsetup/usage
+
+## Unified VPS image
+
+The unified workflow runs validation before building `web/Dockerfile`. BuildKit
+passes `HEROUI_KEY` only to the reviewed installer step. The runtime copies
+Next.js standalone output, static files and public assets, then runs as the
+unprivileged Node user. The image is transferred directly over SSH; do not push
+it to a public registry or upload licensed components as public CI artifacts.
+Vercel remains a rollback target until DNS and tunnel cutover is verified.

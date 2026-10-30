@@ -8,7 +8,7 @@ import ts from 'typescript';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import Stripe from 'stripe';
-import { hasMembershipAccess, isBetaUnlimitedUsage } from '../../server/src/lib/membership-policy.js';
+import { hasMembershipAccess, isBetaUnlimitedUsage } from '../lib/contacts/membership-policy.js';
 
 // Execute the real billing modules and SQL. Only Stripe HTTP and Next request context are substituted.
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -88,7 +88,7 @@ const fakeStripe = {
 const overrides = {
   stripe: class { constructor() { return fakeStripe; } },
   '@/lib/db/drizzle': { db: database },
-  postgres: () => async (strings, ...values) => (await pg.query(strings.reduce((query, part, index) => query + (index ? `$${index}` : '') + part, ''), values)).rows,
+  '../db/client.mjs': {getDatabaseClient:()=>async (strings,...values)=>(await pg.query(strings.reduce((query,part,index)=>query+(index?`$${index}`:'')+part,''),values)).rows},
   '@/lib/db/queries': {
     getUser: async () => ({ id: 1, email: 'member@example.com' }),
     getTeamByStripeCustomerId: async id => (await database.select().from(schema.teams).where(require('drizzle-orm').eq(schema.teams.stripeCustomerId, id)))[0],
@@ -105,8 +105,8 @@ function load(file) {
   } }).outputText;
   new Function('require', 'module', 'exports', compiled)(specifier => {
     if (Object.hasOwn(overrides, specifier)) return overrides[specifier];
-    if (specifier.startsWith('@/')) return load(resolve(root, `${specifier.slice(2)}.ts`));
-    if (specifier.startsWith('.')) return load(resolve(dirname(file), `${specifier}.ts`));
+    if (specifier.startsWith('@/')) return load(resolve(root, /\.[cm]?[jt]s$/.test(specifier) ? specifier.slice(2) : `${specifier.slice(2)}.ts`));
+    if (specifier.startsWith('.')) return load(resolve(dirname(file), /\.[cm]?[jt]s$/.test(specifier) ? specifier : `${specifier}.ts`));
     return require(specifier);
   }, module, module.exports);
   return module.exports;
@@ -120,7 +120,7 @@ const policy = load(resolve(root, 'lib/payments/billing-policy.ts'));
 const plans = load(resolve(root, 'lib/payments/plans.ts'));
 const previousDbUrl = process.env.POSTGRES_URL;
 process.env.POSTGRES_URL = 'fixture-only';
-const account = load(resolve(root, '../server/src/lib/account.js'));
+const account = load(resolve(root, 'lib/contacts/account.js'));
 if (previousDbUrl === undefined) delete process.env.POSTGRES_URL; else process.env.POSTGRES_URL = previousDbUrl;
 const rows = async sql => (await pg.query(sql)).rows;
 const grants = () => rows('SELECT * FROM credit_ledger ORDER BY id');

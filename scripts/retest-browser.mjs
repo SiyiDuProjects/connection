@@ -62,7 +62,7 @@ try {
       web.evaluate(() => Promise.all(Array.from({length:3}, async () => (await fetch('/api/account')).status))),
       worker.evaluate(async () => {
         const {extensionApiToken} = await chrome.storage.local.get('extensionApiToken');
-        return Promise.all(Array.from({length:3}, async () => (await fetch('http://127.0.0.1:8787/api/account', {headers:{Authorization:`Bearer ${extensionApiToken}`}})).status));
+        return Promise.all(Array.from({length:3}, async () => (await fetch('http://127.0.0.1:3000/api/account', {headers:{Authorization:`Bearer ${extensionApiToken}`}})).status));
       }),
     ]);
     assert.ok([...siteStatuses, ...panelStatuses].every(status => status === 200), JSON.stringify({siteStatuses,panelStatuses}));

@@ -145,3 +145,28 @@ test('auth landing rejects external redirects and auth-page loops', () => {
   }
   assert.equal(signedInDestination('/dashboard/profile?edit=1'), '/dashboard/profile?edit=1');
 });
+
+
+test('the old contacts domain preserves website redirects and query parameters', async () => {
+  for (const path of ['/pricing','/connect-extension']) {
+    const response=await middleware(new NextRequest(`https://contacts.reachard.co${path}?extensionId=fixture`));
+    assert.equal(response.status,302);
+    assert.equal(response.headers.get('location'),`https://reachard.co${path}?extensionId=fixture`);
+  }
+});
+
+// The tunnel delivers the public hostname, but Next's internal URL can still
+// be localhost. Neither that URL nor a spoofed forwarding header is canonical.
+test('unified production redirects use the configured HTTPS website origin', async () => {
+  const saved = Object.fromEntries(['NODE_ENV','REACHARD_CONTACTS_ENABLED','BASE_URL'].map(key => [key,process.env[key]]));
+  Object.assign(process.env,{NODE_ENV:'production',REACHARD_CONTACTS_ENABLED:'1',BASE_URL:'https://reachard.co'});
+  try {
+    const response=await middleware(new NextRequest('http://localhost:8787/dashboard/general?tab=password',{
+      headers:{host:'reachard.co','x-forwarded-host':'untrusted.example'}
+    }));
+    const target=new URL(response.headers.get('location'));
+    assert.equal(target.origin,'https://reachard.co');
+    assert.equal(target.pathname,'/sign-in');
+    assert.equal(target.searchParams.get('redirect'),'/dashboard/general?tab=password');
+  } finally {for (const [key,value] of Object.entries(saved)) {if(value===undefined)delete process.env[key];else process.env[key]=value;}}
+});

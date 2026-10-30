@@ -43,8 +43,8 @@ function load(file) {
   } }).outputText;
   const localRequire = specifier => {
     if (Object.hasOwn(overrides, specifier)) return overrides[specifier];
-    if (specifier.startsWith('@/')) return load(resolve(root, `${specifier.slice(2)}.ts`));
-    if (specifier.startsWith('.')) return load(resolve(dirname(file), `${specifier}.ts`));
+    if (specifier.startsWith('@/')) return load(resolve(root, /\.[cm]?[jt]s$/.test(specifier) ? specifier.slice(2) : `${specifier.slice(2)}.ts`));
+    if (specifier.startsWith('.')) return load(resolve(dirname(file), /\.[cm]?[jt]s$/.test(specifier) ? specifier : `${specifier}.ts`));
     return require(specifier);
   };
   new Function('require', 'module', 'exports', source)(localRequire, module, module.exports);
@@ -278,4 +278,22 @@ test('URL origin and sender validation reject attacker domains and header inject
   assert.equal(new URL(crypto.passwordResetUrl(token)).pathname, '/reset-password');
   process.env.EMAIL_FROM = 'Reachard\r\nBcc: attacker@example.com <noreply@example.com>';
   assert.throws(mailer.accountEmailSender);
+});
+
+
+test('the shared bearer verifier rejects unverified, revoked and deleted users for every adapter', async () => {
+  const u=await user();
+  const issued=await tokens.createExtensionToken(u.id,u.session_version);
+  assert.ok(issued);
+  const request=new Request('https://reachard.co/api/settings/custom',{headers:{authorization:`Bearer ${issued.token}`}});
+  assert.equal((await tokens.getUserFromExtensionToken(issued.token)).id,u.id);
+  assert.equal((await tokens.getUserFromExtensionBearer(request)).id,u.id);
+  await rows('UPDATE users SET email_verified_at=null WHERE id=$1',[u.id]);
+  assert.equal(await tokens.getUserFromExtensionToken(issued.token),null);
+  assert.equal(await tokens.getUserFromExtensionBearer(request),null);
+  await rows('UPDATE users SET email_verified_at=now(),deleted_at=now() WHERE id=$1',[u.id]);
+  assert.equal(await tokens.getUserFromExtensionToken(issued.token),null);
+  await rows('UPDATE users SET deleted_at=null WHERE id=$1',[u.id]);
+  await tokens.revokeExtensionTokens(u.id);
+  assert.equal(await tokens.getUserFromExtensionBearer(request),null);
 });
